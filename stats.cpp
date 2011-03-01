@@ -27,8 +27,6 @@ void statistics::generateStatistics(vcf& v) {
 // Initialise some variables.
   isTransition   = false;
   isTransversion = false;
-  isInsertion    = false;
-  isDeletion     = false;
   variantStruct variant;
 
 // Check if this variant is annotated as being in dbsnp and/or hapmap.
@@ -38,7 +36,7 @@ void statistics::generateStatistics(vcf& v) {
 // Determine if the event is an indel/SV or a SNP.  If the variant is
 // an indel, keep track of whether it is an insertion or a deletion.  If
 // the variant is a SNP, determine if it is a transition of a transversion.
-  if (v.ref.size() - v.alt.size() == 0 && v.ref.size() == 1) {
+  if (v.isSNP) {
 
 // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
 // order.  A simple comparison can then be made to determine if the SNP is a 
@@ -75,20 +73,14 @@ void statistics::generateStatistics(vcf& v) {
       snpDistribution[distance] += 1;
     }
   }
-  else if (v.ref.size() - v.alt.size() == 0) {
+  else if (v.isMNP) {
     cout << "Haven't handled MNPs yet." << endl;
     exit(0);
   }
   // Deletions.
-  else if (v.ref.size() > v.alt.size()) {
-    isDeletion = true;
-    variants[v.referenceSequence][v.filters].deletions[v.ref.size() - v.alt.size()] += 1;
-  }
+  else if (v.isDeletion) {variants[v.referenceSequence][v.filters].deletions[v.ref.size() - v.alt.size()] += 1;}
   // Insertions.
-  else if (v.ref.size() < v.alt.size()) {
-    isInsertion = true;
-    variants[v.referenceSequence][v.filters].insertions[v.alt.size() - v.ref.size()] += 1;
-  }
+  else if (v.isInsertion) {variants[v.referenceSequence][v.filters].insertions[v.alt.size() - v.ref.size()] += 1;}
 }
 
 // Print out the statistics to the output file.

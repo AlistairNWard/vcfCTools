@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <iostream>
+#include <stdlib.h>
 
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
     std::stringstream ss(s);
@@ -36,10 +37,10 @@ std::vector<std::string> &split(const std::string &s, char delim, std::vector<st
     std::string item;
     int counter = 1;
     while(std::getline(ss, item, delim) && counter <= n) {
-        elems.push_back(item);
-        counter++;
+      elems.push_back(item);
+      counter++;
     }
-    std::vector<std::string>::iterator test;
+
     return elems;
 }
 

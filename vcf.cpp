@@ -27,6 +27,8 @@ vcf::vcf(void) {
   hasGenotypes = true;
   processGenotypes = false;
   numberDataSets = 0;
+  dbsnpVcf = false;
+  hapmapVcf = false;
 }
 
 // Destructor.
@@ -156,7 +158,6 @@ bool vcf::headerFiles(string& headerLine) {
     exit(1);
   }
   includedDataSets[fileID] = vcfFilename;
-  cout << vcfFilename << endl;
 
 // Set the number of files with information in this vcf file.
   if (fileID > numberDataSets) {numberDataSets = fileID;}
@@ -200,6 +201,19 @@ bool vcf::headerTitles(string& headerLine) {
 
 // No header is present.
 bool vcf::noHeader() {
+
+// Check if any of the other header strings have been populated.  It is possible
+// that there is header information, but the title line (#CHROM POS ...) is missing
+// or malformed.  If this is the case, terminate with a warning.
+
+  if (!headerText.empty() || headerInfoFields.size() != 0 || headerFormatFields.size() != 0 || includedDataSets.size() != 0) {
+    cerr << "No titles line in the vcf file (#CHROM POS etc.)" << endl;
+    cerr << "vcfCTools requires a properly constructed header or no header at all to ensure correct operation." << endl;
+    cerr << "Please add the required title line to the vcf file:" << endl;
+    cerr << "	" << vcfFilename << endl;
+    exit(1);
+  }
+
   hasHeader = false;
 
   closeVcf();
@@ -217,7 +231,7 @@ bool vcf::getRecord() {
 
   vector<string> recordFields;
   if (processGenotypes) {recordFields = split(record, '\t');}
-  else {recordFields = split(record, '\t', 8);}
+  else {recordFields = split(record, '\t', 9);}
 
 // Populate the variant values.
   referenceSequence = recordFields[0];
@@ -225,19 +239,35 @@ bool vcf::getRecord() {
   rsid     = recordFields[2];
   ref      = recordFields[3];
   alt      = recordFields[4];
+  sQuality = recordFields[5];
   quality  = atof(recordFields[5].c_str());
   filters  = recordFields[6];
   info     = recordFields[7];
+  if (recordFields.size() < 9) {hasGenotypes = false;}
+  else {genotypeFormatString = recordFields[8];}
 
 // If the position is not an integer, the conversion to an integer will have
 // failed and position = 0.  In this case, terminate with an error.
-  if (position == 0 || quality == 0) {
+  //if (position == 0 || quality == 0) {
+  if (position == 0) {
     cerr << "Error processing record." << endl;
     if (position == 0) {cerr << "Variant position is not an integer." << endl;}
     if (quality == 0) {cerr << "Variant quality is not an integer or a floating point number." << endl;}
     cerr << endl;
     cerr << "Record:" << endl << endl << record << endl;
     exit(1);
+  }
+
+// Determine the variant type and whether or not there are multiple alternate
+// alleles.
+  size_t found = alt.find(",");
+  if (found != string::npos) {hasMultipleAlternates = true;}
+  else {
+    hasMultipleAlternates = false;
+    isSNP = (ref.size() == 1 && (ref.size() - alt.size()) == 0) ? true : false;
+    isMNP = (ref.size() != 1 && (ref.size() - alt.size()) == 0) ? true : false;
+    isDeletion  = ( (ref.size() - alt.size()) > 0) ? true : false;
+    isInsertion = ( (alt.size() - ref.size()) > 0) ? true : false;
   }
 
 // Add the reference sequence to the map.  If it didn't previously
@@ -252,8 +282,7 @@ bool vcf::getRecord() {
 // If required, parse the genotype format string and create a vector
 // containing all of the individual sample genotype strings.
   if (processGenotypes) {
-    genotypeFormatString = recordFields[8];
-    genotypeFormat       = split(genotypeFormatString, ":");
+    genotypeFormat = split(genotypeFormatString, ":");
 
 // Check that the number of genotype fields is equal to the number of samples
     genotypes = recordFields;
@@ -313,6 +342,21 @@ void vcf::processGenotypeFields(string& genotypeString) {
 // Get the information for a specific info tag.  Also check that it contains
 // the correct number and type of entries.
 void vcf::getInfo(string& tag, int number, string& type, vector<string>& values) {
+
+// If this routine has been called and processInfo is set to false, terminate the
+// program.  Information can only be retrieved if the info fields have been
+// processed and so entering this routine without having procesed the info fields
+// will results in a failue to extract information.
+  if (!processInfo) {
+    cerr << "Routine vcf::getInfo called while processInfo = false." << endl;
+    cerr << "The tool calling this routine must set processInfo = true for this object." << endl;
+    cerr << "If processInfo = false, the info fields are not interrogated (in order to save time)," << endl;
+    cerr << "but the getInfo routine is useless in this instance as required data structures" << endl;
+    cerr << "have not been populated." << endl;
+    cerr << endl;
+    cerr << "Please check the logic of the called tool." << endl;
+    exit(1);
+  }
 
 // Check if the tag exists in the header information.  If so,
 // determine the number and type of entries asscoiated with this
@@ -384,4 +428,25 @@ bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, boo
   }
 
   return success;
+}
+
+// Construct a vcf record.
+string vcf::buildRecord(bool writeGenotypes) {
+  ostringstream sPosition;
+  sPosition << position;
+  string build= referenceSequence + "\t" + \
+                sPosition.str() + "\t" + \
+                rsid + "\t" + \
+                ref + "\t" + \
+                alt + "\t" + \
+                sQuality + "\t" + \
+                filters + "\t" + \
+                info;
+
+  if (hasGenotypes && writeGenotypes) {
+    size_t found = record.find(genotypeFormatString);
+    build += record.substr(found);
+  }
+
+  return build;
 }

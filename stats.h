@@ -76,8 +76,6 @@ class statistics {
   public:
     bool isTransition;
     bool isTransversion;
-    bool isInsertion;
-    bool isDeletion;
     bool inDbsnp;
     bool inHapmap;
     string currentReferenceSequence;

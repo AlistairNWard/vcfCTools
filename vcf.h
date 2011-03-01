@@ -51,11 +51,17 @@ class vcf {
     void processGenotypeFields(string&);
     void getGenotypeInfo(string&, int, string&, vector<string>&);
     bool parseVcf(string&, unsigned int, bool, ostream*);
+    string getDbsnpInfo();
+    string buildRecord(bool);
 
   public:
     istream* input;
     ifstream file;
     string vcfFilename;
+
+// General information.
+    bool dbsnpVcf;
+    bool hapmapVcf;
 
 // Header information and text.
     bool hasHeader;
@@ -80,9 +86,15 @@ class vcf {
     string ref;
     string alt;
     float quality;
+    string sQuality;
     string filters;
     string info;
     map<string, string> infoTags;
+    bool hasMultipleAlternates;
+    bool isSNP;
+    bool isMNP;
+    bool isDeletion;
+    bool isInsertion;
 
 // Genotype information.
     bool hasGenotypes;
