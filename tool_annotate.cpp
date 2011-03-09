@@ -154,12 +154,12 @@ void annotateTool::annotateVcf(vcf& v, vcf& d, ostream* output) {
     if (v.referenceSequence == d.referenceSequence && v.referenceSequence == currentReferenceSequence) {
       if (v.position == d.position) {
         if (d.dbsnpVcf) {
-          int number;
-          string type;
-          vector<string> values;
           string tag = "VC";
-          d.getInfo(tag, number, type, values);
-          if (values[0] == "SNP") {v.rsid = d.rsid;}
+          information sInfo = d.getInfo(tag);
+          if (sInfo.values[0] == "SNP") {
+            v.rsid = d.rsid;
+            v.info += ";DBSNP";
+          }
         }
         else if (d.hapmapVcf) {v.info += ";HM3";}
         string record = v.buildRecord(true);

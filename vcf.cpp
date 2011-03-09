@@ -341,7 +341,9 @@ void vcf::processGenotypeFields(string& genotypeString) {
 
 // Get the information for a specific info tag.  Also check that it contains
 // the correct number and type of entries.
-void vcf::getInfo(string& tag, int number, string& type, vector<string>& values) {
+information vcf::getInfo(string& tag) {
+  information sInfo;
+  sInfo.tag = tag;
 
 // If this routine has been called and processInfo is set to false, terminate the
 // program.  Information can only be retrieved if the info fields have been
@@ -362,44 +364,47 @@ void vcf::getInfo(string& tag, int number, string& type, vector<string>& values)
 // determine the number and type of entries asscoiated with this
 // tag.
   if (headerInfoFields.count(tag) > 0) {
-    number = headerInfoFields[tag].number;
-    type   = headerInfoFields[tag].type;
+    sInfo.number = headerInfoFields[tag].number;
+    sInfo.type   = headerInfoFields[tag].type;
 
 // First check that the tag exists in the information string.  Then split
 // the entry on commas.  For flag entries, do not perform the split.
     if (infoTags.count(tag) > 0) {
-      if (number == 0 && type == "Flag") {values.push_back("true");}
-      else if (number != 0 && type == "Flag") {
+      if (sInfo.number == 0 && sInfo.type == "Flag") {sInfo.values.push_back("true");}
+      else if (sInfo.number != 0 && sInfo.type == "Flag") {
         cerr << "Error processing info string." << endl;
         cerr << "Header inforamtion for entry: " << tag << " lists a flag with a non-zero number of entries." << endl;
         exit(1);
       }
       else {
-        values = split(infoTags[tag],",");
-        if (values.size() != number) {
+        sInfo.values = split(infoTags[tag],",");
+        if (sInfo.values.size() != sInfo.number) {
           cerr << "Error processing info string." << endl;
           cerr << "Unexpected number of entries for info field " << tag << " at " << referenceSequence << ":" << position << endl;
           exit(1);
         }
       }
     }
-    else {number = 0;}
+    else {sInfo.number = 0;}
   }
   else {
     cerr << "Error processing info string." << endl;
     cerr << "No information in the header for info entry: " << tag << endl;
     exit(1);
   }
+
+  return sInfo;
 }
 
 // Get the genotype information.
-void vcf::getGenotypeInfo(string& tag, int number, string& type, vector<string>& values) {
+information vcf::getGenotypeInfo(string& tag) {
+  information gInfo;
   if (headerFormatFields.count(tag) > 0) {
-    number = headerFormatFields[tag].number;
-    type   = headerFormatFields[tag].type;
+    gInfo.number = headerFormatFields[tag].number;
+    gInfo.type   = headerFormatFields[tag].type;
 
-    values = split(genotypeTags[tag], ",");
-    if (values.size() != number) {
+    gInfo.values = split(genotypeTags[tag], ",");
+    if (gInfo.values.size() != gInfo.number) {
       cerr << "Error processing info string." << endl;
       cerr << "Unexpected number of entries for genotype entry " << tag << " at " << referenceSequence << ":" << position << endl;
       exit(1);
@@ -410,6 +415,8 @@ void vcf::getGenotypeInfo(string& tag, int number, string& type, vector<string>&
     cerr << "No information in the header for genotype format entry: " << tag << endl;
     exit(1);
   }
+
+  return gInfo;
 }
 
 // Parse through the vcf file until the correct reference sequence is

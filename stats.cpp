@@ -17,6 +17,8 @@ using namespace vcfCTools;
 statistics::statistics(void) {
   lastSnpPosition = -1;
   currentReferenceSequence = "";
+  hasIndel = false;
+  hasSnp = false;
 }
 
 // Destructor.
@@ -37,6 +39,7 @@ void statistics::generateStatistics(vcf& v) {
 // an indel, keep track of whether it is an insertion or a deletion.  If
 // the variant is a SNP, determine if it is a transition of a transversion.
   if (v.isSNP) {
+    hasSnp = true;
 
 // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
 // order.  A simple comparison can then be made to determine if the SNP is a 
@@ -78,13 +81,19 @@ void statistics::generateStatistics(vcf& v) {
     exit(0);
   }
   // Deletions.
-  else if (v.isDeletion) {variants[v.referenceSequence][v.filters].deletions[v.ref.size() - v.alt.size()] += 1;}
+  else if (v.isDeletion) {
+    hasIndel = true;
+    variants[v.referenceSequence][v.filters].deletions[v.ref.size() - v.alt.size()] += 1;
+  }
   // Insertions.
-  else if (v.isInsertion) {variants[v.referenceSequence][v.filters].insertions[v.alt.size() - v.ref.size()] += 1;}
+  else if (v.isInsertion) {
+    hasIndel = true;
+    variants[v.referenceSequence][v.filters].insertions[v.alt.size() - v.ref.size()] += 1;
+  }
 }
 
 // Print out the statistics to the output file.
-void statistics::printStatistics(ostream* output) {
+void statistics::printSnpStatistics(ostream* output) {
   countByFilter();
   *output << setw(22) << "";
   *output << setw(60) << "--------------------------# SNPs--------------------------";
@@ -169,4 +178,16 @@ void statistics::printVariantStruct(ostream* output, string& filter, variantStru
   *output << setw(8) << setprecision(3) << knowntstv;
   *output << setw(12) << var.hapmap;
   *output << endl;
+}
+
+// Print out statistics on indels.
+void statistics::printIndelStatistics(ostream* output) {
+  map<unsigned int, unsigned int>::iterator iter;
+  for (iter = totalVariants["total"]["PASS"].insertions.begin(); iter != totalVariants["total"]["PASS"].insertions.end(); iter++) {
+    cout << (*iter).first << " " << (*iter).second << endl;
+  }
+  cout << "DELETIONS" << endl;
+  for (iter = totalVariants["total"]["PASS"].deletions.begin(); iter != totalVariants["total"]["PASS"].deletions.end(); iter++) {
+    cout << (*iter).first << " " << (*iter).second << endl;
+  }
 }

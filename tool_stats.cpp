@@ -112,7 +112,8 @@ int statsTool::Run(int argc, char* argv[]) {
   }
 
 // Print out the statistics.
-  stats.printStatistics(output);
+  if (stats.hasSnp) {stats.printSnpStatistics(output);}
+  if (stats.hasIndel) {stats.printIndelStatistics(output);}
 
 // Close the vcf file and return.
   v.closeVcf();

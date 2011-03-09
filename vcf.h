@@ -32,6 +32,16 @@ struct headerInfoStruct {
   bool success;
 };
 
+struct information {
+  string tag;
+  unsigned int number;
+  string type;
+  vector<string> values;
+  bool flag;
+
+  information() {flag = false;}
+};
+
 class vcf {
   public:
     vcf(void);
@@ -47,9 +57,9 @@ class vcf {
     bool noHeader();
     bool getRecord();
     void processInfoFields();
-    void getInfo(string&, int, string&, vector<string>&);
+    information getInfo(string&);
     void processGenotypeFields(string&);
-    void getGenotypeInfo(string&, int, string&, vector<string>&);
+    information getGenotypeInfo(string&);
     bool parseVcf(string&, unsigned int, bool, ostream*);
     string getDbsnpInfo();
     string buildRecord(bool);

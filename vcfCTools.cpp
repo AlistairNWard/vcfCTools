@@ -10,6 +10,7 @@
 
 // includes
 #include "tool_annotate.h"
+#include "tool_filter.h"
 #include "tool_intersect.h"
 #include "tool_merge.h"
 #include "tool_stats.h"
@@ -28,6 +29,7 @@ using namespace std;
 
 // vcfCTools tool list
 static const string ANNOTATE  = "annotate";
+static const string FILTER    = "filter";
 static const string INTERSECT = "intersect";
 static const string MERGE     = "merge";
 static const string STATS     = "stats";
@@ -56,6 +58,7 @@ static bool IsVersion(char* str) {
 // Determine the tool.
 AbstractTool* CreateTool(const string& arg) {
   if (arg == ANNOTATE ) return new annotateTool;
+  if (arg == FILTER   ) return new filterTool;
   if (arg == INTERSECT) return new intersectTool;
   if (arg == MERGE    ) return new mergeTool;
   if (arg == STATS    ) return new statsTool;
@@ -79,6 +82,7 @@ int Help(int argc, char* argv[]) {
   cout << "Usage: vcfCTools [tool] [options]" << endl << endl;
   cout << "Available tools:" << endl;
   cout << "  annotate:\n\tAnnotate a vcf file with dbsnp or hapmap membership." << endl;
+  cout << "  filter:\n\tFilter the vcf file on specified criteria and populate the filter field." << endl;
   cout << "  intersect:\n\tCalculate the intersection of two vcf files (or a vcf and a bed file)." << endl;
   cout << "  merge:\n\tMerge a list of vcf files." << endl;
   cout << "  stats:\n\tGenerate statistics on a vcf file." << endl;

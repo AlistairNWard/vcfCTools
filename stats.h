@@ -69,7 +69,8 @@ class statistics {
     statistics(void);
     ~statistics(void);
     void generateStatistics(vcf&);
-    void printStatistics(ostream*);
+    void printSnpStatistics(ostream*);
+    void printIndelStatistics(ostream*);
     void countByFilter();
     void printVariantStruct(ostream*, string&, variantStruct&);
 
@@ -78,6 +79,8 @@ class statistics {
     bool isTransversion;
     bool inDbsnp;
     bool inHapmap;
+    bool hasSnp;
+    bool hasIndel;
     string currentReferenceSequence;
     unsigned int lastSnpPosition;
     map<string, string> referenceSequences;

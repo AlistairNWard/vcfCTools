@@ -155,12 +155,8 @@ int validateTool::Run(int argc, char* argv[]) {
 // line in the header explaining the field and that the field
 // contains the correct number and type of entries.
     for (map<string, string>::iterator iter = v.infoTags.begin(); iter != v.infoTags.end(); iter++) {
-      int number;
-      string type;
-      vector<string> values;
-
       string tag = (*iter).first;
-      v.getInfo(tag, number, type, values);
+      information sInfo = v.getInfo(tag);
     }
 
 // Parse all of the genotype information and check that it is complete and
@@ -168,11 +164,7 @@ int validateTool::Run(int argc, char* argv[]) {
     for (vector<string>::iterator iter = v.genotypes.begin(); iter != v.genotypes.end(); iter++) {
       v.processGenotypeFields(*iter);
       for (vector<string>::iterator formatIter = v.genotypeFormat.begin(); formatIter != v.genotypeFormat.end(); formatIter++) {
-        int number;
-        string type;
-        vector<string> values;
-
-        v.getGenotypeInfo(*formatIter, number, type, values);
+        information sInfo = v.getGenotypeInfo(*formatIter);
       }
     }
   }

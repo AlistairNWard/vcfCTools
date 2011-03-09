@@ -139,6 +139,7 @@ int mergeTool::Run(int argc, char* argv[]) {
 
 // Close the vcf file.
     v.closeVcf(); // Close the vcf file
+    index++; // Increment the index to ensure header information is written out once.
   }
 
   return 0;

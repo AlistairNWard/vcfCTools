@@ -127,6 +127,7 @@ void unionTool::unionVcf(vcf& v1, vcf& v2, unsigned int priority, ostream* outpu
     if (!success1) {
       *output << v2.record << endl;
       success2 = v2.getRecord();
+      break;
     }
 
 // If the end of the second vcf file is reached, write out the
@@ -134,11 +135,12 @@ void unionTool::unionVcf(vcf& v1, vcf& v2, unsigned int priority, ostream* outpu
     if (!success2) {
       *output << v1.record << endl;
       success1 = v1.getRecord();
+      break;
     }
 
     if (v1.referenceSequence == v2.referenceSequence && v1.referenceSequence == currentReferenceSequence) {
       if (v1.position == v2.position) {
-        writeVcfRecord(priority, v1, v2, output);
+        writeVcfRecord(priority, v1, v2, output); // tools.cpp
         success1 = v1.getRecord();
         success2 = v2.getRecord();
       }

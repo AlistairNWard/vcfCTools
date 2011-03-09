@@ -130,11 +130,11 @@ void uniqueTool::uniqueVcf(vcf& v1, vcf& v2, ostream* output) {
         success2 = v2.getRecord();
       }
       else if (v2.position > v1.position) {success1 = v1.parseVcf(v2.referenceSequence, v2.position, true, output);}
-      else if (v1.position > v2.position) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, true, NULL);}
+      else if (v1.position > v2.position) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, false, output);}
     }
     else {
       if (v1.referenceSequence == currentReferenceSequence) {success1 = v1.parseVcf(v2.referenceSequence, v2.position, true, output);}
-      else if (v2.referenceSequence == currentReferenceSequence) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, true, NULL);}
+      else if (v2.referenceSequence == currentReferenceSequence) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, false, output);}
 
 // If the last record for a reference sequence is the same for both vcf
 // files, they will both have referenceSequences different from the
