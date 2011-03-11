@@ -129,11 +129,96 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, unsigned int priority, ostrea
 // s soon as the end of either file is reached, there can be no
 // more intersecting SNPs, so terminate.
   while (success1 && success2) {
+    cout << v1.referenceSequence << ":" << v1.position << " " << v2.referenceSequence << ":" << v2.position << endl;
     if (v1.referenceSequence == v2.referenceSequence && v1.referenceSequence == currentReferenceSequence) {
+      cout << "EQUAL" << endl;
       if (v1.position == v2.position) {
-        writeVcfRecord(priority, v1, v2, output); // tools.cpp
-        success1 = v1.getRecord();
-        success2 = v2.getRecord();
+
+// It is possible that there are multiple records for this locus in each file.
+// Store the record and relevant info (e.g. variant type, length, alleles, quality)
+// and move to the next record and check if it corresponds to the same locus.
+// The intersection is only true for variants of the same class (i.e. if two records
+// have a variant at ref:pos, but one is an indel and the other a SNP, the record
+// will not be included in the intersection).  After gathering all variants for this
+// locus, check the intersections.
+        currentPosition = v1.position;
+
+// Check the first vcf file.
+        while (v1.referenceSequence == currentReferenceSequence && v1.position == currentPosition && success1) {
+          s = setStoredVariant(v1);
+          if (v1.isSNP) {snpsAtLocus1.push_back(s);}
+          if (v1.isMNP) {mnpsAtLocus1.push_back(s);}
+          if (v1.isDeletion || v1.isInsertion) {indelsAtLocus1.push_back(s);}
+          success1 = v1.getRecord();
+        }
+
+// and the second vcf file.
+        while (v2.referenceSequence == currentReferenceSequence && v2.position == currentPosition && success2) {
+          s = setStoredVariant(v2);
+          if (v2.isSNP) {snpsAtLocus2.push_back(s);}
+          if (v2.isMNP) {mnpsAtLocus2.push_back(s);}
+          if (v2.isDeletion || v2.isInsertion) {indelsAtLocus2.push_back(s);}
+          success2 = v2.getRecord();
+        }
+
+// Now compare the contents of the two sets of variants at this locus.  Only compare 
+// variants of the same class.
+
+        vector<storedVariants>::iterator sVariant1;
+        vector<storedVariants>::iterator sVariant2;
+        //SNPs
+        if (snpsAtLocus1.size() != 0 && snpsAtLocus2.size() != 0) {
+          if (snpsAtLocus1.size() > 1 || snpsAtLocus2.size() > 1) {
+            cerr << "Cannot handle multiple SNP alleles in separate records yet.  Coordinate: " << currentReferenceSequence;
+            cerr << ":" << currentPosition << endl;
+            exit(0);
+          }
+          else {
+            // Both files have a SNP at this locus.  If the reference alleles
+            // are different, there is an error.  If the alternate alleles are
+            // the same, use priority to determine which record to output.
+            if (snpsAtLocus1[0].ref != snpsAtLocus2[0].ref) {
+              cerr << "SNPs at " << currentReferenceSequence << ":" << currentPosition;
+              cerr << " have different reference alleles (" << snpsAtLocus1[0].ref << "/";
+              cerr << snpsAtLocus2[0].ref << endl;
+              cerr << "Please check input vcf files." << endl;
+              exit(0);
+            }
+            // Different alternates.
+            if (snpsAtLocus1[0].alt != snpsAtLocus2[0].alt) {
+              cerr << "Different SNP alt alleles not yet handled " << currentReferenceSequence << ":" << currentPosition << endl;
+              exit(0);
+            }
+            // Both SNPs have the same reference and alternate alleles.
+            else {
+              *output << snpsAtLocus1[0].record << endl;
+            }
+          }
+          snpsAtLocus1.clear();
+          snpsAtLocus2.clear();
+        }
+        //MNPs
+        if (mnpsAtLocus1.size() != 0 && mnpsAtLocus2.size() != 0) {
+          cerr << "Not yet handling MNPs" << endl;
+          mnpsAtLocus1.clear();
+          mnpsAtLocus2.clear();
+        }
+        //indels
+        if (indelsAtLocus1.size() != 0 && indelsAtLocus2.size() != 0) {
+          for (sVariant1 = indelsAtLocus1.begin(); sVariant1 != indelsAtLocus1.end(); sVariant1++) {
+            for (sVariant2 = indelsAtLocus2.begin(); sVariant2 != indelsAtLocus2.end(); sVariant2++) {
+              if ((*sVariant1).ref == (*sVariant2).ref && (*sVariant1).alt == (*sVariant2).alt) {
+                *output << (*sVariant1).record << endl;
+                indelsAtLocus2.erase(sVariant2);
+                break;
+              }
+            }
+          }
+          indelsAtLocus1.clear();
+          indelsAtLocus2.clear();
+        }
+
+        //writeVcfRecord(priority, v1, v2, output); // tools.cpp
       }
       else if (v2.position > v1.position) {success1 = v1.parseVcf(v2.referenceSequence, v2.position, false, output);}
       else if (v1.position > v2.position) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, false, output);}

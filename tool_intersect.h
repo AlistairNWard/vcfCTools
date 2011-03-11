@@ -45,10 +45,18 @@ class intersectTool : public AbstractTool {
     vector<string> vcfFiles;
     string outputFile;
     ostream* output;
+    storedVariants s;
+    vector<struct storedVariants> snpsAtLocus1;
+    vector<struct storedVariants> mnpsAtLocus1;
+    vector<struct storedVariants> indelsAtLocus1;
+    vector<struct storedVariants> snpsAtLocus2;
+    vector<struct storedVariants> mnpsAtLocus2;
+    vector<struct storedVariants> indelsAtLocus2;
 
     string priorityFile;
     unsigned int priority;
     string currentReferenceSequence;
+    unsigned int currentPosition;
 };
 
 } // namespace vcfCTools

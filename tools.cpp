@@ -231,3 +231,19 @@ void writeVcfRecord(unsigned int priority, vcf& v1, vcf& v2, ostream* output) {
     exit(1);
   }
 }
+
+// Populate the storedVariants structure with variant information.
+storedVariants setStoredVariant(vcf& v) {
+  storedVariants s;
+  s.record = v.record;
+  s.quality = v.quality;
+  s.ref = v.ref;
+  s.alt = v.alt;
+  s.hasMultipleAlternates = v.hasMultipleAlternates;
+  s.isSNP = v.isSNP;
+  s.isMNP = v.isMNP;
+  s.isDeletion = v.isDeletion;
+  s.isInsertion = v.isInsertion;
+
+  return s;
+}
