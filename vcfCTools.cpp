@@ -15,8 +15,6 @@
 #include "tool_merge.h"
 #include "tool_stats.h"
 #include "tool_validate.h"
-#include "tool_union.h"
-#include "tool_unique.h"
 #include "vcfCTools_version.h"
 
 #include <cstdio>
@@ -33,8 +31,6 @@ static const string FILTER    = "filter";
 static const string INTERSECT = "intersect";
 static const string MERGE     = "merge";
 static const string STATS     = "stats";
-static const string UNION     = "union";
-static const string UNIQUE    = "unique";
 static const string VALIDATE  = "validate";
 
 // help and version
@@ -62,8 +58,6 @@ AbstractTool* CreateTool(const string& arg) {
   if (arg == INTERSECT) return new intersectTool;
   if (arg == MERGE    ) return new mergeTool;
   if (arg == STATS    ) return new statsTool;
-  if (arg == UNION    ) return new unionTool;
-  if (arg == UNIQUE   ) return new uniqueTool;
   if (arg == VALIDATE ) return new validateTool;
 
   return 0;
@@ -86,8 +80,6 @@ int Help(int argc, char* argv[]) {
   cout << "  intersect:\n\tCalculate the intersection of two vcf files (or a vcf and a bed file)." << endl;
   cout << "  merge:\n\tMerge a list of vcf files." << endl;
   cout << "  stats:\n\tGenerate statistics on a vcf file." << endl;
-  cout << "  union:\n\tCalculate the union of two vcf files." << endl;
-  cout << "  unique:\n\tCalculate the unique fraction of a vcf file." << endl;
   cout << "  validate:\n\tValidate a vcf file." << endl;
   cout << endl;
   cout << "vcfCTools help tool for help on a specific tool." << endl << endl;

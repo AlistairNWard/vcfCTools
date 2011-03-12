@@ -36,7 +36,7 @@ class intersectTool : public AbstractTool {
     int parseCommandLine(int argc, char* argv[]);
 
   private:
-    void intersectVcf(vcf&, vcf&, unsigned int, ostream*);
+    void intersectVcf(vcf&, vcf&, ostream*, bool, bool, bool, string);
     void intersectVcfBed(vcf&, bed&, ostream*);
 
   private:
@@ -53,8 +53,10 @@ class intersectTool : public AbstractTool {
     vector<struct storedVariants> mnpsAtLocus2;
     vector<struct storedVariants> indelsAtLocus2;
 
-    string priorityFile;
-    unsigned int priority;
+    bool findCommon;
+    bool findUnion;
+    bool findUnique;
+    string writeFrom;
     string currentReferenceSequence;
     unsigned int currentPosition;
 };

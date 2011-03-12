@@ -36,9 +36,21 @@ int intersectTool::Help(void) {
   cout << "	input bed file." << endl;
   cout << "  -o, --output" << endl;
   cout << "	output vcf file." << endl;
-  cout << "  -f, --priority-file" << endl;
-  cout << "	output records from the vcf file (default: record with highest quality)." << endl;
+  cout << "  -c, --common" << endl;
+  cout << "	output variants present in both files." << endl;
+  cout << "  -u, --union" << endl;
+  cout << "	output variants present in either file." << endl;
+  cout << "  -q, --unique" << endl;
+  cout << "	output variants unique to one of the files." << endl;
   cout << endl;
+  cout << "Additional information:" << endl;
+  cout << "  The -c, -u and -q options require either 'a', 'b' or 'q' (not valid for -q) as an argument." << endl;
+  cout << endl;
+  cout << "  a: Write out records from the first file." << endl;
+  cout << "  b: Write out records from the second file." << endl;
+  cout << "  q: Write out records with the highest variant quality." << endl;
+  cout << endl;
+  exit(0);
 
   return 0;
 }
@@ -55,18 +67,20 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 
   // Define the long options.
   while (true) {
-  static struct option long_options[] = {
-    {"help", no_argument, 0, 'h'},
-    {"bed", required_argument, 0, 'b'},
-    {"priority-file", required_argument, 0, 'f'},
-    {"in", required_argument, 0, 'i'},
-    {"out", required_argument, 0, 'o'},
+    static struct option long_options[] = {
+      {"help", no_argument, 0, 'h'},
+      {"bed", required_argument, 0, 'b'},
+      {"in", required_argument, 0, 'i'},
+      {"out", required_argument, 0, 'o'},
+      {"common", required_argument, 0, 'c'},
+      {"union", required_argument, 0, 'u'},
+      {"unique", required_argument, 0, 'q'},
 
-    {0, 0, 0, 0}
-  };
+      {0, 0, 0, 0}
+    };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:f:i:o:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:c:u:q:", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -84,25 +98,37 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       case 'h':
         return Help();
 
-      // Determine which file takes priority.
-      case 'f':
-        priorityFile = optarg;
-        break;
-
       // Output file.
       case 'o':
         outputFile = optarg;
         break;
 
+      // Common variants.
+      case 'c':
+        findCommon = true;
+        writeFrom = optarg;
+        break;
+
+      // Find the union.
+      case 'u':
+        findUnion = true;
+        writeFrom = optarg;
+        break;
+
+      // Unique variants.
+      case 'q':
+        findUnique = true;
+        writeFrom = optarg;
+        break;
+
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1];
+        cout << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
       default:
         abort ();
-
     }
   }
 
@@ -118,29 +144,58 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
     exit(1);
   }
 
+// Check whether finding common, union or unique variants.  If more than one of
+// these options are selected, terminate the program.
+  if ( (findCommon + findUnion + findUnique) > 1) {
+    cerr << "Only one operation (-c [--common], -u [--union] or -q [--unique]) can be performed at once." << endl;
+    exit(1);
+  } else if (!findCommon && !findUnion && !findUnique) {
+    cerr << "One operation (-c [--common], -u [--union] or -q [--unique]) must be selected." << endl;
+    exit(1);
+  } else {
+    if (writeFrom == "a") {cerr << "Writing out records from file: " << vcfFiles[0] << endl;}
+    else if (writeFrom == "b") {cerr << "Writing out records from file: " << vcfFiles[1] << endl;}
+    else if ( (findCommon || findUnion) && writeFrom == "q") {cerr << "Writing out records with the highest quality value." << endl;}
+    else {
+      cerr << "The file from which the records are to be written needs to be selected." << endl;
+      cerr << "    a - write records from the first inputted file." << endl;
+      cerr << "    b - write records from the second inputted file." << endl;
+      if (findCommon) {cerr << "    q - write records with the highest variant quality." << endl;}
+      exit(1);
+    }
+  }
+    
   return 0;
 }
 
-void intersectTool::intersectVcf(vcf& v1, vcf& v2, unsigned int priority, ostream* output) {
+void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCommon, bool findUnion, bool findUnique, string writeFrom) {
   bool success1 = v1.getRecord();
   bool success2 = v2.getRecord();
   string currentReferenceSequence = v1.referenceSequence;
 
-// s soon as the end of either file is reached, there can be no
+// Define writeWhileParse.  If parsing through one of the vcf files to find the next
+// common coordinate, this Boolean will instruct the parseVcf routine on whether or
+// not to write the records to the output file.
+  bool writeWhileParse;
+
+// As soon as the end of either file is reached, there can be no
 // more intersecting SNPs, so terminate.
   while (success1 && success2) {
-    cout << v1.referenceSequence << ":" << v1.position << " " << v2.referenceSequence << ":" << v2.position << endl;
     if (v1.referenceSequence == v2.referenceSequence && v1.referenceSequence == currentReferenceSequence) {
-      cout << "EQUAL" << endl;
       if (v1.position == v2.position) {
 
 // It is possible that there are multiple records for this locus in each file.
 // Store the record and relevant info (e.g. variant type, length, alleles, quality)
 // and move to the next record and check if it corresponds to the same locus.
-// The intersection is only true for variants of the same class (i.e. if two records
-// have a variant at ref:pos, but one is an indel and the other a SNP, the record
-// will not be included in the intersection).  After gathering all variants for this
-// locus, check the intersections.
+//
+// For intersections, only output records that occur in both files and have the same
+// ref and alt alleles.
+//
+// For unions, include all variants, but ensure that each variant is only output once.
+//
+// For unique fractions, only output those variants unique to one of the vcf files.
+// A deletion in one file that has a deletion in the other file will be included if the
+// ref and alt alleles are different.
         currentPosition = v1.position;
 
 // Check the first vcf file.
@@ -171,27 +226,33 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, unsigned int priority, ostrea
           if (snpsAtLocus1.size() > 1 || snpsAtLocus2.size() > 1) {
             cerr << "Cannot handle multiple SNP alleles in separate records yet.  Coordinate: " << currentReferenceSequence;
             cerr << ":" << currentPosition << endl;
-            exit(0);
+            exit(1);
           }
           else {
             // Both files have a SNP at this locus.  If the reference alleles
-            // are different, there is an error.  If the alternate alleles are
-            // the same, use priority to determine which record to output.
+            // are different, there is an error.
             if (snpsAtLocus1[0].ref != snpsAtLocus2[0].ref) {
               cerr << "SNPs at " << currentReferenceSequence << ":" << currentPosition;
               cerr << " have different reference alleles (" << snpsAtLocus1[0].ref << "/";
               cerr << snpsAtLocus2[0].ref << endl;
               cerr << "Please check input vcf files." << endl;
-              exit(0);
+              exit(1);
             }
             // Different alternates.
             if (snpsAtLocus1[0].alt != snpsAtLocus2[0].alt) {
               cerr << "Different SNP alt alleles not yet handled " << currentReferenceSequence << ":" << currentPosition << endl;
-              exit(0);
+              exit(1);
             }
             // Both SNPs have the same reference and alternate alleles.
             else {
-              *output << snpsAtLocus1[0].record << endl;
+              if (!findUnique) {
+                if (writeFrom == "a") {*output << snpsAtLocus1[0].record << endl;}
+                else if (writeFrom == "b") {*output << snpsAtLocus2[0].record << endl;}
+                else {
+                  if (snpsAtLocus1[0].quality >= snpsAtLocus2[0].quality) {*output << snpsAtLocus1[0].record << endl;}
+                  else {*output << snpsAtLocus2[0].record << endl;}
+                }
+              }
             }
           }
           snpsAtLocus1.clear();
@@ -206,26 +267,60 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, unsigned int priority, ostrea
         //indels
         if (indelsAtLocus1.size() != 0 && indelsAtLocus2.size() != 0) {
           for (sVariant1 = indelsAtLocus1.begin(); sVariant1 != indelsAtLocus1.end(); sVariant1++) {
+            bool unique = true;
             for (sVariant2 = indelsAtLocus2.begin(); sVariant2 != indelsAtLocus2.end(); sVariant2++) {
               if ((*sVariant1).ref == (*sVariant2).ref && (*sVariant1).alt == (*sVariant2).alt) {
-                *output << (*sVariant1).record << endl;
+                unique = false;
+                if (!findUnique) {
+                  if (writeFrom == "a") {*output << sVariant1->record << endl;}
+                  else if (writeFrom == "b") {*output << sVariant2->record << endl;}
+                  else if (writeFrom == "q") {
+                    if (sVariant1->quality >= sVariant2->quality) {*output << sVariant1->record << endl;}
+                    else {*output << sVariant2->record << endl;}
+                  }
+                }
                 indelsAtLocus2.erase(sVariant2);
                 break;
               }
+            }
+            // If the variant from the first vcf file was not present in the second file, the Boolean
+            // unique will be true.  If looking for the union of the files or the variants unique to
+            // the first file, this variant should be written out.
+            if (unique && ( (findUnique && writeFrom == "a") || findUnion) ) {*output << sVariant1->record << endl;}
+          }
+
+          // All elements of indelsAtLocus2 (the indels present in the second file), were deleted if the
+          // same variant was present in the first file.  This means that all variants remaining in this
+          // vector are unique to the second vcf file and should be written out if the union or variants
+          // unique to the second file were requested.
+          if (findUnion || (findUnique && writeFrom == "b")) {
+            for (sVariant2 = indelsAtLocus2.begin(); sVariant2 != indelsAtLocus2.end(); sVariant2++) {
+              *output << sVariant2->record << endl;
             }
           }
           indelsAtLocus1.clear();
           indelsAtLocus2.clear();
         }
-
-        //writeVcfRecord(priority, v1, v2, output); // tools.cpp
+      } else if (v2.position > v1.position) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success1 = v1.parseVcf(v2.referenceSequence, v2.position, writeWhileParse, output);
+      } else if (v1.position > v2.position) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output);
       }
-      else if (v2.position > v1.position) {success1 = v1.parseVcf(v2.referenceSequence, v2.position, false, output);}
-      else if (v1.position > v2.position) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, false, output);}
     }
     else {
-      if (v1.referenceSequence == currentReferenceSequence) {success1 = v1.parseVcf(v2.referenceSequence, v2.position, false, output);}
-      else if (v2.referenceSequence == currentReferenceSequence) {success2 = v2.parseVcf(v1.referenceSequence, v1.position, false, output);}
+      if (v1.referenceSequence == currentReferenceSequence) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success1 = v1.parseVcf(v2.referenceSequence, v2.position, writeWhileParse, output);
+      } else if (v2.referenceSequence == currentReferenceSequence) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output);
+      }
 
 // If the last record for a reference sequence is the same for both vcf
 // files, they will both have referenceSequences different from the
@@ -273,6 +368,9 @@ void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
 
 // Run the tool.
 int intersectTool::Run(int argc, char* argv[]) {
+  findCommon = false;
+  findUnion  = false;
+  findUnique = false;
   int getOptions = intersectTool::parseCommandLine(argc, argv);
   output = openOutputFile(outputFile);
 
@@ -302,10 +400,8 @@ int intersectTool::Run(int argc, char* argv[]) {
     b.closeBed();
   }
   else {
-    priority = setVcfPriority(priorityFile, vcfFiles); // tools.cpp
     vcf v1; // Create a vcf object.
     vcf v2; // Create a vcf object.
-    vcf v3; // Generate a new vcf object that will contain the header information of the new file.
     
 // Open the vcf files.
     v1.openVcf(vcfFiles[0]);
@@ -314,12 +410,7 @@ int intersectTool::Run(int argc, char* argv[]) {
 // Read in the header information.
     v1.parseHeader();
     v2.parseHeader();
-    if (priority == 3) {
-      mergeHeaders(v1, v2, v3); // tools.cpp
-      v1.processInfo = true;
-      v2.processInfo = true;
-    }
-    else {checkDataSets(v1, v2);}
+    checkDataSets(v1, v2); // tools.cpp
 
 // Check that the header for the two files contain the same samples.
     if (v1.samples != v2.samples) {
@@ -328,13 +419,11 @@ int intersectTool::Run(int argc, char* argv[]) {
     }
     else {
       string taskDescription = "##vcfCTools=intersect " + vcfFiles[0] + ", " + vcfFiles[1];
-      if (priority == 3) {writeHeader(output, v3, true, taskDescription);}
-      else if ( (priority == 2 && v2.hasHeader) || !v1.hasHeader) {writeHeader(output, v2, true, taskDescription);} // tools.cpp
-      else {writeHeader(output, v1, true, taskDescription);} // tools.cpp
+      writeHeader(output, v1, true, taskDescription); // tools.cpp
     }
 
 // Intersect the two vcf files.
-    intersectVcf(v1, v2, priority, output);
+    intersectVcf(v1, v2, output, findCommon, findUnion, findUnique, writeFrom);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.

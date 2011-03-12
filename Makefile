@@ -7,8 +7,6 @@ HEADERS = bed.h \
           tool_intersect.h \
           tool_merge.h \
           tool_stats.h \
-          tool_union.h \
-          tool_unique.h \
 	  tool_validate.h \
           tools.h \
           vcf.h \
@@ -21,8 +19,6 @@ SOURCES = bed.cpp \
           tool_intersect.cpp \
           tool_merge.cpp \
           tool_stats.cpp \
-          tool_union.cpp \
-          tool_unique.cpp \
           tool_validate.cpp \
           tools.cpp \
           vcf.cpp
