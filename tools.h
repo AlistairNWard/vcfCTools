@@ -48,5 +48,6 @@ void writeHeader(ostream*, vcf&, bool, string&);
 void checkDataSets(vcf&, vcf&);
 void writeVcfRecord(unsigned int, vcf&, vcf&, ostream*);
 storedVariants setStoredVariant(vcf&);
+void compareVariants (vector<storedVariants>&, vector<storedVariants>&, bool, bool, string, ostream*);
 
 #endif

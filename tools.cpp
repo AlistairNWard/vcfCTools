@@ -247,3 +247,38 @@ storedVariants setStoredVariant(vcf& v) {
 
   return s;
 }
+
+// Compare the variants at a single locus.
+void compareVariants (vector<storedVariants>& var1, vector<storedVariants>& var2, bool findUnique, bool findUnion, string writeFrom, ostream* output){
+  vector<storedVariants>::iterator iter1;
+  vector<storedVariants>::iterator iter2;
+  for (iter1 = var1.begin(); iter1 != var1.end(); iter1++) {
+    bool unique = true;
+    for (iter2 = var2.begin(); iter2 != var2.end(); iter2++) {
+      if (iter1->ref == iter2->ref && iter1->alt == iter2->alt) {
+        unique = false;
+        if (!findUnique) {
+          if (writeFrom == "a") {*output << iter1->record << endl;}
+          else if (writeFrom == "b") {*output << iter2->record << endl;}
+          else if (writeFrom == "q") {
+            if (iter1->quality >= iter2->quality) {*output << iter1->record << endl;}
+            else {*output << iter2->record << endl;}
+          }
+        }
+        var2.erase(iter2);
+        break;
+      }
+    }
+    // If the variant from the first vcf file was not present in the second file, the Boolean
+    // unique will be true.  If looking for the union of the files or the variants unique to
+    // the first file, this variant should be written out.
+    if (unique && ( (findUnique && writeFrom == "a") || findUnion) ) {*output << iter1->record << endl;}
+  }
+  // All elements of indelsAtLocus2 (the indels present in the second file), were deleted if the
+  // same variant was present in the first file.  This means that all variants remaining in this
+  // vector are unique to the second vcf file and should be written out if the union or variants
+  // unique to the second file were requested.
+  if (findUnion || (findUnique && writeFrom == "b")) {
+    for (iter2 = var2.begin(); iter2 != var2.end(); iter2++) {*output << iter2->record << endl;}
+  }
+}

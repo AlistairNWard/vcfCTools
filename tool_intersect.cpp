@@ -224,11 +224,8 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
         //SNPs
         if (snpsAtLocus1.size() != 0 && snpsAtLocus2.size() != 0) {
           if (snpsAtLocus1.size() > 1 || snpsAtLocus2.size() > 1) {
-            cerr << "Cannot handle multiple SNP alleles in separate records yet.  Coordinate: " << currentReferenceSequence;
-            cerr << ":" << currentPosition << endl;
-            exit(1);
-          }
-          else {
+            compareVariants(snpsAtLocus1, snpsAtLocus2, findUnique, findUnion, writeFrom, output);
+          } else {
             // Both files have a SNP at this locus.  If the reference alleles
             // are different, there is an error.
             if (snpsAtLocus1[0].ref != snpsAtLocus2[0].ref) {
@@ -238,13 +235,12 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
               cerr << "Please check input vcf files." << endl;
               exit(1);
             }
-            // Different alternates.
+            // If the SNPs have different alternates, write out both records.
             if (snpsAtLocus1[0].alt != snpsAtLocus2[0].alt) {
-              cerr << "Different SNP alt alleles not yet handled " << currentReferenceSequence << ":" << currentPosition << endl;
-              exit(1);
-            }
+              *output << snpsAtLocus1[0].record << endl;
+              *output << snpsAtLocus2[0].record << endl;
             // Both SNPs have the same reference and alternate alleles.
-            else {
+            } else {
               if (!findUnique) {
                 if (writeFrom == "a") {*output << snpsAtLocus1[0].record << endl;}
                 else if (writeFrom == "b") {*output << snpsAtLocus2[0].record << endl;}
@@ -255,52 +251,26 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
               }
             }
           }
-          snpsAtLocus1.clear();
-          snpsAtLocus2.clear();
         }
+        snpsAtLocus1.clear();
+        snpsAtLocus2.clear();
+
         //MNPs
         if (mnpsAtLocus1.size() != 0 && mnpsAtLocus2.size() != 0) {
-          cerr << "Not yet handling MNPs" << endl;
-          mnpsAtLocus1.clear();
-          mnpsAtLocus2.clear();
+          compareVariants(mnpsAtLocus1, mnpsAtLocus2, findUnique, findUnion, writeFrom, output);
         }
+        mnpsAtLocus1.clear();
+        mnpsAtLocus2.clear();
+
         //indels
         if (indelsAtLocus1.size() != 0 && indelsAtLocus2.size() != 0) {
-          for (sVariant1 = indelsAtLocus1.begin(); sVariant1 != indelsAtLocus1.end(); sVariant1++) {
-            bool unique = true;
-            for (sVariant2 = indelsAtLocus2.begin(); sVariant2 != indelsAtLocus2.end(); sVariant2++) {
-              if ((*sVariant1).ref == (*sVariant2).ref && (*sVariant1).alt == (*sVariant2).alt) {
-                unique = false;
-                if (!findUnique) {
-                  if (writeFrom == "a") {*output << sVariant1->record << endl;}
-                  else if (writeFrom == "b") {*output << sVariant2->record << endl;}
-                  else if (writeFrom == "q") {
-                    if (sVariant1->quality >= sVariant2->quality) {*output << sVariant1->record << endl;}
-                    else {*output << sVariant2->record << endl;}
-                  }
-                }
-                indelsAtLocus2.erase(sVariant2);
-                break;
-              }
-            }
-            // If the variant from the first vcf file was not present in the second file, the Boolean
-            // unique will be true.  If looking for the union of the files or the variants unique to
-            // the first file, this variant should be written out.
-            if (unique && ( (findUnique && writeFrom == "a") || findUnion) ) {*output << sVariant1->record << endl;}
-          }
-
-          // All elements of indelsAtLocus2 (the indels present in the second file), were deleted if the
-          // same variant was present in the first file.  This means that all variants remaining in this
-          // vector are unique to the second vcf file and should be written out if the union or variants
-          // unique to the second file were requested.
-          if (findUnion || (findUnique && writeFrom == "b")) {
-            for (sVariant2 = indelsAtLocus2.begin(); sVariant2 != indelsAtLocus2.end(); sVariant2++) {
-              *output << sVariant2->record << endl;
-            }
-          }
-          indelsAtLocus1.clear();
-          indelsAtLocus2.clear();
+          compareVariants(indelsAtLocus1, indelsAtLocus2, findUnique, findUnion, writeFrom, output);
         }
+        indelsAtLocus1.clear();
+        indelsAtLocus2.clear();
+
+      // If the position in each file are different, parse through the lagging file until it
+      // catches up with the other.
       } else if (v2.position > v1.position) {
         writeWhileParse = false;
         if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
@@ -320,13 +290,12 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
         writeWhileParse = false;
         if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
         success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output);
-      }
 
 // If the last record for a reference sequence is the same for both vcf
 // files, they will both have referenceSequences different from the
 // current reference sequence.  Change the reference sequence to reflect
 // this and proceed.
-      else {
+      } else {
         if (v1.referenceSequence != v2.referenceSequence) {
           cerr << "ERROR: Reference sequences for both files are unexpectedly different." << endl;
           cerr << "Check that both files contain records for the following reference sequences:" << endl;
@@ -357,8 +326,7 @@ void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
         *output << v.record << endl;
         successv = v.getRecord();
       }
-    }
-    else {
+    } else {
       if (v.referenceSequence == currentReferenceSequence) {successv = v.parseVcf(b.referenceSequence, b.start, false, output);}
       if (b.referenceSequence == currentReferenceSequence) {successb = b.parseBed(v.referenceSequence, v.position);}
       currentReferenceSequence = v.referenceSequence;
@@ -398,8 +366,7 @@ int intersectTool::Run(int argc, char* argv[]) {
 // Close the vcf file and return.
     v.closeVcf();
     b.closeBed();
-  }
-  else {
+  } else {
     vcf v1; // Create a vcf object.
     vcf v2; // Create a vcf object.
     
@@ -416,8 +383,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     if (v1.samples != v2.samples) {
       cerr << "vcf files contain different samples (or sample order)." << endl;
       exit(1);
-    }
-    else {
+    } else {
       string taskDescription = "##vcfCTools=intersect " + vcfFiles[0] + ", " + vcfFiles[1];
       writeHeader(output, v1, true, taskDescription); // tools.cpp
     }
