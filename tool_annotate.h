@@ -15,6 +15,7 @@
 
 #include "tools.h"
 #include "vcf.h"
+#include "bed.h"
 #include "vcfCTools_tool.h"
 
 #include <iostream>
@@ -35,15 +36,21 @@ class annotateTool : public AbstractTool {
     int parseCommandLine(int argc, char* argv[]);
 
   private:
-    void annotateVcf(vcf&, vcf&, ostream*);
+    void annotateVcf(vcf&, vcf&, vcf&, bed&, bool, bool, bool, ostream*);
+    void parseAnnotationVcf(vcf&, vcf&, string&, bool&);
 
   private:
     string commandLine;
     string vcfFile;
     string outputFile;
-    string annotationFile;
+    string dbsnpFile;
+    string hapmapFile;
+    string bedFile;
+    string currentReferenceSequence;
+    string newRecord;
     bool annotateDbsnp;
     bool annotateHapmap;
+    bool annotateBed;
     ostream* output;
 };
 

@@ -80,7 +80,7 @@ int mergeTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1];
+        cout << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -128,7 +128,7 @@ int mergeTool::Run(int argc, char* argv[]) {
 // Also, print out the header.
     if (index == 0) {
       samples = v.samples;
-      writeHeader(output, v, true, taskDescription); // tools.py
+      writeHeader(output, v, false, taskDescription); // tools.py
     }
     else {
       if (v.samples != samples) {cerr << "WARNING: Different samples in file: " << v.vcfFilename << endl;}

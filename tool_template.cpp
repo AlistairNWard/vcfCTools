@@ -72,7 +72,7 @@ int templateTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1];
+        cout << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default

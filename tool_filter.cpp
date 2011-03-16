@@ -34,6 +34,12 @@ int filterTool::Help(void) {
   cout << "	display intersect help." << endl;
   cout << "  -i, --in" << endl;
   cout << "	input vcf files (two, or one if intersecting with bed file)." << endl;
+  cout << "  -o, --out" << endl;
+  cout << "	output vcf file." << endl;
+  cout << "  -q, --quality" << endl;
+  cout << "	filter on variant quality." << endl;
+  cout << "  -r, --remove-genotypes" << endl;
+  cout << "	do not include genotypes in the output vcf file." << endl;
   cout << endl;
 
   return 0;
@@ -55,14 +61,15 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"help", no_argument, 0, 'h'},
       {"in", required_argument, 0, 'i'},
       {"out", required_argument, 0, 'o'},
-      {"quality", required_argument, 0, 'q'},
       {"mark-as-pass", no_argument, 0, 'm'},
+      {"quality", required_argument, 0, 'q'},
+      {"remove-genotypes", required_argument, 0, 'r'},
 
       {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:q:m", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:q:mr", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -90,13 +97,18 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
         markPass = true;
         break;
 
+      // Remove genotypes from the output file.
+      case 'r':
+        removeGenotypes = true;
+        break;
+ 
       // Help.
       case 'h':
         return Help();
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1];
+        cout << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -125,6 +137,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
 int filterTool::Run(int argc, char* argv[]) {
   markPass = false;
   filterQuality = false;
+  removeGenotypes = false;
   int getOptions = filterTool::parseCommandLine(argc, argv);
 
   output = openOutputFile(outputFile);
@@ -136,10 +149,10 @@ int filterTool::Run(int argc, char* argv[]) {
 
 // Read in the header information.
   v.parseHeader();
-  string taskDescription = "##vcfCTools=";
+  string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}
 
-  writeHeader(output, v, true, taskDescription);
+  writeHeader(output, v, removeGenotypes, taskDescription);
 
 //Parse the vcf file and check if any of the filters are failed.  If
 // so, build up a string of failed filters.
@@ -147,10 +160,10 @@ int filterTool::Run(int argc, char* argv[]) {
     string filterString = "";
 
 // Mark the record as "PASS" if --mark-as-pass was applied.
-    if (markPass) {v.filters = "PASS";}
+    if (markPass) {filterString = "PASS";}
 
 // Check for quality filtering.
-    if (filterQuality) {
+    if (filterQuality && !markPass) {
       if (v.quality < filterQualityValue) {
         ostringstream s;
         s << filterQualityValue;
@@ -158,9 +171,9 @@ int filterTool::Run(int argc, char* argv[]) {
       }
     }
 
-    filterString = (filterString == "") ? "PASS" : filterString;
+    filterString = (filterString == "") ? v.filters : filterString;
     v.filters = filterString;
-    string record = v.buildRecord(true);
+    string record = v.buildRecord(removeGenotypes);
     *output << record << endl;
   }
 

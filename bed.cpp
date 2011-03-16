@@ -51,6 +51,15 @@ void bed::closeBed() {
 bool bed::getRecord() {
   bool success = getline(*input, record);
 
+// If the bed file has some header lines, parse through them to get to the data.
+  if (record.substr(0, 1) == "#") {
+    bool header = true;
+    while (success && header) {
+      success = getline(*input, record);
+      if (record.substr(0, 1) != "#") {header = false;}
+    }
+  }
+
 // Return false if no more records remain.
   if (!success) {return false;}
 
@@ -60,6 +69,7 @@ bool bed::getRecord() {
   referenceSequence = recordFields[0];
   start = atoi(recordFields[1].c_str()) + 1;
   end   = atoi(recordFields[2].c_str());
+  if (recordFields.size() > 3) {info = recordFields[3];}
 
 // Check that the start and end coordinates define a valid interval.
   if ( (end - start) <= 0 ) {

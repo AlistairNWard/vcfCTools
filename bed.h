@@ -50,7 +50,7 @@ class bed {
     unsigned int targetVariance;
     unsigned int start;
     unsigned int end;
-
+    string info;
 };
 
 } // namespace vcfCTools

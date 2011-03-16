@@ -138,7 +138,7 @@ void mergeHeaders(vcf& v1, vcf& v2, vcf& v3) {
 }
 
 // Write header to file.
-void writeHeader(ostream* output, vcf& v, bool writeGenotypes, string& description) {
+void writeHeader(ostream* output, vcf& v, bool removeGenotypes, string& description) {
   if (!v.hasHeader) {
     v.headerText = "##fileformat=VCFv4.0\n##source=vcfCtools "; // + version
     v.headerTitlesText = "#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO";
@@ -159,10 +159,10 @@ void writeHeader(ostream* output, vcf& v, bool writeGenotypes, string& descripti
     }
   }
 
-  if (!writeGenotypes) {
+  if (removeGenotypes) {
     vector<string> titleFields = split(v.headerTitlesText, '\t');
-    string headerTitles = titleFields[0];
-    for (unsigned int i = 0; i < 8; i++) {headerTitles = headerTitles + "\t" + titleFields[i];}
+    string headerTitles = titleFields[0];;
+    for (unsigned int i = 1; i < 8; i++) {headerTitles = headerTitles + "\t" + titleFields[i];}
     *output << headerTitles << endl;
   }
   else {*output << v.headerTitlesText << endl;}

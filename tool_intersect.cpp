@@ -219,12 +219,10 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
 // Now compare the contents of the two sets of variants at this locus.  Only compare 
 // variants of the same class.
 
-        vector<storedVariants>::iterator sVariant1;
-        vector<storedVariants>::iterator sVariant2;
         //SNPs
         if (snpsAtLocus1.size() != 0 && snpsAtLocus2.size() != 0) {
           if (snpsAtLocus1.size() > 1 || snpsAtLocus2.size() > 1) {
-            compareVariants(snpsAtLocus1, snpsAtLocus2, findUnique, findUnion, writeFrom, output);
+            compareVariants(snpsAtLocus1, snpsAtLocus2, findUnique, findUnion, writeFrom, output); // tools.cpp
           } else {
             // Both files have a SNP at this locus.  If the reference alleles
             // are different, there is an error.
@@ -257,14 +255,14 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
 
         //MNPs
         if (mnpsAtLocus1.size() != 0 && mnpsAtLocus2.size() != 0) {
-          compareVariants(mnpsAtLocus1, mnpsAtLocus2, findUnique, findUnion, writeFrom, output);
+          compareVariants(mnpsAtLocus1, mnpsAtLocus2, findUnique, findUnion, writeFrom, output); // tools.cpp
         }
         mnpsAtLocus1.clear();
         mnpsAtLocus2.clear();
 
         //indels
         if (indelsAtLocus1.size() != 0 && indelsAtLocus2.size() != 0) {
-          compareVariants(indelsAtLocus1, indelsAtLocus2, findUnique, findUnion, writeFrom, output);
+          compareVariants(indelsAtLocus1, indelsAtLocus2, findUnique, findUnion, writeFrom, output); // tools.cpp
         }
         indelsAtLocus1.clear();
         indelsAtLocus2.clear();
@@ -354,7 +352,7 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Write the header to the output file.
     string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
-    writeHeader(output, v, true, taskDescription);
+    writeHeader(output, v, false, taskDescription);
 
 // Intersect the files.
     intersectVcfBed(v, b, output);
@@ -385,7 +383,7 @@ int intersectTool::Run(int argc, char* argv[]) {
       exit(1);
     } else {
       string taskDescription = "##vcfCTools=intersect " + vcfFiles[0] + ", " + vcfFiles[1];
-      writeHeader(output, v1, true, taskDescription); // tools.cpp
+      writeHeader(output, v1, false, taskDescription); // tools.cpp
     }
 
 // Intersect the two vcf files.

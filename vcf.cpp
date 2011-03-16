@@ -438,7 +438,7 @@ bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, boo
 }
 
 // Construct a vcf record.
-string vcf::buildRecord(bool writeGenotypes) {
+string vcf::buildRecord(bool removeGenotypes) {
   ostringstream sPosition;
   sPosition << position;
   string build= referenceSequence + "\t" + \
@@ -450,9 +450,9 @@ string vcf::buildRecord(bool writeGenotypes) {
                 filters + "\t" + \
                 info;
 
-  if (hasGenotypes && writeGenotypes) {
+  if (hasGenotypes && !removeGenotypes) {
     size_t found = record.find(genotypeFormatString);
-    build += record.substr(found);
+    build += "\t" + record.substr(found);
   }
 
   return build;

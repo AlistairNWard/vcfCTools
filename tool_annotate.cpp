@@ -32,13 +32,15 @@ int annotateTool::Help(void) {
   cout << "  -h, --help" << endl;
   cout << "	display intersect help." << endl;
   cout << "  -i, --in" << endl;
-  cout << "	input vcf file," << endl;
+  cout << "	input vcf file." << endl;
   cout << "  -o, --output" << endl;
-  cout << "	output vcf file," << endl;
+  cout << "	output vcf file." << endl;
   cout << "  -d, --dbsnp" << endl;
-  cout << "	input dbsnp vcf file," << endl;
+  cout << "	input dbsnp vcf file." << endl;
   cout << "  -h, --hapmap" << endl;
-  cout << "	input hapmap vcf file," << endl;
+  cout << "	input hapmap vcf file." << endl;
+  cout << "  -b, --bed" << endl;
+  cout << "	input bed file." << endl;
   cout << endl;
 
   return 0;
@@ -62,12 +64,13 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
     {"out", required_argument, 0, 'o'},
     {"dbsnp", required_argument, 0, 'd'},
     {"hapmap", required_argument, 0, 'm'},
+    {"bed", required_argument, 0, 'b'},
 
     {0, 0, 0, 0}
   };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:m:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:d:m:b:", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -84,14 +87,20 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 
       // Input dbsnp vcf file.
       case 'd':
-        annotationFile = optarg;
+        dbsnpFile = optarg;
         annotateDbsnp = true;
         break;
 
       // Input hapmap vcf file.
       case 'm':
-        annotationFile = optarg;
+        hapmapFile = optarg;
         annotateHapmap = true;
+        break;
+
+      // Input bed file.
+      case 'b':
+        bedFile = optarg;
+        annotateBed = true;
         break;
 
       // Help.
@@ -100,7 +109,7 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1];
+        cout << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -122,9 +131,9 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
     exit(1);
   }
 
-// Check that a either a dbsnp or a hapmap vcf file was specified.
- if ( (annotateDbsnp && annotateHapmap) || (!annotateDbsnp && !annotateHapmap) ) {
-    cerr << "Either a dbsnp or a hapmap vcf file must be specified (--dbsnp, -d, --hapmap, -h)." << endl;
+// Check that a either a dbsnp, hapmap vcf and/or bed file was specified.
+ if ( !annotateDbsnp && !annotateHapmap && !annotateBed ) {
+    cerr << "A dbsnp or hapmap vcf file or a bed file must be specified (-d, --dbsnp, -h, --hapmap, -b, --bed)." << endl;
     exit(1);
   }
 
@@ -136,58 +145,91 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 // Intersect two vcf files.  It is assumed that the two files are
 // sorted by genomic coordinates and the reference sequences are
 // in the same order.
-void annotateTool::annotateVcf(vcf& v, vcf& d, ostream* output) {
-  bool success1 = v.getRecord();
-  bool success2 = d.getRecord();
-  string currentReferenceSequence = v.referenceSequence;
+void annotateTool::annotateVcf(vcf& v, vcf& dbsnp, vcf& hapmap, bed& b, bool haveDbsnp, bool haveHapmap, bool haveBed, ostream* output) {
+  bool successVcf = v.getRecord();
+  currentReferenceSequence = v.referenceSequence;
+
+// Get the next record from the requested annotation files.
+  bool successDbsnp = false;
+  bool successHapmap = false;
+  bool successBed = false;
+  bool build = false;
+  if (haveDbsnp) {successDbsnp = dbsnp.getRecord();}
+  if (haveHapmap) {successHapmap = hapmap.getRecord();}
+  if (haveBed) {successBed = b.getRecord();}
 
 // Finish when the end of the first file has been reached.
-  while (success1) {
+  while (successVcf) {
 
 // If the end of the dbsnp vcf file is reached, write out the
 // remaining records from the vcf file.
-    if (!success2) {
+    if (!successDbsnp && !successHapmap && !successBed) {
       *output << v.record << endl;
-      success1 = v.getRecord();
+      successVcf = v.getRecord();
     }
 
-    if (v.referenceSequence == d.referenceSequence && v.referenceSequence == currentReferenceSequence) {
-      if (v.position == d.position) {
-        if (d.dbsnpVcf) {
-          string tag = "VC";
-          information sInfo = d.getInfo(tag);
-          if (sInfo.values[0] == "SNP") {
-            v.rsid = d.rsid;
-            v.info += ";DBSNP";
-          }
-        }
-        else if (d.hapmapVcf) {v.info += ";HM3";}
-        string record = v.buildRecord(true);
-        *output << record << endl;
-
-        success1 = v.getRecord();
-        success2 = d.getRecord();
+// If a dbSNP file was provided, parse until the position in the vcf file
+// is found or passed.  Similarly for hapmap and bed files.
+    if (haveDbsnp) {
+      if (dbsnp.referenceSequence == currentReferenceSequence && v.position > dbsnp.position) {
+        successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output);
       }
-      else if (d.position > v.position) {success1 = v.parseVcf(d.referenceSequence, d.position, true, output);}
-      else if (v.position > d.position) {success2 = d.parseVcf(v.referenceSequence, v.position, false, NULL);}
+      if (dbsnp.referenceSequence == v.referenceSequence && v.position == dbsnp.position) {
+        string tag = "VC";
+        information sInfo = dbsnp.getInfo(tag);
+        if (sInfo.values[0] == "SNP") {
+          v.rsid = dbsnp.rsid;
+          v.info += ";DBSNP";
+        }
+        build = true;
+        successDbsnp = dbsnp.getRecord();
+      }
     }
-    else {
-      if (v.referenceSequence == currentReferenceSequence) {success1 = v.parseVcf(d.referenceSequence, d.position, true, output);}
-      else if (d.referenceSequence == currentReferenceSequence) {success2 = d.parseVcf(v.referenceSequence, v.position, false, NULL);}
-
-// If the last record for a reference sequence is the same for both vcf
-// files, they will both have referenceSequences different from the
-// current reference sequence.  Change the reference sequence to reflect
-// this and proceed.
-      else {
-        if (v.referenceSequence != d.referenceSequence) {
-          cerr << "ERROR: Reference sequences for both files are unexpectedly different." << endl;
-          cerr << "Check that both files contain records for the following reference sequences:" << endl;
-          cerr << "\t" << v.referenceSequence << " and " << d.referenceSequence << endl;
-          exit(1);
-        }
+    if (haveHapmap) {
+      if (hapmap.referenceSequence == currentReferenceSequence && v.position > hapmap.position) {
+        successHapmap = hapmap.parseVcf(v.referenceSequence, v.position, false, output);
       }
+      if (v.referenceSequence == hapmap.referenceSequence && v.position == hapmap.position) {
+        v.info += ";HM3";
+        build = true;
+        successHapmap = hapmap.getRecord();
+      }
+    }
+    if (haveBed) {
+      if (b.referenceSequence == currentReferenceSequence && v.position > b.end) {
+        successBed = b.parseBed(v.referenceSequence, v.position);
+      }
+      if (v.referenceSequence == b.referenceSequence && v.position >= b.start && v.position <= b.end) {
+        v.info += ";" + b.info;
+        build = true;
+      }
+    }
+
+    if (build) {
+      newRecord = v.buildRecord(false);
+      build = false;
+    } else {
+      newRecord = v.record;
+    }
+    *output << newRecord << endl;
+    successVcf = v.getRecord();
+
+// If the reference sequence in the vcf file changes, ensure that the annotation files are on the same
+// reference sequence.
+    if (v.referenceSequence != currentReferenceSequence) {
       currentReferenceSequence = v.referenceSequence;
+      // dbSNP
+      if (haveDbsnp) {
+        if (dbsnp.referenceSequence != v.referenceSequence) {successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output);}
+      }
+      // Hapmap
+      if (haveHapmap) {
+        if (hapmap.referenceSequence != v.referenceSequence) {successHapmap = hapmap.parseVcf(v.referenceSequence, v.position, false, output);}
+      }
+      // bed file
+      if (haveBed) {
+        if (b.referenceSequence != v.referenceSequence) {successBed = b.parseBed(v.referenceSequence, v.position);}
+      }
     }
   }
 }
@@ -196,49 +238,63 @@ void annotateTool::annotateVcf(vcf& v, vcf& d, ostream* output) {
 int annotateTool::Run(int argc, char* argv[]) {
   annotateDbsnp = false;
   annotateHapmap = false;
+  annotateBed = false;
   int getOptions = annotateTool::parseCommandLine(argc, argv);
   output = openOutputFile(outputFile);
 
   vcf v; // Define vcf object.
-  vcf d; // Define dbsnp/hapmap vcf object.
+  v.openVcf(vcfFile);
+  v.parseHeader();
+
+  vcf dbsnp; // Define dbsnp vcf object.
+  vcf hapmap; // Define dbsnp vcf object.
+  bed b; // Define dbsnp vcf object.
 
   if (annotateDbsnp) {
-    d.dbsnpVcf = true;
-    d.processInfo = true;
+    dbsnp.dbsnpVcf = true;
+    dbsnp.processInfo = true;
+    dbsnp.openVcf(dbsnpFile);
+    dbsnp.parseHeader();
   }
-  else if (annotateHapmap) {d.hapmapVcf = true;}
-
-// Open the vcf files.
-  v.openVcf(vcfFile);
-  d.openVcf(annotationFile);
-
-// Read in the header information.
-  v.parseHeader();
-  d.parseHeader();
+  if (annotateHapmap) {
+    hapmap.hapmapVcf = true;
+    hapmap.openVcf(hapmapFile);
+    hapmap.parseHeader();
+  }
+  if (annotateBed) {b.openBed(bedFile);}
 
 // Add an extra line to the vcf header to indicate the file used for
 // performing dbsnp annotation.
   string taskDescription = "##vcfCTools=annotated vcf file with ";
-  if (d.dbsnpVcf) {taskDescription += "dbSNP file " + annotationFile;}
-  else if (d.hapmapVcf) {
-    taskDescription += "hapmap file " + annotationFile;
+  if (annotateDbsnp) {taskDescription += "dbSNP file " + dbsnpFile;}
+  if (annotateHapmap) {
+    if (annotateDbsnp) {taskDescription += ", ";}
+    taskDescription += "hapmap file " + hapmapFile;
     v.headerInfoLine["HM3"] = "##INFO=<ID=HM3,Number=0,Type=Flag,Description=\"Hapmap3.2 membership determined from file " + \
-                                annotationFile + "\">";
+                                hapmapFile + "\">";
     v.headerInfoLine["HM3A"] = "##INFO=<ID=HM3A,Number=0,Type=Flag,Description=\"Hapmap3.2 membership (with different alleles) \
-                                , determined from file " + annotationFile + "\">";
+                                , determined from file " + hapmapFile + "\">";
   }
-  writeHeader(output, v, true, taskDescription); // tools.cpp
+  if (annotateBed) {
+    if (annotateDbsnp || annotateHapmap) {taskDescription += ", ";}
+    taskDescription += "bed file " + bedFile;
+  }
+  writeHeader(output, v, false, taskDescription); // tools.cpp
 
 // Annotate the vcf file.
-  annotateVcf(v, d, output);
+  annotateVcf(v, dbsnp, hapmap, b, annotateDbsnp, annotateHapmap, annotateBed, output);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.
-  checkReferenceSequences(v.referenceSequenceVector, d.referenceSequenceVector); // tools.cpp
+  if (annotateDbsnp) {checkReferenceSequences(v.referenceSequenceVector, dbsnp.referenceSequenceVector);} // tools.cpp
+  if (annotateHapmap) {checkReferenceSequences(v.referenceSequenceVector, hapmap.referenceSequenceVector);} // tools.cpp
+  if (annotateBed) {checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector);} // tools.cpp
 
 // Close the vcf files.
   v.closeVcf();
-  d.closeVcf();
+  dbsnp.closeVcf();
+  hapmap.closeVcf();
+  b.closeBed();
 
   return 0;
 }
