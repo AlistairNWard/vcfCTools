@@ -310,23 +310,23 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
 // two files are sorted by genomic coordinates and the reference
 // sequences are in the same order.
 void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
-  bool successb = b.getRecord();
-  bool successv = v.getRecord();
+  bool successBed = b.getRecord();
+  bool successVcf = v.getRecord();
   string currentReferenceSequence = v.referenceSequence;
 
 // As soon as the end of the first file is reached, there are no
 // more intersections and the program can terminate.
-  while (successv && successb) {
+  while (successVcf && successBed) {
     if (v.referenceSequence == b.referenceSequence) {
-      if (v.position < b.start) {successv = v.parseVcf(b.referenceSequence, b.start, false, output);}
-      else if (v.position > b.end) {successb = b.parseBed(v.referenceSequence, v.position);}
+      if (v.position < b.start) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output);}
+      else if (v.position > b.end) {successBed = b.parseBed(v.referenceSequence, v.position);}
       else {
         *output << v.record << endl;
-        successv = v.getRecord();
+        successVcf = v.getRecord();
       }
     } else {
-      if (v.referenceSequence == currentReferenceSequence) {successv = v.parseVcf(b.referenceSequence, b.start, false, output);}
-      if (b.referenceSequence == currentReferenceSequence) {successb = b.parseBed(v.referenceSequence, v.position);}
+      if (v.referenceSequence == currentReferenceSequence) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output);}
+      if (b.referenceSequence == currentReferenceSequence) {successBed = b.parseBed(v.referenceSequence, v.position);}
       currentReferenceSequence = v.referenceSequence;
     }
   }

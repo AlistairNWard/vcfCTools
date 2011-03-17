@@ -72,7 +72,7 @@ bool bed::getRecord() {
   if (recordFields.size() > 3) {info = recordFields[3];}
 
 // Check that the start and end coordinates define a valid interval.
-  if ( (end - start) <= 0 ) {
+  if ( (end - start) < 0 ) {
     cerr << "Invalid target interval:" << endl;
     cerr << "\t" << record << endl;
     exit(1);
