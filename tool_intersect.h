@@ -37,7 +37,9 @@ class intersectTool : public AbstractTool {
 
   private:
     void intersectVcf(vcf&, vcf&, ostream*, bool, bool, bool, string);
+    void intersectVariantGroups(vcf&, vcf&, ostream*, bool, bool, bool, string);
     void intersectVcfBed(vcf&, bed&, ostream*);
+    void intersectVariantGroupsBed(vcf&, bed&, ostream*);
 
   private:
     string commandLine;
@@ -56,6 +58,7 @@ class intersectTool : public AbstractTool {
     bool findCommon;
     bool findUnion;
     bool findUnique;
+    bool groupVariants;
     string writeFrom;
     string currentReferenceSequence;
     unsigned int currentPosition;

@@ -28,7 +28,6 @@ vcf::vcf(void) {
   processGenotypes = false;
   numberDataSets = 0;
   dbsnpVcf = false;
-  hapmapVcf = false;
 }
 
 // Destructor.
@@ -224,7 +223,8 @@ bool vcf::noHeader() {
 
 // Get the next record from the vcf file.
 bool vcf::getRecord() {
-  bool success = getline(*input, record);
+  bool success = true;
+  success = getline(*input, record);
 
 // Return false if no more records remain.
   if (!success) {return false;}
@@ -298,6 +298,117 @@ bool vcf::getRecord() {
   if (processInfo) {processInfoFields();}
 
   return true;
+}
+
+bool vcf::getVariantGroup(variantGroup& vg) {
+  bool success = true;
+  bool inGroup = true;
+  vector<string> alts;
+  unsigned int compStart;
+  unsigned int compEndMatch;
+  string::iterator refIter;
+  string::reverse_iterator refRevIter;
+
+// Define the variant group structure.
+  vg.clear();
+  vg.ref = ref;
+
+// Determine the alt allele types (SNPs, MNPs, indels) and compare to
+// the reference sequence.
+  if (hasMultipleAlternates) {alts = split(alt, ",");}
+  else {alts.push_back(alt);}
+
+  cout << ref << endl;
+  for (vector<string>::iterator iter = alts.begin(); iter != alts.end(); iter++) {
+    compStart = 0;
+    compEndMatch = 0;
+    if ((*iter).length() == ref.length()) {
+
+// Insertions.
+    } else if ((*iter).length() > ref.length()) {
+      isInsertion = true;
+
+// Match the alt to the reference and find where the insertion occurs.
+      refIter = ref.begin();
+      for (string::iterator altIter = (*iter).begin(); altIter != (*iter).end(); altIter++) {
+        if ((*altIter) != (*refIter)) {
+          break;
+        }
+        else {
+          refIter++;
+          compStart++;
+        }
+      }
+
+// Deletions.
+    } else if ((*iter).length() < ref.length()) {
+      isDeletion = true;
+
+// Match the alt to the reference and find where the deletion occurs.
+      refIter = ref.begin();
+      for (string::iterator altIter = (*iter).begin(); altIter != (*iter).end(); altIter++) {
+        if ((*altIter) != (*refIter)) {
+          refRevIter = ref.rbegin();
+          for (string::reverse_iterator altRevIter = (*iter).rbegin(); altRevIter != (*iter).rend(); altRevIter++) {
+            if ((*altRevIter) != (*refRevIter)) {
+              break;
+            } else {
+              refRevIter++;
+              compEndMatch++;
+            }
+          }
+          break;
+        }
+        else {
+          refIter++;
+          compStart++;
+        }
+      }
+    }
+    if (compEndMatch == 0) {
+      cout << ref.substr(0, (*iter).length()) << endl;;
+    } else {
+      if (isInsertion) {
+      } else if (isDeletion) {
+        string a = ref.substr(0, compStart);
+        a.append(ref.length() - (*iter).length(), '-');
+        a.append((*iter).substr((*iter).length() - compEndMatch, compEndMatch));
+        cout << a << endl;
+      }
+    }
+  }
+  cout << endl;
+
+// Define the start and end position of the variant cluster from the first
+// record and clear other entries.
+  vg.referenceSequence = referenceSequence;
+  vg.start = position;
+  vg.ref = ref;
+  vg.end = position + ref.size() - 1;
+
+// Loop over all records that contain variants that overlap the reference
+// sequence.  The reference sequence can be extended with each new variant,
+// but stop looping if the end of the file is reached or the start position
+// of the next variant reference sequence does not overlap the cluster region.
+  while (success && inGroup) {
+    if (referenceSequence == vg.referenceSequence && position <= vg.end) {
+      vg.noRecords++;
+
+// Modify the reference sequence.
+      if ( (position + ref.size() - 1) > vg.end) {
+        vg.ref += ref.substr( (vg.end - position + 1), (ref.size() - vg.end + position - 1) );
+        vg.end = position + ref.size() - 1;
+      }
+
+      vg.noAlts = (hasMultipleAlternates) ? vg.noAlts + alts.size() : vg.noAlts + 1;
+      success = getRecord();
+    } else {
+      inGroup = false;
+    }
+  }
+  vg.noGroups++;
+
+  return success;
 }
 
 // Process the info entries.
@@ -432,6 +543,28 @@ bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, boo
   while ( (referenceSequence == compReferenceSequence) && (position < compPosition) && success) {
     if (write) {*output << record << endl;}
     success = getRecord();
+  }
+
+  return success;
+}
+
+// Parse through the vcf file until the correct reference sequence is
+// encountered and then construct groups of variants occupying
+// overlapping reference sequence and parse through these until the
+// start position of the cluster is greater than or equal to the
+// requested value.
+bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output) {
+  bool success = true;
+  if (vc.referenceSequence != compReferenceSequence) {
+    while (referenceSequence != compReferenceSequence && success) {
+      //if (write) {*output << record << endl;}
+      success = getRecord();
+    }
+  }
+  if (success) {success = getVariantGroup(vc);}
+  while ( (vc.referenceSequence == compReferenceSequence) && (vc.end < compPosition) && success) {
+    //if (write) {*output << record << endl;}
+    success = getVariantGroup(vc);
   }
 
   return success;

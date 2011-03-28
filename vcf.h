@@ -42,6 +42,28 @@ struct information {
   information() {flag = false;}
 };
 
+struct variantGroup {
+  string referenceSequence;
+  unsigned int start;
+  unsigned int end;
+  string ref;
+  unsigned int refLength;
+  unsigned int noAlts;
+  unsigned int noRecords;
+  unsigned int noGroups;
+
+  variantGroup() {
+    noAlts = 0;
+    noRecords = 0;
+    noGroups = 0;
+  }
+
+  void clear() {
+    noAlts = 0;
+    noRecords = 0;
+  }
+};
+
 class vcf {
   public:
     vcf(void);
@@ -56,11 +78,13 @@ class vcf {
     bool headerTitles(string&);
     bool noHeader();
     bool getRecord();
+    bool getVariantGroup(variantGroup&);
     void processInfoFields();
     information getInfo(string&);
     void processGenotypeFields(string&);
     information getGenotypeInfo(string&);
     bool parseVcf(string&, unsigned int, bool, ostream*);
+    bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*);
     string getDbsnpInfo();
     string buildRecord(bool);
 
@@ -71,7 +95,6 @@ class vcf {
 
 // General information.
     bool dbsnpVcf;
-    bool hapmapVcf;
 
 // Header information and text.
     bool hasHeader;

@@ -36,7 +36,7 @@ class annotateTool : public AbstractTool {
     int parseCommandLine(int argc, char* argv[]);
 
   private:
-    void annotateVcf(vcf&, vcf&, vcf&, bed&, bool, bool, bool, ostream*);
+    void annotate(vcf&, vcf&, vcf&, bed&, bool, bool, bool, ostream*);
     void parseAnnotationVcf(vcf&, vcf&, string&, bool&);
 
   private:
@@ -44,12 +44,12 @@ class annotateTool : public AbstractTool {
     string vcfFile;
     string outputFile;
     string dbsnpFile;
-    string hapmapFile;
+    string annVcfFile;
     string bedFile;
     string currentReferenceSequence;
     string newRecord;
     bool annotateDbsnp;
-    bool annotateHapmap;
+    bool annotateVcf;
     bool annotateBed;
     ostream* output;
 };

@@ -16,7 +16,10 @@ using namespace vcfCTools;
 // statsTool imlementation.
 statsTool::statsTool(void)
   : AbstractTool()
-{}
+{
+  annotation = false;
+  groupVariants = false;
+}
 
 // Destructor.
 statsTool::~statsTool(void) {}
@@ -41,13 +44,15 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"help", no_argument, 0, 'h'},
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
+    {"annotation", no_argument, 0, 'a'},
+    {"group-variants", no_argument, 0, 'g'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:ag", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -65,6 +70,15 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
       // Output file.
       case 'o':
         outputFile = optarg;
+        break;
+ 
+      // Check for annotations.
+      case 'a':
+        annotation = true;
+        break;
+
+      case 'g':
+        groupVariants = true;
         break;
 
       //
@@ -106,10 +120,24 @@ int statsTool::Run(int argc, char* argv[]) {
   v.parseHeader();
   v.processInfo = true;
 
+// If the vcf records are to be concatanated into groups, a variantGroup
+// structure is required.
+  variantGroup vc;
+  bool success;
+
 // Read through all the entries in the file.
-  while(v.getRecord()) {
-    stats.generateStatistics(v);
+  unsigned int noGroups = 0;
+  success = v.getRecord();
+  while(success) {
+    if (groupVariants) {
+      success = v.getVariantGroup(vc);
+      cout << vc.start << ", Number of records=" << vc.noRecords << ", Number of alternates=" << vc.noAlts << endl;
+    } else {
+      success = v.getRecord();
+      stats.generateStatistics(v, annotation);
+    }
   }
+  cout << "No groups: " << vc.noGroups << endl;
 
 // Print out the statistics.
   if (stats.hasSnp) {stats.printSnpStatistics(output);}

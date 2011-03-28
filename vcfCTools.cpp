@@ -14,6 +14,7 @@
 #include "tool_intersect.h"
 #include "tool_merge.h"
 #include "tool_stats.h"
+#include "tool_temp.h"
 #include "tool_validate.h"
 #include "vcfCTools_version.h"
 
@@ -31,6 +32,7 @@ static const string FILTER    = "filter";
 static const string INTERSECT = "intersect";
 static const string MERGE     = "merge";
 static const string STATS     = "stats";
+static const string TEMP      = "temp";
 static const string VALIDATE  = "validate";
 
 // help and version
@@ -58,6 +60,7 @@ AbstractTool* CreateTool(const string& arg) {
   if (arg == INTERSECT) return new intersectTool;
   if (arg == MERGE    ) return new mergeTool;
   if (arg == STATS    ) return new statsTool;
+  if (arg == TEMP     ) return new tempTool;
   if (arg == VALIDATE ) return new validateTool;
 
   return 0;

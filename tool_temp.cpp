@@ -11,23 +11,24 @@
 // filters.
 // ******************************************************
 
-#include "tool_filter.h"
+#include <cmath>
+#include "tool_temp.h"
 
 using namespace std;
 using namespace vcfCTools;
 
 // intersectTool imlementation.
-filterTool::filterTool(void)
+tempTool::tempTool(void)
   : AbstractTool()
 {}
 
 // Destructor.
-filterTool::~filterTool(void) {}
+tempTool::~tempTool(void) {}
 
 // Help
-int filterTool::Help(void) {
+int tempTool::Help(void) {
   cout << "Template help" << endl;
-  cout << "Usage: ./vcfCTools filter [options]." << endl;
+  cout << "Usage: ./vcfCTools temp [options]." << endl;
   cout << endl;
   cout << "Options:" << endl;
   cout << "  -h, --help" << endl;
@@ -46,7 +47,7 @@ int filterTool::Help(void) {
 }
 
 // Parse the command line and get all required and optional arguments.
-int filterTool::parseCommandLine(int argc, char* argv[]) {
+int tempTool::parseCommandLine(int argc, char* argv[]) {
   commandLine = argv[0];
   for (int i = 2; i < argc; i++) {
     commandLine += " ";
@@ -134,11 +135,11 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
 }
 
 // Run the tool.
-int filterTool::Run(int argc, char* argv[]) {
+int tempTool::Run(int argc, char* argv[]) {
   markPass = false;
   filterQuality = false;
   removeGenotypes = false;
-  int getOptions = filterTool::parseCommandLine(argc, argv);
+  int getOptions = tempTool::parseCommandLine(argc, argv);
 
   output = openOutputFile(outputFile);
   
@@ -153,6 +154,7 @@ int filterTool::Run(int argc, char* argv[]) {
   if (markPass) {taskDescription += "marked all records as PASS";}
 
   writeHeader(output, v, removeGenotypes, taskDescription);
+  v.processInfo = true;
 
 //Parse the vcf file and check if any of the filters are failed.  If
 // so, build up a string of failed filters.
@@ -173,6 +175,46 @@ int filterTool::Run(int argc, char* argv[]) {
 
     filterString = (filterString == "") ? v.filters : filterString;
     v.filters = filterString;
+
+    //string tag = "SA";
+    //information sInfo = v.getInfo(tag);
+    //unsigned int ABA = atoi(sInfo.values[0].c_str());
+    //tag = "ABR";
+    //sInfo = v.getInfo(tag);
+    //unsigned int ABR = atoi(sInfo.values[0].c_str());
+
+    //double AB = double(ABR) / ( double(ABR) + double(ABA) );
+    //long double phred;
+    //if (ABR == 0 && ABA == 0) {
+    //  AB = 1.0;
+    //  phred = 1000;
+    //}
+    //else {
+    //  double successes = double(ABA);
+    //  double trials = double(ABA) + double(ABR);
+    //  double prob = 0.5;
+    //  long double ABP = log(0.5) + (-2 * pow(trials * prob - successes, 2) / trials);
+    //  phred = -10 * M_LOG10E * ABP;
+    //}
+
+    //ostringstream build;
+    size_t found = v.info.find(";SR=");
+    if (found != string::npos) {
+      size_t end = v.info.find_first_of(";",found + 1);
+    //build << AB;
+      string newValue = "";
+      v.info.replace(found, end - found - 1, newValue);
+    //build.str("");
+    }
+
+    found = v.info.find(";SA=");
+    if (found != string::npos) {
+      size_t end = v.info.find_first_of(";",found + 1);
+    //build << phred;
+      string newValue = "";
+      v.info.replace(found, end - found - 1, newValue);
+    //build.str("");
+    }
 
     string record = v.buildRecord(removeGenotypes);
     *output << record << endl;

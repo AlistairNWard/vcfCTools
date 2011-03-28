@@ -19,12 +19,13 @@ statistics::statistics(void) {
   currentReferenceSequence = "";
   hasIndel = false;
   hasSnp = false;
+  hasAnnotations = false;
 }
 
 // Destructor.
 statistics::~statistics(void) {}
 
-void statistics::generateStatistics(vcf& v) {
+void statistics::generateStatistics(vcf& v, bool annotation) {
 
 // Initialise some variables.
   isTransition   = false;
@@ -34,7 +35,7 @@ void statistics::generateStatistics(vcf& v) {
 // Check if this variant is annotated as being in dbsnp and/or hapmap.
   inDbsnp = (v.rsid == ".") ? false : true;
   inHapmap = (v.infoTags.count("HM3") == 0 && v.infoTags.count("HM3A") == 0) ? false : true;
-
+  
 // Determine if the event is an indel/SV or a SNP.  If the variant is
 // an indel, keep track of whether it is an insertion or a deletion.  If
 // the variant is a SNP, determine if it is a transition of a transversion.
@@ -90,6 +91,20 @@ void statistics::generateStatistics(vcf& v) {
     hasIndel = true;
     variants[v.referenceSequence][v.filters].insertions[v.alt.size() - v.ref.size()] += 1;
   }
+
+// If the vcf file has been annotated and stats on these annotations are requested,
+// search for the ANN tag and build stats for the following string.
+  if (annotation) {
+    string tag = "ANN";
+    if (v.infoTags.count("ANN") != 0) {
+      information sInfo = v.getInfo(tag);
+      hasAnnotations = true;
+      if (v.isSNP && isTransition) {variants[v.referenceSequence][v.filters].annotationsTs[sInfo.values[0]] += 1;}
+      else if (v.isSNP && isTransversion) {variants[v.referenceSequence][v.filters].annotationsTv[sInfo.values[0]] += 1;}
+      else if (v.isDeletion) {variants[v.referenceSequence][v.filters].annotationsDel[sInfo.values[0]] += 1;}
+      else if (v.isInsertion) {variants[v.referenceSequence][v.filters].annotationsIns[sInfo.values[0]] += 1;}
+    }
+  }
 }
 
 // Print out the statistics to the output file.
@@ -111,6 +126,14 @@ void statistics::printSnpStatistics(ostream* output) {
   *output << setw(8) << setprecision(6) << "novel";
   *output << setw(8) << setprecision(6) << "known";
   *output << setw(12) << "hapmap";
+  //if (hasAnnotations) {
+    //for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
+      //for (map<string, unsigned  int>::iterator ann = iter->second.annotationsTs.begin(); ann != iter->second.annotationsTs.end(); ann++) {
+        //cout << iter->first << " " << ann->first << endl;
+      //}
+    //}
+    //*output << setw(12) << "";
+  //}
   *output << endl;
 
 // Print the total number of variants over all reference sequences.

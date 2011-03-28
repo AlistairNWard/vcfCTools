@@ -7,6 +7,7 @@ HEADERS = bed.h \
           tool_intersect.h \
           tool_merge.h \
           tool_stats.h \
+          tool_temp.h \
 	  tool_validate.h \
           tools.h \
           vcf.h \
@@ -19,6 +20,7 @@ SOURCES = bed.cpp \
           tool_intersect.cpp \
           tool_merge.cpp \
           tool_stats.cpp \
+          tool_temp.cpp \
           tool_validate.cpp \
           tools.cpp \
           vcf.cpp
@@ -31,7 +33,7 @@ BINS = $(BIN_SOURCES:.cpp=)
 
 all: $(OBJECTS) $(BINS)
 
-CXX = g++
+CXX = g++ -lm
 CXXFLAGS = -O3
 
 $(OBJECTS): $(SOURCES) $(HEADERS)
