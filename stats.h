@@ -31,11 +31,13 @@ namespace vcfCTools {
 struct variantStruct {
   unsigned int novelTransitions;
   unsigned int knownTransitions;
+  unsigned int diffKnownTransitions;
   unsigned int novelTransversions;
   unsigned int knownTransversions;
+  unsigned int diffKnownTransversions;
   unsigned int multiAllelic;
 
-  unsigned int hapmap;
+  map<unsigned int, unsigned int> mnps;
 
   map<unsigned int, unsigned int> insertions;
   map<unsigned int, unsigned int> deletions;
@@ -47,48 +49,50 @@ struct variantStruct {
 // Overload the + operator for structures.
   variantStruct operator+(variantStruct& vs) {
     variantStruct result;
-    result.novelTransitions   = this->novelTransitions   + vs.novelTransitions;
-    result.knownTransitions   = this->knownTransitions   + vs.knownTransitions;
-    result.novelTransversions = this->novelTransversions + vs.novelTransversions;
-    result.knownTransversions = this->knownTransversions + vs.knownTransversions;
-    result.multiAllelic       = this->multiAllelic       + vs.multiAllelic;
+    map<unsigned int, unsigned int>::iterator iter;
+    map<string, unsigned int>::iterator sIter;
 
-    result.hapmap             = this->hapmap + vs.hapmap;
+    result.novelTransitions       = this->novelTransitions       + vs.novelTransitions;
+    result.knownTransitions       = this->knownTransitions       + vs.knownTransitions;
+    result.diffKnownTransitions   = this->diffKnownTransitions   + vs.diffKnownTransitions;
+    result.novelTransversions     = this->novelTransversions     + vs.novelTransversions;
+    result.knownTransversions     = this->knownTransversions     + vs.knownTransversions;
+    result.diffKnownTransversions = this->diffKnownTransversions + vs.diffKnownTransversions;
+    result.multiAllelic           = this->multiAllelic           + vs.multiAllelic;
+
+    // MNPs
+    for (iter = vs.mnps.begin(); iter != vs.mnps.end(); iter++) {
+      result.mnps[iter->first] = this->mnps[iter->first] + vs.mnps[iter->first];
+    }
 
     // Insertions.
-    result.insertions  = this->insertions;
-    for (map<unsigned int, unsigned int>::iterator iter = vs.insertions.begin(); iter != vs.insertions.end(); iter++) {
-      result.insertions[iter->first] = result.insertions[iter->first] + vs.insertions[iter->first];
+    for (iter = vs.insertions.begin(); iter != vs.insertions.end(); iter++) {
+      result.insertions[iter->first] = this->insertions[iter->first] + vs.insertions[iter->first];
     }
 
     // Deletions.
-    result.deletions   = this->deletions;
-    for (map<unsigned int, unsigned int>::iterator iter = vs.deletions.begin(); iter != vs.deletions.end(); iter++) {
-      result.deletions[iter->first] = result.deletions[iter->first] + vs.deletions[iter->first];
+    for (iter = vs.deletions.begin(); iter != vs.deletions.end(); iter++) {
+      result.deletions[iter->first] = this->deletions[iter->first] + vs.deletions[iter->first];
     }
 
     // Annotations (transitions).
-    result.annotationsTs = this->annotationsTs;
-    for (map<string, unsigned int>::iterator iter = vs.annotationsTs.begin(); iter != vs.annotationsTs.end(); iter++) {
-      result.annotationsTs[iter->first] = result.annotationsTs[iter->first] + vs.annotationsTs[iter->first];
+    for (sIter = vs.annotationsTs.begin(); sIter != vs.annotationsTs.end(); sIter++) {
+      result.annotationsTs[sIter->first] = this->annotationsTs[sIter->first] + vs.annotationsTs[sIter->first];
     }
 
     // Annotations (insertions).
-    result.annotationsIns = this->annotationsIns;
-    for (map<string, unsigned int>::iterator iter = vs.annotationsIns.begin(); iter != vs.annotationsIns.end(); iter++) {
-      result.annotationsIns[iter->first] = result.annotationsIns[iter->first] + vs.annotationsIns[iter->first];
+    for (sIter = vs.annotationsIns.begin(); sIter != vs.annotationsIns.end(); sIter++) {
+      result.annotationsIns[sIter->first] = this->annotationsIns[sIter->first] + vs.annotationsIns[sIter->first];
     }
 
     // Annotations (transversions).
-    result.annotationsDel = this->annotationsDel;
-    for (map<string, unsigned int>::iterator iter = vs.annotationsDel.begin(); iter != vs.annotationsDel.end(); iter++) {
-      result.annotationsDel[iter->first] = result.annotationsDel[iter->first] + vs.annotationsDel[iter->first];
+    for (sIter = vs.annotationsDel.begin(); sIter != vs.annotationsDel.end(); sIter++) {
+      result.annotationsDel[sIter->first] = this->annotationsDel[sIter->first] + vs.annotationsDel[sIter->first];
     }
 
     // Annotations (transversions).
-    result.annotationsTv = this->annotationsTv;
-    for (map<string, unsigned int>::iterator iter = vs.annotationsTv.begin(); iter != vs.annotationsTv.end(); iter++) {
-      result.annotationsTv[iter->first] = result.annotationsTv[iter->first] + vs.annotationsTv[iter->first];
+    for (sIter = vs.annotationsTv.begin(); sIter != vs.annotationsTv.end(); sIter++) {
+      result.annotationsTv[sIter->first] = this->annotationsTv[sIter->first] + vs.annotationsTv[sIter->first];
     }
 
     return result;
@@ -99,11 +103,15 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(vcf&, bool);
+    void generateStatistics(vcf&);
     void printSnpStatistics(ostream*);
+    void printSnpAnnotations(ostream*);
+    void printMnpStatistics(ostream*);
     void printIndelStatistics(ostream*);
     void countByFilter();
     void printVariantStruct(ostream*, string&, variantStruct&);
+    void printSnpAnnotationStruct(ostream*, string&, variantStruct&, string&);
+    void printMnpFilter(string&, ostream*);
 
   public:
     bool isTransition;
@@ -111,6 +119,7 @@ class statistics {
     bool inDbsnp;
     bool inHapmap;
     bool hasSnp;
+    bool hasMnp;
     bool hasIndel;
     bool hasAnnotations;
     string currentReferenceSequence;
@@ -120,6 +129,7 @@ class statistics {
     map<string, map<string, variantStruct> > totalVariants;
     map<string, map<string, unsigned int> > distributions;
     map<unsigned int, unsigned int> snpDistribution;
+    map<string, unsigned int> annotationNames;
 };
 
 } // namespace vcfCTools

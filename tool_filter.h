@@ -43,7 +43,14 @@ class filterTool : public AbstractTool {
     bool filterQuality;
     float filterQualityValue;
     bool markPass;
+    bool filterFail;
     bool removeGenotypes;
+    bool removeInfo;
+    string removeInfoString;
+    bool stripRecords;
+    string stripInfo;
+    vector<string> stripInfoList;
+    bool writeRecord;
 };
 
 } // namespace vcfCTools

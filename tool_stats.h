@@ -40,8 +40,8 @@ class statsTool : public AbstractTool {
     string vcfFile;
     string outputFile;
     ostream* output;
-    bool annotation;
     bool groupVariants;
+    string referenceFasta;
 };
 
 } // namespace vcfCTools

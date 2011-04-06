@@ -18,7 +18,11 @@ using namespace vcfCTools;
 // intersectTool imlementation.
 annotateTool::annotateTool(void)
   : AbstractTool()
-{}
+{
+  annotateDbsnp = false;
+  annotateVcf = false;
+  annotateBed = false;
+}
 
 // Destructor.
 annotateTool::~annotateTool(void) {}
@@ -149,6 +153,8 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
   bool successVcf;
   successVcf = v.getRecord();
   currentReferenceSequence = v.referenceSequence;
+  string tag;
+  information annInfo;
 
 // Get the next record from the requested annotation files.
   bool successDbsnp = false;
@@ -161,6 +167,8 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
 
 // Finish when the end of the first file has been reached.
   while (successVcf) {
+    string alleles;
+    string dbsnpAlleles;
 
 // If the end of the dbsnp vcf file is reached, write out the
 // remaining records from the vcf file.
@@ -174,14 +182,32 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
 // is found or passed.  Similarly for hapmap and bed files.
     if (haveDbsnp) {
       if (dbsnp.referenceSequence == currentReferenceSequence && v.position > dbsnp.position) {
-        successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output);
+        successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output, false);
       }
       if (dbsnp.referenceSequence == v.referenceSequence && v.position == dbsnp.position) {
-        string tag = "VC";
-        information sInfo = dbsnp.getInfo(tag);
-        if (sInfo.values[0] == "SNP") {
+        tag = "VC";
+        annInfo = dbsnp.getInfo(tag);
+        if (annInfo.values[0] == "SNP") {
           v.rsid = dbsnp.rsid;
-          v.info += ";DBSNP";
+
+          // Check that dbSNP and the vcf have the same alleles.  Tag the info field
+          // with dbSNP if they match, dnSNPX otherwise.  If the site has multiple
+          // alternates, do not include in the statistics.
+          if (v.hasMultipleAlternates || dbsnp.hasMultipleAlternates) {
+            v.info += ";dbSNPM";
+          } else {
+            alleles = v.ref + v.alt[0];
+            dbsnpAlleles = dbsnp.ref + dbsnp.alt[0];
+            for (int i = 0; i < 2; i++) {
+              alleles[i] = tolower(alleles[i]);
+              dbsnpAlleles[i] = tolower(dbsnpAlleles[i]);
+            }
+            sort(alleles.begin(), alleles.end());
+            sort(dbsnpAlleles.begin(), dbsnpAlleles.end());
+            v.info = (dbsnpAlleles == alleles) ? v.info + ";dbSNP" : v.info + ";dbSNPX";
+          }
+        } else {
+          v.rsid = ".";
         }
         build = true;
         successDbsnp = dbsnp.getRecord();
@@ -189,10 +215,27 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
     }
     if (haveVcf) {
       if (annVcf.referenceSequence == currentReferenceSequence && v.position > annVcf.position) {
-        successAnnVcf = annVcf.parseVcf(v.referenceSequence, v.position, false, output);
+        successAnnVcf = annVcf.parseVcf(v.referenceSequence, v.position, false, output, false);
       }
       if (v.referenceSequence == annVcf.referenceSequence && v.position == annVcf.position) {
-        v.info += ";ANN=" + annVcf.info;;
+        tag = "ANN";
+        if (v.infoTags.count(tag)) {
+
+          // If an annotation exists, add the new annotation to the end of the comma separated list.
+          size_t found = v.info.find("ANN=");
+          size_t end = v.info.find_first_of(";", found + 1);
+
+          // Find current values in ANN.
+          annInfo = v.getInfo(tag);
+          string newField = "ANN=";
+          for (vector<string>::iterator iter = annInfo.values.begin(); iter != annInfo.values.end(); iter++) {
+            newField += (*iter) + ",";
+          }
+          newField += annVcf.filters;
+          v.info.replace(found, end - found - 1, newField);
+        } else {
+          v.info += ";ANN=" + annVcf.filters;
+        }
         build = true;
         successAnnVcf = annVcf.getRecord();
       }
@@ -222,11 +265,11 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
       currentReferenceSequence = v.referenceSequence;
       // dbSNP
       if (haveDbsnp) {
-        if (dbsnp.referenceSequence != v.referenceSequence) {successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output);}
+        if (dbsnp.referenceSequence != v.referenceSequence) {successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output, false);}
       }
       // Annotation vcf file
       if (haveVcf) {
-        if (annVcf.referenceSequence != v.referenceSequence) {successAnnVcf = annVcf.parseVcf(v.referenceSequence, v.position, false, output);}
+        if (annVcf.referenceSequence != v.referenceSequence) {successAnnVcf = annVcf.parseVcf(v.referenceSequence, v.position, false, output, false);}
       }
       // bed file
       if (haveBed) {
@@ -238,9 +281,6 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
 
 // Run the tool.
 int annotateTool::Run(int argc, char* argv[]) {
-  annotateDbsnp = false;
-  annotateVcf = false;
-  annotateBed = false;
   int getOptions = annotateTool::parseCommandLine(argc, argv);
   output = openOutputFile(outputFile);
 
@@ -267,7 +307,14 @@ int annotateTool::Run(int argc, char* argv[]) {
 // Add an extra line to the vcf header to indicate the file used for
 // performing dbsnp annotation.
   string taskDescription = "##vcfCTools=annotated vcf file with ";
-  if (annotateDbsnp) {taskDescription += "dbSNP file " + dbsnpFile;}
+  if (annotateDbsnp) {
+    v.headerInfoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + dbsnpFile;
+    v.headerInfoLine["dbSNP"] += " with common alleles.\">";
+    v.headerInfoLine["dbSNPX"] = "##INFO=<ID=dbSNPX,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + dbsnpFile;
+    v.headerInfoLine["dbSNPX"] += " with different alleles.\">";
+    v.headerInfoLine["dbSNPM"] = "##INFO=<ID=dbSNPM,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + dbsnpFile;
+    v.headerInfoLine["dbSNPM"] += ". Either the vcf or dbSNP entry show a variant with multiple alternate alleles.\">";
+  }
   if (annotateVcf || annotateBed) {
 
 // Add the info line for the ANN tag in the header.  If an intersection with
@@ -275,10 +322,11 @@ int annotateTool::Run(int argc, char* argv[]) {
 // the string ANN=CDS will be added to the info string.  This needs to be
 // included in the header to ensure the tool works correctly.
     if (annotateVcf) {
-      v.headerInfoLine["ANN"] = "##INFO=<ID=ANN,Number=1,Type=String,Description=\"Annotation from vcf file " + annVcfFile + "\">";
+      v.headerInfoLine["ANN"] = "##INFO=<ID=ANN,Number=.,Type=String,Description=\"Annotation from vcf file " + annVcfFile + "\">";
+      v.processInfo = true;
     }
     if (annotateBed) {
-      v.headerInfoLine["ANN"] = "##INFO=<ID=ANN,Number=1,Type=String,Description=\"Annotation from bed file " + bedFile + "\">";
+      v.headerInfoLine["ANN"] = "##INFO=<ID=ANN,Number=.,Type=String,Description=\"Annotation from bed file " + bedFile + "\">";
     }
 
     if (annotateDbsnp) {taskDescription += ", ";}

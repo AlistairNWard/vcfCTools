@@ -18,6 +18,7 @@ statistics::statistics(void) {
   lastSnpPosition = -1;
   currentReferenceSequence = "";
   hasIndel = false;
+  hasMnp = false;
   hasSnp = false;
   hasAnnotations = false;
 }
@@ -25,94 +26,106 @@ statistics::statistics(void) {
 // Destructor.
 statistics::~statistics(void) {}
 
-void statistics::generateStatistics(vcf& v, bool annotation) {
+void statistics::generateStatistics(vcf& v) {
 
 // Initialise some variables.
   isTransition   = false;
   isTransversion = false;
   variantStruct variant;
 
-// Check if this variant is annotated as being in dbsnp and/or hapmap.
+// Check if this variant is annotated as being in dbsnp.
   inDbsnp = (v.rsid == ".") ? false : true;
-  inHapmap = (v.infoTags.count("HM3") == 0 && v.infoTags.count("HM3A") == 0) ? false : true;
-  
+
+// Deal with multi-allelic variants.
+  if (v.hasMultipleAlternates) {
+    variants[v.referenceSequence][v.filters].multiAllelic++;
+
 // Determine if the event is an indel/SV or a SNP.  If the variant is
 // an indel, keep track of whether it is an insertion or a deletion.  If
 // the variant is a SNP, determine if it is a transition of a transversion.
-  if (v.isSNP) {
-    hasSnp = true;
+  } else {
+    if (v.isSNP[0]) {
+      hasSnp = true;
 
 // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
 // order.  A simple comparison can then be made to determine if the SNP is a 
 // transition or a transversion.
-    string alleles = v.ref + v.alt;
-    for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
-    sort(alleles.begin(), alleles.end());
-
-    // Populate hapmap values.
-    if (inHapmap) {variants[v.referenceSequence][v.filters].hapmap += 1;}
+      string alleles = v.ref + v.alt[0];
+      for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
+      sort(alleles.begin(), alleles.end());
 
     // Transition:   A <-> G or C <-> T.
-    if (alleles == "ag" || alleles == "ct") {
-      isTransition = true;
-      if (inDbsnp) {variants[v.referenceSequence][v.filters].knownTransitions += 1;}
-      else {variants[v.referenceSequence][v.filters].novelTransitions += 1;}
-    }
+      if (alleles == "ag" || alleles == "ct") {
+        isTransition = true;
+        if (inDbsnp) {
+          variants[v.referenceSequence][v.filters].knownTransitions += 1;
+          if (v.infoTags.count("dbSNPX") != 0) {
+            variants[v.referenceSequence][v.filters].diffKnownTransitions += 1;
+          }
+        }
+        else {variants[v.referenceSequence][v.filters].novelTransitions += 1;}
+      }
 
     // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
-    if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
-      isTransversion = true;
-      if (inDbsnp) {variants[v.referenceSequence][v.filters].knownTransversions += 1;}
-      else {variants[v.referenceSequence][v.filters].novelTransversions += 1;}
-    }
+      if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
+        isTransversion = true;
+        if (inDbsnp) {
+          variants[v.referenceSequence][v.filters].knownTransversions += 1;
+          if (v.infoTags.count("dbSNPX") != 0) {
+            variants[v.referenceSequence][v.filters].diffKnownTransversions += 1;
+          }
+        }
+        else {variants[v.referenceSequence][v.filters].novelTransversions += 1;}
+      }
 
 // Keep track of the last SNP position, so that the distribution of 
 // the distance between SNPs can be maintained.
-    if (v.referenceSequence != currentReferenceSequence) {
-      currentReferenceSequence = v.referenceSequence;
-      lastSnpPosition = -1;
+      if (v.referenceSequence != currentReferenceSequence) {
+        currentReferenceSequence = v.referenceSequence;
+        lastSnpPosition = -1;
+      }
+      if (lastSnpPosition != -1) {
+        unsigned int distance = v.position - lastSnpPosition;
+        snpDistribution[distance] += 1;
+      }
     }
-    if (lastSnpPosition != -1) {
-      unsigned int distance = v.position - lastSnpPosition;
-      snpDistribution[distance] += 1;
+    else if (v.isMNP[0]) {
+      hasMnp = true;
+      variants[v.referenceSequence][v.filters].mnps[v.alt[0].size()] += 1;
+    // Deletions.
+    } else if (v.isDeletion[0]) {
+      hasIndel = true;
+      variants[v.referenceSequence][v.filters].deletions[v.ref.size() - v.alt[0].size()] += 1;
+    // Insertions.
+    } else if (v.isInsertion[0]) {
+      hasIndel = true;
+      variants[v.referenceSequence][v.filters].insertions[v.alt[0].size() - v.ref.size()] += 1;
     }
-  }
-  else if (v.isMNP) {
-    cout << "Haven't handled MNPs yet." << endl;
-    exit(0);
-  }
-  // Deletions.
-  else if (v.isDeletion) {
-    hasIndel = true;
-    variants[v.referenceSequence][v.filters].deletions[v.ref.size() - v.alt.size()] += 1;
-  }
-  // Insertions.
-  else if (v.isInsertion) {
-    hasIndel = true;
-    variants[v.referenceSequence][v.filters].insertions[v.alt.size() - v.ref.size()] += 1;
-  }
 
 // If the vcf file has been annotated and stats on these annotations are requested,
 // search for the ANN tag and build stats for the following string.
-  if (annotation) {
-    string tag = "ANN";
     if (v.infoTags.count("ANN") != 0) {
+      string tag = "ANN";
       information sInfo = v.getInfo(tag);
       hasAnnotations = true;
-      if (v.isSNP && isTransition) {variants[v.referenceSequence][v.filters].annotationsTs[sInfo.values[0]] += 1;}
-      else if (v.isSNP && isTransversion) {variants[v.referenceSequence][v.filters].annotationsTv[sInfo.values[0]] += 1;}
-      else if (v.isDeletion) {variants[v.referenceSequence][v.filters].annotationsDel[sInfo.values[0]] += 1;}
-      else if (v.isInsertion) {variants[v.referenceSequence][v.filters].annotationsIns[sInfo.values[0]] += 1;}
+
+    // Update annotation statistics.
+      for (vector<string>::iterator iter = sInfo.values.begin(); iter != sInfo.values.end(); iter++) {
+        if (annotationNames.count((*iter)) == 0) {annotationNames[(*iter)] = 1;}
+        if (v.isSNP[0] && isTransition) {variants[v.referenceSequence][v.filters].annotationsTs[(*iter)] += 1;}
+        else if (v.isSNP[0] && isTransversion) {variants[v.referenceSequence][v.filters].annotationsTv[(*iter)] += 1;}
+        else if (v.isDeletion[0]) {variants[v.referenceSequence][v.filters].annotationsDel[(*iter)] += 1;}
+        else if (v.isInsertion[0]) {variants[v.referenceSequence][v.filters].annotationsIns[(*iter)] += 1;}
+      }
     }
   }
 }
 
 // Print out the statistics to the output file.
 void statistics::printSnpStatistics(ostream* output) {
-  countByFilter();
   *output << setw(22) << "";
   *output << setw(60) << "--------------------------# SNPs--------------------------";
-  *output << setw(9) << "";
+  *output << setw(18) << "";
   *output << setw(24) << "------ts/tv ratio-----";
   *output << endl;
   *output << setw(22) << "filter";
@@ -121,25 +134,17 @@ void statistics::printSnpStatistics(ostream* output) {
   *output << setw(12) << "novel tv";
   *output << setw(12) << "known ts";
   *output << setw(12) << "known tv";
-  *output << setw(9) << setprecision(6) << "% dbsnp";
+  *output << setw(18) << setprecision(6) << "% dbsnp (% diff)";
   *output << setw(8) << setprecision(6) << "total";
   *output << setw(8) << setprecision(6) << "novel";
   *output << setw(8) << setprecision(6) << "known";
-  *output << setw(12) << "hapmap";
-  //if (hasAnnotations) {
-    //for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
-      //for (map<string, unsigned  int>::iterator ann = iter->second.annotationsTs.begin(); ann != iter->second.annotationsTs.end(); ann++) {
-        //cout << iter->first << " " << ann->first << endl;
-      //}
-    //}
-    //*output << setw(12) << "";
-  //}
+  *output << setw(8) << "multi";
   *output << endl;
 
 // Print the total number of variants over all reference sequences.
   for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
-    if ((*iter).first != "all" && (*iter).first != "PASS") {
-      string filter = (*iter).first;
+    if (iter->first != "all" && iter->first != "PASS") {
+      string filter = iter->first;
       printVariantStruct(output, filter, (*iter).second);
     }
   }
@@ -163,14 +168,28 @@ void statistics::printSnpStatistics(ostream* output) {
 // of each kind (e.g novel transition), for each filter and count the total
 // over all reference sequences.
 void statistics::countByFilter() {
-  for (map<string, map<string, variantStruct> >::iterator iter = variants.begin(); iter != variants.end(); iter++) {
-    for (map<string, variantStruct>::iterator filterIter = (*iter).second.begin(); filterIter != (*iter).second.end(); filterIter++) {
-      vector<string> filters = split((*filterIter).first, ";");
-      totalVariants[(*iter).first]["all"] = totalVariants[(*iter).first]["all"] + variants[(*iter).first][(*filterIter).first];
-      totalVariants["total"]["all"] = totalVariants["total"]["all"] + variants[(*iter).first][(*filterIter).first];
-      for (vector<string>::iterator vIter = filters.begin(); vIter != filters.end(); vIter++) {
-        totalVariants[(*iter).first][(*vIter)] = totalVariants[(*iter).first][(*vIter)] + variants[(*iter).first][(*filterIter).first];
-        totalVariants["total"][(*vIter)] = totalVariants["total"][(*vIter)] + variants[(*iter).first][(*filterIter).first];
+  map<string, map<string, variantStruct> >::iterator variantIter;
+  map<string, variantStruct>::iterator filterIter;
+  vector<string>::iterator fIter;
+
+  // Iterate over whole structure.
+  for (variantIter = variants.begin(); variantIter != variants.end(); variantIter++) {
+
+    // Iterate over the different filters.
+    for (filterIter = variantIter->second.begin(); filterIter != variantIter->second.end(); filterIter++) {
+
+      // Break up the filter string into all the individual filters.
+      vector<string> filters = split(filterIter->first, ";");
+
+      // Populate the structure containing information across all reference sequences
+      // and filters.
+      totalVariants[variantIter->first]["all"] = totalVariants[variantIter->first]["all"] + variants[variantIter->first][filterIter->first];
+      totalVariants["total"]["all"] = totalVariants["total"]["all"] + variants[variantIter->first][filterIter->first];
+
+      // Iterate over the individual filters.
+      for (fIter = filters.begin(); fIter != filters.end(); fIter++) {
+        totalVariants[variantIter->first][(*fIter)] = totalVariants[variantIter->first][(*fIter)] + variants[variantIter->first][filterIter->first];
+        totalVariants["total"][(*fIter)] = totalVariants["total"][(*fIter)] + variants[variantIter->first][filterIter->first];
       }
     }
   }
@@ -180,11 +199,14 @@ void statistics::countByFilter() {
 void statistics::printVariantStruct(ostream* output, string& filter, variantStruct& var) {
   int novel         = var.novelTransitions + var.novelTransversions;
   int known         = var.knownTransitions + var.knownTransversions;
+  int diffKnown     = var.diffKnownTransitions + var.diffKnownTransversions;
   int transitions   = var.novelTransitions + var.knownTransitions;
   int transversions = var.novelTransversions + var.knownTransversions;
-  int totalSnp      = novel + known;
+  int multiAllelic  = var.multiAllelic;
+  int totalSnp      = novel + known + multiAllelic;
 
   float dbsnp     = (totalSnp == 0) ? 0. : (100. * float(known) / float(totalSnp));
+  float dbsnpX    = (totalSnp == 0) ? 0. : (100. * float(diffKnown) / float(totalSnp));
   float tstv      = (transversions == 0) ? 0. : (float(transitions) / float(transversions));
   float noveltstv = (var.novelTransversions == 0) ? 0. : (float(var.novelTransitions) / float(var.novelTransversions));
   float knowntstv = (var.knownTransversions == 0) ? 0. : (float(var.knownTransitions) / float(var.knownTransversions));
@@ -195,22 +217,112 @@ void statistics::printVariantStruct(ostream* output, string& filter, variantStru
   *output << setw(12) << var.novelTransversions;
   *output << setw(12) << var.knownTransitions;
   *output << setw(12) << var.knownTransversions;
-  *output << setw(9) << setprecision(4) << dbsnp;
+  *output << setw(9) << setprecision(3) << dbsnp;
+  *output << setw(2) << " (";
+  *output << setw(5) << setprecision(3) << dbsnpX;
+  *output << setw(2) << ") ";
   *output << setw(8) << setprecision(3) << tstv;
   *output << setw(8) << setprecision(3) << noveltstv;
   *output << setw(8) << setprecision(3) << knowntstv;
-  *output << setw(12) << var.hapmap;
+  *output << setw(8) << multiAllelic;
   *output << endl;
+}
+
+// Print out annotation information for SNPs.
+void statistics::printSnpAnnotations(ostream* output) {
+  for (map<string, unsigned int>::iterator annIter = annotationNames.begin(); annIter != annotationNames.end(); annIter++) {
+    *output << endl;
+    string annotationName = annIter->first;
+    *output << "SNP annotation information for: " << annotationName << endl;
+    *output << endl;
+    *output << setw(22) << "filter";
+    *output << setw(16) << "total";
+    *output << setw(16) << "transitions";
+    *output << setw(16) << "transversions";
+    *output << setw(16) << "ts/tv";
+    *output << endl;
+    for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
+      if (iter->first != "all" && iter->first != "PASS") {
+        string filter = iter->first;
+        printSnpAnnotationStruct(output, filter, (*iter).second, annotationName);
+      }
+    }
+    *output << setw(22) << "";
+    *output << "--------------------------------------------------------------------";
+    *output << endl;
+    string filter = "PASS";
+    printSnpAnnotationStruct(output, filter, totalVariants["total"]["PASS"], annotationName);
+    filter = "Total";
+    printSnpAnnotationStruct(output, filter, totalVariants["total"]["all"], annotationName);
+    *output << setw(22) << "";
+    *output << "--------------------------------------------------------------------";
+    *output << endl;
+  }
+  *output << endl;
+}
+
+// Print out the information structure for annotated SNPs.
+void statistics::printSnpAnnotationStruct(ostream* output, string& filter, variantStruct& var, string& ann) {
+  float tstv = (var.annotationsTv[ann] == 0) ? 0. : (float(var.annotationsTs[ann]) / float(var.annotationsTv[ann]));
+
+  *output << setw(22) << filter;
+  *output << setw(16) << setprecision(10) << var.annotationsTs[ann] + var.annotationsTv[ann];
+  *output << setw(16) << var.annotationsTs[ann];
+  *output << setw(16) << var.annotationsTv[ann];
+  *output << setw(16) << setprecision(3) << tstv;
+  *output << endl;
+}
+
+// Print out statistics on MNPs.
+void statistics::printMnpStatistics(ostream* output) {
+  string filterTag;
+
+  *output << "Statistics on MNPs:" << endl;
+  *output << endl;
+
+  // First print out the total number of found MNPs (regardless of the filter).
+  filterTag = "all";
+  printMnpFilter(filterTag, output);
+
+  // Now print out the total number of "PASS" MNPs.
+  filterTag = "PASS";
+  printMnpFilter(filterTag, output);
+}
+
+// Print out particular MNP statistics.
+void statistics::printMnpFilter(string& tag, ostream* output) {
+  map<unsigned int, unsigned int>::iterator iter;
+  unsigned int totalMnps = 0;
+
+  for (iter = totalVariants["total"][tag].mnps.begin(); iter != totalVariants["total"][tag].mnps.end(); iter++) {
+    totalMnps += iter->second;
+  }
+  if (totalMnps != 0) {
+    *output << "MNPs with filter field: " << tag << endl;
+    *output << "Total number = " << totalMnps << endl;
+    *output << endl;
+    *output << left;
+    *output << setw(15) << "length (bp)";
+    *output << setw(10) << "number";
+    *output << endl;
+    for (iter = totalVariants["total"][tag].mnps.begin(); iter != totalVariants["total"][tag].mnps.end(); iter++) {
+      *output << left;
+      *output << setw(15) << iter->first;
+      *output << setw(10) << iter->second;
+      *output << endl;
+    }
+    *output << endl;
+  }
 }
 
 // Print out statistics on indels.
 void statistics::printIndelStatistics(ostream* output) {
   map<unsigned int, unsigned int>::iterator iter;
   for (iter = totalVariants["total"]["PASS"].insertions.begin(); iter != totalVariants["total"]["PASS"].insertions.end(); iter++) {
-    cout << (*iter).first << " " << (*iter).second << endl;
+    *output << iter->first << " " << iter->second << endl;
   }
   cout << "DELETIONS" << endl;
   for (iter = totalVariants["total"]["PASS"].deletions.begin(); iter != totalVariants["total"]["PASS"].deletions.end(); iter++) {
-    cout << (*iter).first << " " << (*iter).second << endl;
+    *output << iter->first << " " << iter->second << endl;
   }
 }

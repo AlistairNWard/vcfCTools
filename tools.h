@@ -22,6 +22,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "Fasta.h"
+#include "SmithWatermanGotoh.h"
 #include "split.h"
 #include "vcf.h"
 
@@ -31,13 +33,13 @@ using namespace vcfCTools;
 struct storedVariants {
   string record;
   string ref;
-  string alt;
+  vector<string> alt;
   float quality;
   bool hasMultipleAlternates;
-  bool isSNP;
-  bool isMNP;
-  bool isDeletion;
-  bool isInsertion;
+  vector<bool> isSNP;
+  vector<bool> isMNP;
+  vector<bool> isDeletion;
+  vector<bool> isInsertion;
 };
 
 ostream* openOutputFile(string&);

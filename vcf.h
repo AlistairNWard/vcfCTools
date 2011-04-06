@@ -12,6 +12,7 @@
 #define VCF_H
 
 #include "split.h"
+#include "vcf_aux.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -58,6 +59,9 @@ struct variantGroup {
     noGroups = 0;
   }
 
+  ~variantGroup()
+  {}
+
   void clear() {
     noAlts = 0;
     noRecords = 0;
@@ -78,13 +82,14 @@ class vcf {
     bool headerTitles(string&);
     bool noHeader();
     bool getRecord();
-    bool getVariantGroup(variantGroup&);
+    void clear();
+    bool getVariantGroup(variantGroup&, string&);
     void processInfoFields();
     information getInfo(string&);
     void processGenotypeFields(string&);
     information getGenotypeInfo(string&);
-    bool parseVcf(string&, unsigned int, bool, ostream*);
-    bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*);
+    bool parseVcf(string&, unsigned int, bool, ostream*, bool);
+    bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
     string getDbsnpInfo();
     string buildRecord(bool);
 
@@ -117,17 +122,18 @@ class vcf {
     int position;
     string rsid;
     string ref;
-    string alt;
+    string altString;
+    vector<string> alt;
     float quality;
     string sQuality;
     string filters;
     string info;
     map<string, string> infoTags;
     bool hasMultipleAlternates;
-    bool isSNP;
-    bool isMNP;
-    bool isDeletion;
-    bool isInsertion;
+    vector<bool> isSNP;
+    vector<bool> isMNP;
+    vector<bool> isDeletion;
+    vector<bool> isInsertion;
 
 // Genotype information.
     bool hasGenotypes;

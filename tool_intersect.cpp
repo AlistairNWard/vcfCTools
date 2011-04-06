@@ -18,6 +18,7 @@ using namespace vcfCTools;
 intersectTool::intersectTool(void)
   : AbstractTool()
 {
+  passFilters = false;
   groupVariants = false;
   findCommon = false;
   findUnion  = false;
@@ -49,6 +50,8 @@ int intersectTool::Help(void) {
   cout << "	output variants present in either file." << endl;
   cout << "  -q, --unique" << endl;
   cout << "	output variants unique to one of the files." << endl;
+  cout << "  -p, --pass-filters" << endl;
+  cout << "	Only variants that pass filters are considered." << endl;
   cout << endl;
   cout << "Additional information:" << endl;
   cout << "  The -c, -u and -q options require either 'a', 'b' or 'q' (not valid for -q) as an argument." << endl;
@@ -79,7 +82,8 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       {"bed", required_argument, 0, 'b'},
       {"in", required_argument, 0, 'i'},
       {"out", required_argument, 0, 'o'},
-      {"group-variants", no_argument, 0, 'g'},
+      {"group-variants", required_argument, 0, 'g'},
+      {"pass-filters", no_argument, 0, 'p'},
       {"common", required_argument, 0, 'c'},
       {"union", required_argument, 0, 'u'},
       {"unique", required_argument, 0, 'q'},
@@ -88,7 +92,7 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:gc:u:q:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:g:pc:u:q:", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -114,6 +118,7 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       // Group variants.
       case 'g':
         groupVariants = true;
+        referenceFasta = optarg;
         break;
 
       // Common variants.
@@ -132,6 +137,11 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       case 'q':
         findUnique = true;
         writeFrom = optarg;
+        break;
+
+      // Only consider variants if they pass filters.
+      case 'p':
+        passFilters = true;
         break;
 
       //
@@ -182,7 +192,8 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 }
 
 // Intersect two vcf files.  Intersect by variant position only.
-void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCommon, bool findUnion, bool findUnique, string writeFrom) {
+//void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCommon, bool findUnion, bool findUnique, string writeFrom) {
+void intersectTool::intersectVcf(vcf& v1, vcf& v2) {
   bool success1 = v1.getRecord();
   bool success2 = v2.getRecord();
   string currentReferenceSequence = v1.referenceSequence;
@@ -195,6 +206,13 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
 // As soon as the end of either file is reached, there can be no
 // more intersecting SNPs, so terminate.
   while (success1 && success2) {
+    if (passFilters && v1.filters != "PASS") {
+      while (success1 && v1.filters != "PASS") {success1 = v1.getRecord();}
+    }
+    if (passFilters && v2.filters != "PASS") {
+      while (success2 && v2.filters != "PASS") {success2 = v2.getRecord();}
+    }
+
     if (v1.referenceSequence == v2.referenceSequence && v1.referenceSequence == currentReferenceSequence) {
       if (v1.position == v2.position) {
 
@@ -214,19 +232,29 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
 
 // Check the first vcf file.
         while (v1.referenceSequence == currentReferenceSequence && v1.position == currentPosition && success1) {
-          s = setStoredVariant(v1);
-          if (v1.isSNP) {snpsAtLocus1.push_back(s);}
-          if (v1.isMNP) {mnpsAtLocus1.push_back(s);}
-          if (v1.isDeletion || v1.isInsertion) {indelsAtLocus1.push_back(s);}
+          s = setStoredVariant(v1); // tools.cpp
+          if (!passFilters || (passFilters && v1.filters == "PASS") ) {
+            if (v1.hasMultipleAlternates) {
+            } else {
+              if (v1.isSNP[0]) {snpsAtLocus1.push_back(s);}
+              if (v1.isMNP[0]) {mnpsAtLocus1.push_back(s);}
+              if (v1.isDeletion[0] || v1.isInsertion[0]) {indelsAtLocus1.push_back(s);}
+            }
+          }
           success1 = v1.getRecord();
         }
 
 // and the second vcf file.
         while (v2.referenceSequence == currentReferenceSequence && v2.position == currentPosition && success2) {
-          s = setStoredVariant(v2);
-          if (v2.isSNP) {snpsAtLocus2.push_back(s);}
-          if (v2.isMNP) {mnpsAtLocus2.push_back(s);}
-          if (v2.isDeletion || v2.isInsertion) {indelsAtLocus2.push_back(s);}
+          s = setStoredVariant(v2); // tools.cpp
+          if (!passFilters || (passFilters && v2.filters == "PASS") ) {
+            if (v2.hasMultipleAlternates) {
+            } else {
+              if (v2.isSNP[0]) {snpsAtLocus2.push_back(s);}
+              if (v2.isMNP[0]) {mnpsAtLocus2.push_back(s);}
+              if (v2.isDeletion[0] || v2.isInsertion[0]) {indelsAtLocus2.push_back(s);}
+            }
+          }
           success2 = v2.getRecord();
         }
 
@@ -234,7 +262,6 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
 // variants of the same class.  Do not go through this if the unique fraction is
 // required, as these will not be propogated to the output.
 
-        cout << v1.position << " " << v2.position << endl;
         if (!findUnique) {
         //SNPs
           if (snpsAtLocus1.size() != 0 && snpsAtLocus2.size() != 0) {
@@ -273,59 +300,61 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
               }
             }
           }
-          snpsAtLocus1.clear();
-          snpsAtLocus2.clear();
 
           //MNPs
           if (mnpsAtLocus1.size() != 0 && mnpsAtLocus2.size() != 0) {
             compareVariants(mnpsAtLocus1, mnpsAtLocus2, findUnique, findUnion, writeFrom, output); // tools.cpp
           }
-          mnpsAtLocus1.clear();
-          mnpsAtLocus2.clear();
 
           //indels
           if (indelsAtLocus1.size() != 0 && indelsAtLocus2.size() != 0) {
             compareVariants(indelsAtLocus1, indelsAtLocus2, findUnique, findUnion, writeFrom, output); // tools.cpp
           }
-          indelsAtLocus1.clear();
-          indelsAtLocus2.clear();
+        }
+
+        // Clear the stored variants at this locus.
+        snpsAtLocus1.clear();
+        snpsAtLocus2.clear();
+        mnpsAtLocus1.clear();
+        mnpsAtLocus2.clear();
+        indelsAtLocus1.clear();
+        indelsAtLocus2.clear();
 
         // If the position in each file are different, parse through the lagging file until it
         // catches up with the other.
-        } else if (v2.position > v1.position) {
-          writeWhileParse = false;
-          if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
-          success1 = v1.parseVcf(v2.referenceSequence, v2.position, writeWhileParse, output);
-        } else if (v1.position > v2.position) {
-          writeWhileParse = false;
-          if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
-          success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output);
-        }
+      } else if (v2.position > v1.position) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success1 = v1.parseVcf(v2.referenceSequence, v2.position, writeWhileParse, output, passFilters);
+      } else if (v1.position > v2.position) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output, passFilters);
       }
-      else {
-        if (v1.referenceSequence == currentReferenceSequence) {
-          writeWhileParse = false;
-          if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
-          success1 = v1.parseVcf(v2.referenceSequence, v2.position, writeWhileParse, output);
-        } else if (v2.referenceSequence == currentReferenceSequence) {
-          writeWhileParse = false;
-          if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
-          success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output);
+    }
+    else {
+      if (v1.referenceSequence == currentReferenceSequence) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success1 = v1.parseVcf(v2.referenceSequence, v2.position, writeWhileParse, output, passFilters);
+      } else if (v2.referenceSequence == currentReferenceSequence) {
+        writeWhileParse = false;
+        if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
+        success2 = v2.parseVcf(v1.referenceSequence, v1.position, writeWhileParse, output, passFilters);
 
 // If the last record for a reference sequence is the same for both vcf
 // files, they will both have referenceSequences different from the
 // current reference sequence.  Change the reference sequence to reflect
 // this and proceed.
-        } else {
-          if (v1.referenceSequence != v2.referenceSequence) {
-            cerr << "ERROR: Reference sequences for both files are unexpectedly different." << endl;
-            cerr << "Check that both files contain records for the following reference sequences:" << endl;
-            cerr << "\t" << v1.referenceSequence << " and " << v2.referenceSequence << endl;
-            exit(1);
-          }
+      } else {
+        if (v1.referenceSequence != v2.referenceSequence) {
+          cerr << "ERROR: Reference sequences for both files are unexpectedly different." << endl;
+          cerr << "Check that both files contain records for the following reference sequences:" << endl;
+          cerr << "\t" << v1.referenceSequence << " and " << v2.referenceSequence << endl;
+          exit(1);
         }
-        currentReferenceSequence = v1.referenceSequence;
       }
+      currentReferenceSequence = v1.referenceSequence;
     }
   }
 
@@ -338,17 +367,17 @@ void intersectTool::intersectVcf(vcf& v1, vcf& v2, ostream* output, bool findCom
       }
     } else if (success2 && ( (findUnique && writeFrom == "b") || findUnion) ) {
       while (success2) {
-        *output << v1.record << endl;
+        *output << v2.record << endl;
         success2 = v2.getRecord();
       }
     }
   }
-  exit(0);
 }
 
 // Intersect two vcf files by first grouping together variants that occur
 // in common reference sequences.
-void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, ostream* output, bool findCommon, bool findUnion, bool findUnique, string writeFrom) {
+//void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, ostream* output, bool findCommon, bool findUnion, bool findUnique, string writeFrom, string& refFa) {
+void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, string& refFa) {
 
 // Define structures for storing the variant groups.
   variantGroup vc1;
@@ -356,8 +385,8 @@ void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, ostream* output, bo
 
   bool success1 = v1.getRecord();
   bool success2 = v2.getRecord();
-  success1 = v1.getVariantGroup(vc1);
-  success2 = v2.getVariantGroup(vc2);
+  success1 = v1.getVariantGroup(vc1, refFa);
+  success2 = v2.getVariantGroup(vc2, refFa);
   unsigned int noInt = 0;
 
   string currentReferenceSequence = vc1.referenceSequence;
@@ -374,26 +403,26 @@ void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, ostream* output, bo
     if (vc1.referenceSequence == vc2.referenceSequence && vc1.referenceSequence == currentReferenceSequence) {
       if (vc1.end >= vc2.start && vc2.end >= vc1.start) {
         noInt++;
-        success1 = v1.getVariantGroup(vc1);
-        success2 = v2.getVariantGroup(vc2);
+        success1 = v1.getVariantGroup(vc1, refFa);
+        success2 = v2.getVariantGroup(vc2, refFa);
       } else if (vc1.end < vc2.start) {
         //writeWhileParse = false;
         //if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
-        success1 = v1.parseVcfGroups(vc1, vc2.referenceSequence, vc2.start, writeWhileParse, output);
+        success1 = v1.parseVcfGroups(vc1, vc2.referenceSequence, vc2.start, writeWhileParse, output, refFa);
       } else if (vc2.end < vc1.start) {
         //writeWhileParse = false;
         //if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
-        success2 = v2.parseVcfGroups(vc2, vc1.referenceSequence, vc1.start, writeWhileParse, output);
+        success2 = v2.parseVcfGroups(vc2, vc1.referenceSequence, vc1.start, writeWhileParse, output, refFa);
       }
     } else {
       if (vc1.referenceSequence == currentReferenceSequence) {
         //writeWhileParse = false;
         //if (findUnion || (findUnique && (writeFrom == "a" || writeFrom == "q") ) ) {writeWhileParse = true;}
-        success1 = v1.parseVcfGroups(vc1, vc2.referenceSequence, vc2.start, writeWhileParse, output);
+        success1 = v1.parseVcfGroups(vc1, vc2.referenceSequence, vc2.start, writeWhileParse, output, refFa);
       } else if (vc2.referenceSequence == currentReferenceSequence) {
         //writeWhileParse = false;
         //if (findUnion || (findUnique && (writeFrom == "b" || writeFrom == "q") ) ) {writeWhileParse = true;}
-        success2 = v2.parseVcfGroups(vc2, vc1.referenceSequence, vc1.start, writeWhileParse, output);
+        success2 = v2.parseVcfGroups(vc2, vc1.referenceSequence, vc1.start, writeWhileParse, output, refFa);
 
 // If the last record for a reference sequence is the same for both vcf
 // files, they will both have referenceSequences different from the
@@ -419,8 +448,8 @@ void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, ostream* output, bo
   if (vc1.referenceSequence == vc2.referenceSequence && vc1.referenceSequence == currentReferenceSequence) {
     if (vc1.end >= vc2.start && vc2.end >= vc1.start) {
       noInt++;
-      if (success1) {success1 = v1.getVariantGroup(vc1);}
-      if (success2) {success2 = v2.getVariantGroup(vc2);}
+      if (success1) {success1 = v1.getVariantGroup(vc1, refFa);}
+      if (success2) {success2 = v2.getVariantGroup(vc2, refFa);}
     }
   }
 
@@ -448,7 +477,8 @@ void intersectTool::intersectVariantGroups(vcf& v1, vcf& v2, ostream* output, bo
 // two files are sorted by genomic coordinates and the reference
 // sequences are in the same order.  Do not group together variants
 // in common reference sequence.
-void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
+//void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
+void intersectTool::intersectVcfBed(vcf& v, bed& b) {
   bool successBed = b.getRecord();
   bool successVcf = v.getRecord();
   string currentReferenceSequence = v.referenceSequence;
@@ -457,14 +487,14 @@ void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
 // more intersections and the program can terminate.
   while (successVcf && successBed) {
     if (v.referenceSequence == b.referenceSequence) {
-      if (v.position < b.start) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output);}
+      if (v.position < b.start) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output, passFilters);}
       else if (v.position > b.end) {successBed = b.parseBed(v.referenceSequence, v.position);}
       else {
         *output << v.record << endl;
         successVcf = v.getRecord();
       }
     } else {
-      if (v.referenceSequence == currentReferenceSequence) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output);}
+      if (v.referenceSequence == currentReferenceSequence) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output, passFilters);}
       if (b.referenceSequence == currentReferenceSequence) {successBed = b.parseBed(v.referenceSequence, v.position);}
       currentReferenceSequence = v.referenceSequence;
     }
@@ -473,7 +503,8 @@ void intersectTool::intersectVcfBed(vcf& v, bed& b, ostream* output) {
 
 // Intersect a vcf file with the variants grouped into common reference
 // sequence with a bed file.
-void intersectTool::intersectVariantGroupsBed(vcf& v, bed& b, ostream* output) {
+//void intersectTool::intersectVariantGroupsBed(vcf& v, bed& b, ostream* output) {
+void intersectTool::intersectVariantGroupsBed(vcf& v, bed& b) {
 }
 
 // Run the tool.
@@ -497,9 +528,11 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Intersect the files.
     if (groupVariants) {
-      intersectVariantGroupsBed(v, b, output);
+      //intersectVariantGroupsBed(v, b, output);
+      intersectVariantGroupsBed(v, b);
     } else {
-      intersectVcfBed(v, b, output);
+      //intersectVcfBed(v, b, output);
+      intersectVcfBed(v, b);
     }
 
 // Check that the input files had the same list of reference sequences.
@@ -533,9 +566,11 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Intersect the two vcf files.
     if (groupVariants) {
-      intersectVariantGroups(v1, v2, output, findCommon, findUnion, findUnique, writeFrom);
+      //intersectVariantGroups(v1, v2, output, findCommon, findUnion, findUnique, writeFrom, referenceFasta);
+      intersectVariantGroups(v1, v2, referenceFasta);
     } else {
-      intersectVcf(v1, v2, output, findCommon, findUnion, findUnique, writeFrom);
+      //intersectVcf(v1, v2, output, findCommon, findUnion, findUnique, writeFrom);
+      intersectVcf(v1, v2);
     }
 
 // Check that the input files had the same list of reference sequences.

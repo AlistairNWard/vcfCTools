@@ -221,9 +221,14 @@ bool vcf::noHeader() {
   return false;
 }
 
+// Clear the contents of vcf.
+void vcf::clear() {
+}
+
 // Get the next record from the vcf file.
 bool vcf::getRecord() {
   bool success = true;
+  clear();
   success = getline(*input, record);
 
 // Return false if no more records remain.
@@ -235,14 +240,15 @@ bool vcf::getRecord() {
 
 // Populate the variant values.
   referenceSequence = recordFields[0];
-  position = atoi(recordFields[1].c_str());
-  rsid     = recordFields[2];
-  ref      = recordFields[3];
-  alt      = recordFields[4];
-  sQuality = recordFields[5];
-  quality  = atof(recordFields[5].c_str());
-  filters  = recordFields[6];
-  info     = recordFields[7];
+  position  = atoi(recordFields[1].c_str());
+  rsid      = recordFields[2];
+  ref       = recordFields[3];
+  altString = recordFields[4];
+  alt.clear();
+  sQuality  = recordFields[5];
+  quality   = atof(recordFields[5].c_str());
+  filters   = recordFields[6];
+  info      = recordFields[7];
   if (recordFields.size() < 9) {hasGenotypes = false;}
   else {genotypeFormatString = recordFields[8];}
 
@@ -260,14 +266,30 @@ bool vcf::getRecord() {
 
 // Determine the variant type and whether or not there are multiple alternate
 // alleles.
-  size_t found = alt.find(",");
-  if (found != string::npos) {hasMultipleAlternates = true;}
-  else {
+  size_t found = altString.find(",");
+  if (found != string::npos) {
+    hasMultipleAlternates = true;
+    alt = split(altString, ",");
+  } else {
     hasMultipleAlternates = false;
-    isSNP = (ref.size() == 1 && (ref.size() - alt.size()) == 0) ? true : false;
-    isMNP = (ref.size() != 1 && (ref.size() - alt.size()) == 0) ? true : false;
-    isDeletion  = ( (ref.size() - alt.size()) > 0) ? true : false;
-    isInsertion = ( (alt.size() - ref.size()) > 0) ? true : false;
+    alt.push_back(altString);
+  }
+  for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
+    // Alt allele is a SNP.
+    if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {isSNP.push_back(true);}
+    else {isSNP.push_back(false);}
+
+    // Alt allele is an MNP.
+    if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {isMNP.push_back(true);}
+    else {isMNP.push_back(false);}
+
+    // Alt allele is a deletion.
+    if ( (ref.size() - alt.size()) > 0) {isDeletion.push_back(true);}
+    else {isDeletion.push_back(false);}
+
+    // Alt allele is an insertion.
+    if ( (alt.size() - ref.size()) > 0) {isInsertion.push_back(true);}
+    else {isInsertion.push_back(false);}
   }
 
 // Add the reference sequence to the map.  If it didn't previously
@@ -300,113 +322,24 @@ bool vcf::getRecord() {
   return true;
 }
 
-bool vcf::getVariantGroup(variantGroup& vg) {
-  bool success = true;
-  bool inGroup = true;
-  vector<string> alts;
-  unsigned int compStart;
-  unsigned int compEndMatch;
-  string::iterator refIter;
-  string::reverse_iterator refRevIter;
+bool vcf::getVariantGroup(variantGroup& vg, string& refFa) {
+  bool success = true, inGroup = true;
+  string alRef, alAlt;
+  size_t found;
+  unsigned int end;
 
 // Define the variant group structure.
   vg.clear();
-  vg.ref = ref;
-
-// Determine the alt allele types (SNPs, MNPs, indels) and compare to
-// the reference sequence.
-  if (hasMultipleAlternates) {alts = split(alt, ",");}
-  else {alts.push_back(alt);}
-
-  cout << ref << endl;
-  for (vector<string>::iterator iter = alts.begin(); iter != alts.end(); iter++) {
-    compStart = 0;
-    compEndMatch = 0;
-    if ((*iter).length() == ref.length()) {
-
-// Insertions.
-    } else if ((*iter).length() > ref.length()) {
-      isInsertion = true;
-
-// Match the alt to the reference and find where the insertion occurs.
-      refIter = ref.begin();
-      for (string::iterator altIter = (*iter).begin(); altIter != (*iter).end(); altIter++) {
-        if ((*altIter) != (*refIter)) {
-          break;
-        }
-        else {
-          refIter++;
-          compStart++;
-        }
-      }
-
-// Deletions.
-    } else if ((*iter).length() < ref.length()) {
-      isDeletion = true;
-
-// Match the alt to the reference and find where the deletion occurs.
-      refIter = ref.begin();
-      for (string::iterator altIter = (*iter).begin(); altIter != (*iter).end(); altIter++) {
-        if ((*altIter) != (*refIter)) {
-          refRevIter = ref.rbegin();
-          for (string::reverse_iterator altRevIter = (*iter).rbegin(); altRevIter != (*iter).rend(); altRevIter++) {
-            if ((*altRevIter) != (*refRevIter)) {
-              break;
-            } else {
-              refRevIter++;
-              compEndMatch++;
-            }
-          }
-          break;
-        }
-        else {
-          refIter++;
-          compStart++;
-        }
-      }
-    }
-    if (compEndMatch == 0) {
-      cout << ref.substr(0, (*iter).length()) << endl;;
-    } else {
-      if (isInsertion) {
-      } else if (isDeletion) {
-        string a = ref.substr(0, compStart);
-        a.append(ref.length() - (*iter).length(), '-');
-        a.append((*iter).substr((*iter).length() - compEndMatch, compEndMatch));
-        cout << a << endl;
-      }
-    }
-  }
-  cout << endl;
-
-// Define the start and end position of the variant cluster from the first
-// record and clear other entries.
   vg.referenceSequence = referenceSequence;
-  vg.start = position;
-  vg.ref = ref;
-  vg.end = position + ref.size() - 1;
+  vg.start = -1;
 
-// Loop over all records that contain variants that overlap the reference
-// sequence.  The reference sequence can be extended with each new variant,
-// but stop looping if the end of the file is reached or the start position
-// of the next variant reference sequence does not overlap the cluster region.
-  while (success && inGroup) {
-    if (referenceSequence == vg.referenceSequence && position <= vg.end) {
-      vg.noRecords++;
-
-// Modify the reference sequence.
-      if ( (position + ref.size() - 1) > vg.end) {
-        vg.ref += ref.substr( (vg.end - position + 1), (ref.size() - vg.end + position - 1) );
-        vg.end = position + ref.size() - 1;
-      }
-
-      vg.noAlts = (hasMultipleAlternates) ? vg.noAlts + alts.size() : vg.noAlts + 1;
-      success = getRecord();
-    } else {
-      inGroup = false;
-    }
+  //cout << "Variant: " << referenceSequence << ":" << position << endl;
+  for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter ++) {
+    unsigned int start = alignAlternate(referenceSequence, position, ref, *iter, alRef, alAlt, refFa); // vcf_aux.cpp
+    found = alRef.find("-");
+    if (found == string::npos) {end = alRef.length() + start - 1;}
+    else {end = found + start - 1;}
   }
-  vg.noGroups++;
 
   return success;
 }
@@ -489,7 +422,7 @@ information vcf::getInfo(string& tag) {
       }
       else {
         sInfo.values = split(infoTags[tag],",");
-        if (sInfo.values.size() != sInfo.number) {
+        if (sInfo.number != 0 && sInfo.values.size() != sInfo.number) {
           cerr << "Error processing info string." << endl;
           cerr << "Unexpected number of entries for info field " << tag << " at " << referenceSequence << ":" << position << endl;
           exit(1);
@@ -532,16 +465,20 @@ information vcf::getGenotypeInfo(string& tag) {
 
 // Parse through the vcf file until the correct reference sequence is
 // encountered and the position is greater than or equal to that requested.
-bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output) {
+bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output, bool passFilters) {
   bool success = true;
   if (referenceSequence != compReferenceSequence) {
     while (referenceSequence != compReferenceSequence and success) {
-      if (write) {*output << record << endl;}
+      if (write) {
+        if (!passFilters || (passFilters && filters == "PASS") ) {*output << record << endl;}
+      }
       success = getRecord();
     }
   }
   while ( (referenceSequence == compReferenceSequence) && (position < compPosition) && success) {
-    if (write) {*output << record << endl;}
+    if (write) {
+      if (!passFilters || (passFilters && filters == "PASS") ) {*output << record << endl;}
+    }
     success = getRecord();
   }
 
@@ -553,7 +490,7 @@ bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, boo
 // overlapping reference sequence and parse through these until the
 // start position of the cluster is greater than or equal to the
 // requested value.
-bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output) {
+bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output, string& refFa) {
   bool success = true;
   if (vc.referenceSequence != compReferenceSequence) {
     while (referenceSequence != compReferenceSequence && success) {
@@ -561,10 +498,10 @@ bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsign
       success = getRecord();
     }
   }
-  if (success) {success = getVariantGroup(vc);}
+  if (success) {success = getVariantGroup(vc, refFa);}
   while ( (vc.referenceSequence == compReferenceSequence) && (vc.end < compPosition) && success) {
     //if (write) {*output << record << endl;}
-    success = getVariantGroup(vc);
+    success = getVariantGroup(vc, refFa);
   }
 
   return success;
@@ -578,7 +515,7 @@ string vcf::buildRecord(bool removeGenotypes) {
                 sPosition.str() + "\t" + \
                 rsid + "\t" + \
                 ref + "\t" + \
-                alt + "\t" + \
+                altString + "\t" + \
                 sQuality + "\t" + \
                 filters + "\t" + \
                 info;

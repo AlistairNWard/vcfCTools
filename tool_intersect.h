@@ -36,10 +36,14 @@ class intersectTool : public AbstractTool {
     int parseCommandLine(int argc, char* argv[]);
 
   private:
-    void intersectVcf(vcf&, vcf&, ostream*, bool, bool, bool, string);
-    void intersectVariantGroups(vcf&, vcf&, ostream*, bool, bool, bool, string);
-    void intersectVcfBed(vcf&, bed&, ostream*);
-    void intersectVariantGroupsBed(vcf&, bed&, ostream*);
+    //void intersectVcf(vcf&, vcf&, ostream*, bool, bool, bool, string);
+    void intersectVcf(vcf&, vcf&);
+    //void intersectVariantGroups(vcf&, vcf&, ostream*, bool, bool, bool, string, string&);
+    void intersectVariantGroups(vcf&, vcf&, string&);
+    //void intersectVcfBed(vcf&, bed&, ostream*);
+    void intersectVcfBed(vcf&, bed&);
+    //void intersectVariantGroupsBed(vcf&, bed&, ostream*);
+    void intersectVariantGroupsBed(vcf&, bed&);
 
   private:
     string commandLine;
@@ -55,10 +59,12 @@ class intersectTool : public AbstractTool {
     vector<struct storedVariants> mnpsAtLocus2;
     vector<struct storedVariants> indelsAtLocus2;
 
+    bool passFilters;
     bool findCommon;
     bool findUnion;
     bool findUnique;
     bool groupVariants;
+    string referenceFasta;
     string writeFrom;
     string currentReferenceSequence;
     unsigned int currentPosition;
