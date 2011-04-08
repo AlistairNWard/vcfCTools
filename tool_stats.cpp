@@ -17,6 +17,7 @@ using namespace vcfCTools;
 statsTool::statsTool(void)
   : AbstractTool()
 {
+  generateAfs = false;
   groupVariants = false;
 }
 
@@ -43,6 +44,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"help", no_argument, 0, 'h'},
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
+    {"allele-frequency-spectrum", no_argument, 0, 'a'},
     {"group-variants", required_argument, 0, 'g'},
 
     {0, 0, 0, 0}
@@ -50,7 +52,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:g:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:ag:", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -70,6 +72,10 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
         outputFile = optarg;
         break;
  
+      // Generate the allele frequency spectrum.
+      case 'a':
+        generateAfs = true;
+        break;
       // Group variants before generating stats.
       case 'g':
         groupVariants = true;
@@ -127,7 +133,7 @@ int statsTool::Run(int argc, char* argv[]) {
       success = v.getVariantGroup(vc, referenceFasta);
       //cout << vc.start << ", Number of records=" << vc.noRecords << ", Number of alternates=" << vc.noAlts << endl;
     } else {
-      stats.generateStatistics(v);
+      stats.generateStatistics(v, generateAfs);
     }
   }
   if (groupVariants) {cout << "No groups: " << vc.noGroups << endl;}
@@ -138,6 +144,7 @@ int statsTool::Run(int argc, char* argv[]) {
   if (stats.hasSnp) {
     stats.printSnpStatistics(output);
     if (stats.hasAnnotations) {stats.printSnpAnnotations(output);}
+    if (generateAfs) {stats.printAfs(output);}
   }
   if (stats.hasMnp) {stats.printMnpStatistics(output);}
   if (stats.hasIndel) {stats.printIndelStatistics(output);}

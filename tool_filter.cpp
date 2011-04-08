@@ -47,6 +47,8 @@ int filterTool::Help(void) {
   cout << "	remove the entry from the info field." << endl;
   cout << "  -f, --fail-filter" << endl;
   cout << "	filter out all variants that are not marked as 'PASS'." << endl;
+  cout << "  -m, --mark-as-pass" << endl;
+  cout << "	mark all records as 'PASS'." << endl;
   cout << "  -q, --quality" << endl;
   cout << "	filter on variant quality." << endl;
   cout << "  -r, --remove-genotypes" << endl;
@@ -54,6 +56,7 @@ int filterTool::Help(void) {
   cout << "  -s, --strip-records" << endl;
   cout << "	strip out records containing the specified info field (comma separated list)." << endl;
   cout << endl;
+  exit(0);
 
   return 0;
 }

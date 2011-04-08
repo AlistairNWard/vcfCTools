@@ -227,8 +227,15 @@ void vcf::clear() {
 
 // Get the next record from the vcf file.
 bool vcf::getRecord() {
+
+// Clear previous info.
+  alt.clear();
+  isSNP.clear();
+  isMNP.clear();
+  isInsertion.clear();
+  isDeletion.clear();
+
   bool success = true;
-  clear();
   success = getline(*input, record);
 
 // Return false if no more records remain.
@@ -244,7 +251,6 @@ bool vcf::getRecord() {
   rsid      = recordFields[2];
   ref       = recordFields[3];
   altString = recordFields[4];
-  alt.clear();
   sQuality  = recordFields[5];
   quality   = atof(recordFields[5].c_str());
   filters   = recordFields[6];
@@ -276,19 +282,19 @@ bool vcf::getRecord() {
   }
   for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
     // Alt allele is a SNP.
-    if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {isSNP.push_back(true);}
+    if (ref.size() == 1 && (ref.size() - (*iter).size()) == 0) {isSNP.push_back(true);}
     else {isSNP.push_back(false);}
 
     // Alt allele is an MNP.
-    if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {isMNP.push_back(true);}
+    if (ref.size() != 1 && (ref.size() - (*iter).size()) == 0) {isMNP.push_back(true);}
     else {isMNP.push_back(false);}
 
     // Alt allele is a deletion.
-    if ( (ref.size() - alt.size()) > 0) {isDeletion.push_back(true);}
+    if ( ref.size() > (*iter).size() ) {isDeletion.push_back(true);}
     else {isDeletion.push_back(false);}
 
     // Alt allele is an insertion.
-    if ( (alt.size() - ref.size()) > 0) {isInsertion.push_back(true);}
+    if ( (*iter).size() - ref.size() ) {isInsertion.push_back(true);}
     else {isInsertion.push_back(false);}
   }
 

@@ -28,6 +28,18 @@ using namespace std;
 
 namespace vcfCTools {
 
+struct indel {
+  unsigned int insertions;
+  unsigned int deletions;
+};
+
+struct snpTypes {
+  unsigned int novelTransitions;
+  unsigned int knownTransitions;
+  unsigned int novelTransversions;
+  unsigned int knownTransversions;
+};
+
 struct variantStruct {
   unsigned int novelTransitions;
   unsigned int knownTransitions;
@@ -39,8 +51,12 @@ struct variantStruct {
 
   map<unsigned int, unsigned int> mnps;
 
-  map<unsigned int, unsigned int> insertions;
-  map<unsigned int, unsigned int> deletions;
+  map<unsigned int, indel> indels;
+  map<unsigned int, snpTypes> afs;
+  //map<string, unsigned int> afsNovelTransitions;
+  //map<string, unsigned int> afsKnownTransitions;
+  //map<string, unsigned int> afsNovelTransversions;
+  //map<string, unsigned int> afsKnownTransversions;
   map<string, unsigned int> annotationsTs;
   map<string, unsigned int> annotationsTv;
   map<string, unsigned int> annotationsIns;
@@ -49,6 +65,8 @@ struct variantStruct {
 // Overload the + operator for structures.
   variantStruct operator+(variantStruct& vs) {
     variantStruct result;
+    map<unsigned int, indel>::iterator indelIter;
+    map<unsigned int, snpTypes>::iterator afsIter;
     map<unsigned int, unsigned int>::iterator iter;
     map<string, unsigned int>::iterator sIter;
 
@@ -65,15 +83,39 @@ struct variantStruct {
       result.mnps[iter->first] = this->mnps[iter->first] + vs.mnps[iter->first];
     }
 
-    // Insertions.
-    for (iter = vs.insertions.begin(); iter != vs.insertions.end(); iter++) {
-      result.insertions[iter->first] = this->insertions[iter->first] + vs.insertions[iter->first];
+    // Indels.
+    for (indelIter = vs.indels.begin(); indelIter != vs.indels.end(); indelIter++) {
+      result.indels[indelIter->first].insertions = this->indels[indelIter->first].insertions + vs.indels[indelIter->first].insertions;
+      result.indels[indelIter->first].deletions = this->indels[indelIter->first].deletions + vs.indels[indelIter->first].deletions;
     }
 
-    // Deletions.
-    for (iter = vs.deletions.begin(); iter != vs.deletions.end(); iter++) {
-      result.deletions[iter->first] = this->deletions[iter->first] + vs.deletions[iter->first];
+    // Allele frequency spectrum.
+    for (afsIter = vs.afs.begin(); afsIter != vs.afs.end(); afsIter++) {
+      result.afs[afsIter->first].novelTransitions = this->afs[afsIter->first].novelTransitions + vs.afs[afsIter->first].novelTransitions;;
+      result.afs[afsIter->first].knownTransitions = this->afs[afsIter->first].knownTransitions + vs.afs[afsIter->first].knownTransitions;;
+      result.afs[afsIter->first].novelTransversions = this->afs[afsIter->first].novelTransversions + vs.afs[afsIter->first].novelTransversions;;
+      result.afs[afsIter->first].knownTransversions = this->afs[afsIter->first].knownTransversions + vs.afs[afsIter->first].knownTransversions;;
     }
+
+    // Allele frequency spectrum - novel transitions.
+    //for (sIter = vs.afsNovelTransitions.begin(); sIter != vs.afsNovelTransitions.end(); sIter++) {
+    //  result.afsNovelTransitions[sIter->first] = this->afsNovelTransitions[sIter->first] + vs.afsNovelTransitions[sIter->first];
+    //}
+
+    // Allele frequency spectrum - known transitions.
+    //for (sIter = vs.afsKnownTransitions.begin(); sIter != vs.afsKnownTransitions.end(); sIter++) {
+    //  result.afsKnownTransitions[sIter->first] = this->afsKnownTransitions[sIter->first] + vs.afsKnownTransitions[sIter->first];
+    //}
+
+    // Allele frequency spectrum - novel transversions.
+    //for (sIter = vs.afsNovelTransversions.begin(); sIter != vs.afsNovelTransversions.end(); sIter++) {
+    //  result.afsNovelTransversions[sIter->first] = this->afsNovelTransversions[sIter->first] + vs.afsNovelTransversions[sIter->first];
+    //}
+
+    // Allele frequency spectrum - known transversions.
+    //for (sIter = vs.afsKnownTransversions.begin(); sIter != vs.afsKnownTransversions.end(); sIter++) {
+    //  result.afsKnownTransversions[sIter->first] = this->afsKnownTransversions[sIter->first] + vs.afsKnownTransversions[sIter->first];
+    //}
 
     // Annotations (transitions).
     for (sIter = vs.annotationsTs.begin(); sIter != vs.annotationsTs.end(); sIter++) {
@@ -103,9 +145,10 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(vcf&);
+    void generateStatistics(vcf&, bool);
     void printSnpStatistics(ostream*);
     void printSnpAnnotations(ostream*);
+    void printAfs(ostream*);
     void printMnpStatistics(ostream*);
     void printIndelStatistics(ostream*);
     void countByFilter();

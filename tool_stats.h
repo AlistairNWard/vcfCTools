@@ -41,6 +41,7 @@ class statsTool : public AbstractTool {
     string outputFile;
     ostream* output;
     bool groupVariants;
+    bool generateAfs;
     string referenceFasta;
 };
 
