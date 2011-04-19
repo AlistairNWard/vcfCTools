@@ -17,6 +17,7 @@ using namespace vcfCTools;
 statsTool::statsTool(void)
   : AbstractTool()
 {
+  recordsInMemory = 100;
   generateAfs = false;
   groupVariants = false;
 }
@@ -119,24 +120,58 @@ int statsTool::Run(int argc, char* argv[]) {
   v.openVcf(vcfFile);
   output = openOutputFile(outputFile);
   v.parseHeader();
-  v.processInfo = true;
 
 // If the vcf records are to be concatanated into groups, a variantGroup
 // structure is required.
-  variantGroup vc;
-  bool success;
+  //variantGroup vc;
 
-// Read through all the entries in the file.
-  unsigned int noGroups = 0;
-  while(v.getRecord()) {
-    if (groupVariants) {
-      success = v.getVariantGroup(vc, referenceFasta);
-      //cout << vc.start << ", Number of records=" << vc.noRecords << ", Number of alternates=" << vc.noAlts << endl;
+// Read through all the entries in the file.  First construct the
+// structure to contain the variants in memory and populate.
+  v.success = v.getRecord();
+  string currentReferenceSequence = v.variantRecord.referenceSequence;
+  v.success = v.buildVariantStructure(recordsInMemory, currentReferenceSequence, false, output);
+  while (v.success) {
+    if (v.variantRecord.referenceSequence == currentReferenceSequence) {
+
+      // Add the new variant to the structure and process the first element,
+      // finally erasing this element.  The structure should consequently
+      // maintain the same size.
+      v.addVariantToStructure();
+      v.variantsIter = v.variants.begin();
+      stats.generateStatistics(v, v.variantsIter->first, v.variantsIter->second, v.variantsInformation[v.variantsIter->first], generateAfs);
+      v.variants.erase(v.variantsIter);
+      v.success = v.getRecord();
     } else {
-      stats.generateStatistics(v, generateAfs);
+
+      // Process all of the elements remaining in the variants structure (i.e.
+      // those for the current reference sequence), deleting them as they are
+      // processed, then set the currentReferenceSequence to the new value and
+      // rebuild the variant structure.
+      for (v.variantsIter = v.variants.begin(); v.variantsIter != v.variants.end(); v.variantsIter++) {
+        stats.generateStatistics(v, v.variantsIter->first, v.variantsIter->second, v.variantsInformation[v.variantsIter->first], generateAfs);
+        v.variants.erase(v.variantsIter);
+      }
+      currentReferenceSequence = v.variantRecord.referenceSequence;
+      v.success = v.buildVariantStructure(recordsInMemory, currentReferenceSequence, false, output);
     }
   }
-  if (groupVariants) {cout << "No groups: " << vc.noGroups << endl;}
+
+// When the end of the vcf file is reached, process the remaining records stored
+// in the variants structure.
+  for (v.variantsIter = v.variants.begin(); v.variantsIter != v.variants.end(); v.variantsIter++) {
+    stats.generateStatistics(v, v.variantsIter->first, v.variantsIter->second, v.variantsInformation[v.variantsIter->first], generateAfs);
+    v.variants.erase(v.variantsIter);
+  }
+  //unsigned int noGroups = 0;
+  //while(v.getRecord()) {
+  //  if (groupVariants) {
+  //    success = v.getVariantGroup(vc, referenceFasta);
+  //    //cout << vc.start << ", Number of records=" << vc.noRecords << ", Number of alternates=" << vc.noAlts << endl;
+  //  } else {
+  //    stats.generateStatistics(v, generateAfs);
+  //  }
+  //}
+  //if (groupVariants) {cout << "No groups: " << vc.noGroups << endl;}
 
 // Count the total number of variants in each class and then rint out the
 // statistics.
@@ -144,7 +179,10 @@ int statsTool::Run(int argc, char* argv[]) {
   if (stats.hasSnp) {
     stats.printSnpStatistics(output);
     if (stats.hasAnnotations) {stats.printSnpAnnotations(output);}
-    if (generateAfs) {stats.printAfs(output);}
+    if (generateAfs) {
+      stats.printAcs(output);
+      stats.printAfs(output);
+    }
   }
   if (stats.hasMnp) {stats.printMnpStatistics(output);}
   if (stats.hasIndel) {stats.printIndelStatistics(output);}

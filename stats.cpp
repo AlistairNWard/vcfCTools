@@ -21,108 +21,159 @@ statistics::statistics(void) {
   hasMnp = false;
   hasSnp = false;
   hasAnnotations = false;
+
+// Initialise the arrays.
+  variants.clear();
 }
 
 // Destructor.
 statistics::~statistics(void) {}
 
-void statistics::generateStatistics(vcf& v, bool generateAfs) {
-
-// Initialise some variables.
-  isTransition   = false;
-  isTransversion = false;
-  variantStruct variant;
+void statistics::generateStatistics(vcf& v, unsigned int position, vector<variantDescription>& vs, vInfo& vsInfo, bool generateAfs) {
+  string tag;
+  unsigned int ac;
+  double af;
   information info;
-  string tag = "AC";
+  unsigned int iterationNumber = 0;
 
-// Check if this variant is annotated as being in dbsnp.
-  inDbsnp = (v.rsid == ".") ? false : true;
+// Deal with each alternate allele in turn.
+  for (vector<variantDescription>::iterator iter = vs.begin(); iter != vs.end(); iter++) {
+    iterationNumber++;
 
-// Deal with multi-allelic variants.
-  if (v.hasMultipleAlternates) {
-    variants[v.referenceSequence][v.filters].multiAllelic++;
+    // Process the info fields to determine annotations etc.
+    v.processInfoFields(iter->info);
 
-// Determine if the event is an indel/SV or a SNP.  If the variant is
-// an indel, keep track of whether it is an insertion or a deletion.  If
-// the variant is a SNP, determine if it is a transition of a transversion.
-  } else {
-    if (generateAfs) {info = v.getInfo(tag);}
-    if (v.isSNP[0]) {
+    // Determine the allele count and the allele frequency if the allele frequency (count)
+    // dependence is required.
+    if (generateAfs) {
+
+      // Get the alternate allele count.
+      tag = "AC";
+      info = v.getInfo(tag);
+      ac = atoi(info.values[0].c_str());
+
+      // Get the allele frequency.
+      tag = "AF";
+      info = v.getInfo(tag);
+      af = atof(info.values[0].c_str());
+    }
+
+    // Check if this variant is annotated as being in dbsnp.
+    inDbsnp = (iter->rsid == ".") ? false : true;
+
+    // Bi-allelic SNP.
+    if (iter->variantClass == 1) {
       hasSnp = true;
+      // If this locus contains multiple SNPs, then the vcf file must contain at least two
+      // SNPs at this locus.  In this case, treat the variant as a triallelic SNP.  If three
+      // alternates come up, treat it as a quad-allelic.
+      if (vsInfo.containsMultipleSnp) {
+        if (iterationNumber == 1) {variants[iter->referenceSequence][iter->filters].multiAllelic++;}
+      }
 
-// Generate a string as a pair the pair of alleles, in lower case and in alphabetical
-// order.  A simple comparison can then be made to determine if the SNP is a 
-// transition or a transversion.
-      string alleles = v.ref + v.alt[0];
-      for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
-      sort(alleles.begin(), alleles.end());
+      // If this is the only biallelic SNP at this locus, determine if it is a transition or a transversion
+      // and update the statistics accordingly.
+      else {
+        isTransition   = false;
+        isTransversion = false;
 
-    // Transition:   A <-> G or C <-> T.
-      if (alleles == "ag" || alleles == "ct") {
-        isTransition = true;
-        if (inDbsnp) {
-          variants[v.referenceSequence][v.filters].knownTransitions += 1;
-          if (v.infoTags.count("dbSNPX") != 0) {variants[v.referenceSequence][v.filters].diffKnownTransitions += 1;}
-          if (generateAfs) {variants[v.referenceSequence][v.filters].afs[atoi(info.values[0].c_str())].knownTransitions++;}
-        }
-        else {
-          variants[v.referenceSequence][v.filters].novelTransitions += 1;
-          if (generateAfs) {variants[v.referenceSequence][v.filters].afs[atoi(info.values[0].c_str())].novelTransitions++;}
+        // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
+        // order.  A simple comparison can then be made to determine if the SNP is a 
+        // transition or a transversion.
+        string alleles = iter->ref + iter->altString;
+        for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
+        sort(alleles.begin(), alleles.end());
+
+        // Transition:   A <-> G or C <-> T.
+        if (alleles == "ag" || alleles == "ct") {
+          isTransition = true;
+          if (inDbsnp) {
+            variants[iter->referenceSequence][iter->filters].knownTransitions++;
+            if (v.infoTags.count("dbSNPX") != 0) {variants[iter->referenceSequence][iter->filters].diffKnownTransitions++;}
+            if (generateAfs) {
+              variants[iter->referenceSequence][iter->filters].acs[ac].knownTransitions++;
+              variants[iter->referenceSequence][iter->filters].afs[af].knownTransitions++;
+            }
+          } else {
+            variants[iter->referenceSequence][iter->filters].novelTransitions++;
+            if (generateAfs) {
+              variants[iter->referenceSequence][iter->filters].acs[ac].novelTransitions++;
+              variants[iter->referenceSequence][iter->filters].afs[af].novelTransitions++;
+            }
+          }
+
+        // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
+        } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
+          isTransversion = true;
+          if (inDbsnp) {
+            variants[iter->referenceSequence][iter->filters].knownTransversions++;
+            if (v.infoTags.count("dbSNPX") != 0) {variants[iter->referenceSequence][iter->filters].diffKnownTransversions++;}
+            if (generateAfs) {
+              variants[iter->referenceSequence][iter->filters].acs[ac].knownTransversions++;
+              variants[iter->referenceSequence][iter->filters].afs[af].knownTransversions++;
+            }
+          } else {
+            variants[iter->referenceSequence][iter->filters].novelTransversions++;
+            if (generateAfs) {
+              variants[iter->referenceSequence][iter->filters].acs[ac].novelTransversions++; 
+              variants[iter->referenceSequence][iter->filters].afs[af].novelTransversions++; 
+            }
+          }
         }
       }
 
-    // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
-      if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
-        isTransversion = true;
-        if (inDbsnp) {
-          variants[v.referenceSequence][v.filters].knownTransversions += 1;
-          if (v.infoTags.count("dbSNPX") != 0) {variants[v.referenceSequence][v.filters].diffKnownTransversions += 1;}
-          if (generateAfs) {variants[v.referenceSequence][v.filters].afs[atoi(info.values[0].c_str())].knownTransversions++;}
-        }
-        else {
-          variants[v.referenceSequence][v.filters].novelTransversions += 1;
-          if (generateAfs) {variants[v.referenceSequence][v.filters].afs[atoi(info.values[0].c_str())].novelTransversions++;}
-        }
-      }
-
-// Keep track of the last SNP position, so that the distribution of 
-// the distance between SNPs can be maintained.
-      if (v.referenceSequence != currentReferenceSequence) {
-        currentReferenceSequence = v.referenceSequence;
+      // Keep track of the last SNP position, so that the distribution of 
+      // the distance between SNPs can be maintained.
+      if (iter->referenceSequence != currentReferenceSequence) {
+        currentReferenceSequence = iter->referenceSequence;
         lastSnpPosition = -1;
       }
       if (lastSnpPosition != -1) {
-        unsigned int distance = v.position - lastSnpPosition;
-        snpDistribution[distance] += 1;
+        unsigned int distance = position - lastSnpPosition;
+        snpDistribution[distance]++;
       }
-    }
-    else if (v.isMNP[0]) {
+
+    // Tri-allelic SNP.
+    } else if ( iter->variantClass == 2) {
+      variants[iter->referenceSequence][iter->filters].multiAllelic++;
+
+    // Quad-allelic SNP.
+    } else if ( iter->variantClass == 3) {
+      variants[iter->referenceSequence][iter->filters].multiAllelic++;
+
+    // MNP.
+    } else if ( iter->variantClass == 4) {
       hasMnp = true;
-      variants[v.referenceSequence][v.filters].mnps[v.alt[0].size()]++;
-    // Deletions.
-    } else if (v.isDeletion[0]) {
+      variants[iter->referenceSequence][iter->filters].mnps[iter->altString.size()]++;
+
+    // Insertion.
+    } else if ( iter->variantClass == 5) {
       hasIndel = true;
-      variants[v.referenceSequence][v.filters].indels[v.ref.size() - v.alt[0].size()].deletions++;
-    // Insertions.
-    } else if (v.isInsertion[0]) {
+      variants[iter->referenceSequence][iter->filters].indels[iter->ref.size() - iter->altString.size()].deletions++;
+
+    // Deletion.
+    } else if ( iter->variantClass == 6) {
       hasIndel = true;
-      variants[v.referenceSequence][v.filters].indels[v.alt[0].size() - v.ref.size()].insertions++;
+      variants[iter->referenceSequence][iter->filters].indels[iter->altString.size() - iter->ref.size()].insertions++;
     }
 
-// If the vcf file has been annotated and stats on these annotations are requested,
-// search for the ANN tag and build stats for the following string.
+    // If the vcf file has been annotated and stats on these annotations are requested,
+    // search for the ANN tag and build stats for the following string.
     if (v.infoTags.count("ANN") != 0) {
-      string tag = "ANN";
-      information sInfo = v.getInfo(tag);
+      tag = "ANN";
+      info = v.getInfo(tag);
       hasAnnotations = true;
 
-    // Update annotation statistics.
-      for (vector<string>::iterator iter = sInfo.values.begin(); iter != sInfo.values.end(); iter++) {
-        if (annotationNames.count((*iter)) == 0) {annotationNames[(*iter)] = 1;}
-        if (v.isSNP[0] && isTransition) {variants[v.referenceSequence][v.filters].annotationsTs[(*iter)] += 1;}
-        else if (v.isSNP[0] && isTransversion) {variants[v.referenceSequence][v.filters].annotationsTv[(*iter)] += 1;}
-        else if (v.isDeletion[0]) {variants[v.referenceSequence][v.filters].annotationsDel[(*iter)] += 1;}
-        else if (v.isInsertion[0]) {variants[v.referenceSequence][v.filters].annotationsIns[(*iter)] += 1;}
+      // Update annotation statistics.
+      for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+        if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+        if (iter->variantClass == 1 && isTransition) {variants[iter->referenceSequence][iter->filters].annotationsTs[*annIter]++;}
+        else if (iter->variantClass == 1 && isTransversion) {variants[iter->referenceSequence][iter->filters].annotationsTv[*annIter]++;}
+        else if (iter->variantClass == 2) {variants[iter->referenceSequence][iter->filters].annotationsTriallelicSnp[*annIter]++;}
+        else if (iter->variantClass == 3) {variants[iter->referenceSequence][iter->filters].annotationsQuadallelicSnp[*annIter]++;}
+        else if (iter->variantClass == 4) {variants[iter->referenceSequence][iter->filters].annotationsMnp[*annIter]++;}
+        else if (iter->variantClass == 5) {variants[iter->referenceSequence][iter->filters].annotationsIns[*annIter]++;}
+        else if (iter->variantClass == 6) {variants[iter->referenceSequence][iter->filters].annotationsDel[*annIter]++;}
       }
     }
   }
@@ -212,11 +263,11 @@ void statistics::printVariantStruct(ostream* output, string& filter, variantStru
   int multiAllelic  = var.multiAllelic;
   int totalSnp      = novel + known + multiAllelic;
 
-  float dbsnp     = (totalSnp == 0) ? 0. : (100. * float(known) / float(totalSnp));
-  float dbsnpX    = (totalSnp == 0) ? 0. : (100. * float(diffKnown) / float(totalSnp));
-  float tstv      = (transversions == 0) ? 0. : (float(transitions) / float(transversions));
-  float noveltstv = (var.novelTransversions == 0) ? 0. : (float(var.novelTransitions) / float(var.novelTransversions));
-  float knowntstv = (var.knownTransversions == 0) ? 0. : (float(var.knownTransitions) / float(var.knownTransversions));
+  double dbsnp     = (totalSnp == 0) ? 0. : (100. * double(known) / double(totalSnp));
+  double dbsnpX    = (totalSnp == 0) ? 0. : (100. * double(diffKnown) / double(totalSnp));
+  double tstv      = (transversions == 0) ? 0. : (double(transitions) / double(transversions));
+  double noveltstv = (var.novelTransversions == 0) ? 0. : (double(var.novelTransitions) / double(var.novelTransversions));
+  double knowntstv = (var.knownTransversions == 0) ? 0. : (double(var.knownTransitions) / double(var.knownTransversions));
 
   *output << setw(22) << filter;
   *output << setw(12) << setprecision(10) << totalSnp;
@@ -268,58 +319,109 @@ void statistics::printSnpAnnotations(ostream* output) {
   *output << endl;
 }
 
-// Print out allele frequency information.
-void statistics::printAfs(ostream* output) {
-  map<unsigned int, snpTypes>::iterator iter;
+// Print out allele count information.
+void statistics::printAcs(ostream* output) {
+  map<unsigned int, snpTypes>::iterator acsIter;
   unsigned int transitions, transversions, novel, known;
-  float dbsnp, tstv, novelTstv, knownTstv;
+  double dbsnp, tstv, novelTstv, knownTstv;
 
-  *output << "Statistics by allele frequency:";
+  *output << "Statistics by allele count:";
   *output << endl;
   *output << endl;
-  *output << setw(16) << "";
+  *output << setw(18) << "";
   *output << setw(60) << "--------------------------# SNPs--------------------------";
-  *output << setw(16) << "";
+  *output << setw(10) << "";
   *output << setw(24) << "-----ts/tv ratio-----";
   *output << endl;
-  *output << setw(14) << "allele count";
+  *output << setw(16) << "allele count";
   *output << setw(12) << "total";
   *output << setw(12) << "novel ts";
   *output << setw(12) << "novel tv";
   *output << setw(12) << "known ts";
   *output << setw(12) << "known tv";
-  *output << setw(18) << "dbsnp";
+  *output << setw(12) << "% dbsnp";
   *output << setw(8) << "total";
   *output << setw(8) << "novel";
   *output << setw(8) << "known";
   *output << endl;
-  for (iter = totalVariants["total"]["PASS"].afs.begin(); iter != totalVariants["total"]["PASS"].afs.end(); iter++) {
-    novel = iter->second.novelTransitions + iter->second.novelTransversions;
-    known = iter->second.knownTransitions + iter->second.knownTransversions;
-    transitions = iter->second.novelTransitions + iter->second.knownTransitions;
-    transversions = iter->second.novelTransversions + iter->second.knownTransversions;
+  for (acsIter = totalVariants["total"]["PASS"].acs.begin(); acsIter != totalVariants["total"]["PASS"].acs.end(); acsIter++) {
+    novel = acsIter->second.novelTransitions + acsIter->second.novelTransversions;
+    known = acsIter->second.knownTransitions + acsIter->second.knownTransversions;
+    transitions = acsIter->second.novelTransitions + acsIter->second.knownTransitions;
+    transversions = acsIter->second.novelTransversions + acsIter->second.knownTransversions;
 
-    dbsnp = ( (known + novel) == 0 ) ? 0. : float(known) / ( float(novel) + float(known) );
-    tstv = (transversions == 0) ? 0 : float(transitions) / float(transversions);
-    novelTstv = (iter->second.novelTransversions == 0) ? 0 : float(iter->second.novelTransitions) / float(iter->second.novelTransversions);
-    knownTstv = (iter->second.knownTransversions == 0) ? 0 : float(iter->second.knownTransitions) / float(iter->second.knownTransversions);
-    *output << setw(12) << iter->first;
+    dbsnp = ( (known + novel) == 0 ) ? 0. : 100. * (double(known) / ( double(novel) + double(known)) );
+    tstv = (transversions == 0) ? 0 : double(transitions) / double(transversions);
+    novelTstv = (acsIter->second.novelTransversions == 0) ? 0 : double(acsIter->second.novelTransitions) / double(acsIter->second.novelTransversions);
+    knownTstv = (acsIter->second.knownTransversions == 0) ? 0 : double(acsIter->second.knownTransitions) / double(acsIter->second.knownTransversions);
+    *output << setw(12) << acsIter->first;
     *output << setw(12) << novel + known;
-    *output << setw(12) << iter->second.novelTransitions;
-    *output << setw(12) << iter->second.novelTransversions;
-    *output << setw(12) << iter->second.knownTransitions;
-    *output << setw(12) << iter->second.knownTransversions;
-    *output << setw(18) << setprecision(3) << dbsnp;
+    *output << setw(12) << acsIter->second.novelTransitions;
+    *output << setw(12) << acsIter->second.novelTransversions;
+    *output << setw(12) << acsIter->second.knownTransitions;
+    *output << setw(12) << acsIter->second.knownTransversions;
+    *output << setw(12) << setprecision(3) << dbsnp;
     *output << setw(8) << setprecision(3) << tstv;
     *output << setw(8) << setprecision(3) << novelTstv;
     *output << setw(8) << setprecision(3) << knownTstv;
     *output << endl;
   }
+  *output << endl;
+}
+
+// Print out allele frequency information.
+void statistics::printAfs(ostream* output) {
+  map<double, snpTypes>::iterator afsIter;
+  unsigned int transitions, transversions, novel, known;
+  double dbsnp, tstv, novelTstv, knownTstv;
+
+  *output << "Statistics by allele frequency:";
+  *output << endl;
+  *output << endl;
+  *output << setw(18) << "";
+  *output << setw(60) << "--------------------------# SNPs--------------------------";
+  *output << setw(10) << "";
+  *output << setw(24) << "-----ts/tv ratio-----";
+  *output << endl;
+  *output << setw(16) << "allele frequency";
+  *output << setw(12) << "total";
+  *output << setw(12) << "novel ts";
+  *output << setw(12) << "novel tv";
+  *output << setw(12) << "known ts";
+  *output << setw(12) << "known tv";
+  *output << setw(12) << "% dbsnp";
+  *output << setw(8) << "total";
+  *output << setw(8) << "novel";
+  *output << setw(8) << "known";
+  *output << endl;
+  for (afsIter = totalVariants["total"]["PASS"].afs.begin(); afsIter != totalVariants["total"]["PASS"].afs.end(); afsIter++) {
+    novel = afsIter->second.novelTransitions + afsIter->second.novelTransversions;
+    known = afsIter->second.knownTransitions + afsIter->second.knownTransversions;
+    transitions = afsIter->second.novelTransitions + afsIter->second.knownTransitions;
+    transversions = afsIter->second.novelTransversions + afsIter->second.knownTransversions;
+
+    dbsnp = ( (known + novel) == 0 ) ? 0. : 100. * (double(known) / ( double(novel) + double(known)) );
+    tstv = (transversions == 0) ? 0 : double(transitions) / double(transversions);
+    novelTstv = (afsIter->second.novelTransversions == 0) ? 0 : double(afsIter->second.novelTransitions) / double(afsIter->second.novelTransversions);
+    knownTstv = (afsIter->second.knownTransversions == 0) ? 0 : double(afsIter->second.knownTransitions) / double(afsIter->second.knownTransversions);
+    *output << setw(12) << afsIter->first;
+    *output << setw(12) << novel + known;
+    *output << setw(12) << afsIter->second.novelTransitions;
+    *output << setw(12) << afsIter->second.novelTransversions;
+    *output << setw(12) << afsIter->second.knownTransitions;
+    *output << setw(12) << afsIter->second.knownTransversions;
+    *output << setw(12) << setprecision(6) << dbsnp;
+    *output << setw(8) << setprecision(6) << tstv;
+    *output << setw(8) << setprecision(6) << novelTstv;
+    *output << setw(8) << setprecision(6) << knownTstv;
+    *output << endl;
+  }
+  *output << endl;
 }
 
 // Print out the information structure for annotated SNPs.
 void statistics::printSnpAnnotationStruct(ostream* output, string& filter, variantStruct& var, string& ann) {
-  float tstv = (var.annotationsTv[ann] == 0) ? 0. : (float(var.annotationsTs[ann]) / float(var.annotationsTv[ann]));
+  double tstv = (var.annotationsTv[ann] == 0) ? 0. : (double(var.annotationsTs[ann]) / double(var.annotationsTv[ann]));
 
   *output << setw(22) << filter;
   *output << setw(16) << setprecision(10) << var.annotationsTs[ann] + var.annotationsTv[ann];
@@ -376,7 +478,7 @@ void statistics::printIndelStatistics(ostream* output) {
   map<unsigned int, indel>::iterator iter;
   unsigned int totalInsertions = 0;
   unsigned int totalDeletions = 0;
-  float ratio;
+  double ratio;
 
   *output << "Indel statistics:";
   *output << endl;
@@ -387,7 +489,7 @@ void statistics::printIndelStatistics(ostream* output) {
   *output << setw(12) << "ins/del";
   *output << endl;
   for (iter = totalVariants["total"]["PASS"].indels.begin(); iter != totalVariants["total"]["PASS"].indels.end(); iter++) {
-    ratio = (iter->second.deletions == 0) ? 0 : float(iter->second.insertions) / float(iter->second.deletions);
+    ratio = (iter->second.deletions == 0) ? 0 : double(iter->second.insertions) / double(iter->second.deletions);
     *output << setw(12) << iter->first;
     *output << setw(12) << iter->second.insertions;
     *output << setw(12) << iter->second.deletions;
@@ -396,7 +498,7 @@ void statistics::printIndelStatistics(ostream* output) {
     totalInsertions += iter->second.insertions;
     totalDeletions += iter->second.deletions;
   }
-  ratio = (totalDeletions == 0) ? 0 : float(totalInsertions) / float(totalDeletions);
+  ratio = (totalDeletions == 0) ? 0 : double(totalInsertions) / double(totalDeletions);
   *output << endl;
   *output << "Total indels:     " << totalInsertions + totalDeletions << endl;
   *output << "Total insertions: " << totalInsertions << endl;

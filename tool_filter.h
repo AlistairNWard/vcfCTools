@@ -34,6 +34,7 @@ class filterTool : public AbstractTool {
     int Help(void);
     int Run(int argc, char* argv[]);
     int parseCommandLine(int argc, char* argv[]);
+    void filter(vcf&);
 
   private:
     string commandLine;
@@ -41,7 +42,7 @@ class filterTool : public AbstractTool {
     string outputFile;
     ostream* output;
     bool filterQuality;
-    float filterQualityValue;
+    double filterQualityValue;
     bool markPass;
     bool filterFail;
     bool removeGenotypes;
@@ -51,6 +52,11 @@ class filterTool : public AbstractTool {
     string stripInfo;
     vector<string> stripInfoList;
     bool writeRecord;
+    unsigned int recordsInMemory;
+    bool conditionalFilter;
+    string filterString;
+    bool findHets;
+    unsigned int genotypePosition;
 };
 
 } // namespace vcfCTools

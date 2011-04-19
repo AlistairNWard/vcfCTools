@@ -52,13 +52,13 @@ struct variantStruct {
   map<unsigned int, unsigned int> mnps;
 
   map<unsigned int, indel> indels;
-  map<unsigned int, snpTypes> afs;
-  //map<string, unsigned int> afsNovelTransitions;
-  //map<string, unsigned int> afsKnownTransitions;
-  //map<string, unsigned int> afsNovelTransversions;
-  //map<string, unsigned int> afsKnownTransversions;
+  map<unsigned int, snpTypes> acs;
+  map<double, snpTypes> afs;
   map<string, unsigned int> annotationsTs;
   map<string, unsigned int> annotationsTv;
+  map<string, unsigned int> annotationsTriallelicSnp;
+  map<string, unsigned int> annotationsQuadallelicSnp;
+  map<string, unsigned int> annotationsMnp;
   map<string, unsigned int> annotationsIns;
   map<string, unsigned int> annotationsDel;
 
@@ -66,7 +66,8 @@ struct variantStruct {
   variantStruct operator+(variantStruct& vs) {
     variantStruct result;
     map<unsigned int, indel>::iterator indelIter;
-    map<unsigned int, snpTypes>::iterator afsIter;
+    map<unsigned int, snpTypes>::iterator acsIter;
+    map<double, snpTypes>::iterator afsIter;
     map<unsigned int, unsigned int>::iterator iter;
     map<string, unsigned int>::iterator sIter;
 
@@ -91,35 +92,43 @@ struct variantStruct {
 
     // Allele frequency spectrum.
     for (afsIter = vs.afs.begin(); afsIter != vs.afs.end(); afsIter++) {
-      result.afs[afsIter->first].novelTransitions = this->afs[afsIter->first].novelTransitions + vs.afs[afsIter->first].novelTransitions;;
-      result.afs[afsIter->first].knownTransitions = this->afs[afsIter->first].knownTransitions + vs.afs[afsIter->first].knownTransitions;;
-      result.afs[afsIter->first].novelTransversions = this->afs[afsIter->first].novelTransversions + vs.afs[afsIter->first].novelTransversions;;
-      result.afs[afsIter->first].knownTransversions = this->afs[afsIter->first].knownTransversions + vs.afs[afsIter->first].knownTransversions;;
+      result.afs[afsIter->first].novelTransitions = this->afs[afsIter->first].novelTransitions + vs.afs[afsIter->first].novelTransitions;
+      result.afs[afsIter->first].knownTransitions = this->afs[afsIter->first].knownTransitions + vs.afs[afsIter->first].knownTransitions;
+      result.afs[afsIter->first].novelTransversions = this->afs[afsIter->first].novelTransversions + vs.afs[afsIter->first].novelTransversions;
+      result.afs[afsIter->first].knownTransversions = this->afs[afsIter->first].knownTransversions + vs.afs[afsIter->first].knownTransversions;
     }
 
-    // Allele frequency spectrum - novel transitions.
-    //for (sIter = vs.afsNovelTransitions.begin(); sIter != vs.afsNovelTransitions.end(); sIter++) {
-    //  result.afsNovelTransitions[sIter->first] = this->afsNovelTransitions[sIter->first] + vs.afsNovelTransitions[sIter->first];
-    //}
-
-    // Allele frequency spectrum - known transitions.
-    //for (sIter = vs.afsKnownTransitions.begin(); sIter != vs.afsKnownTransitions.end(); sIter++) {
-    //  result.afsKnownTransitions[sIter->first] = this->afsKnownTransitions[sIter->first] + vs.afsKnownTransitions[sIter->first];
-    //}
-
-    // Allele frequency spectrum - novel transversions.
-    //for (sIter = vs.afsNovelTransversions.begin(); sIter != vs.afsNovelTransversions.end(); sIter++) {
-    //  result.afsNovelTransversions[sIter->first] = this->afsNovelTransversions[sIter->first] + vs.afsNovelTransversions[sIter->first];
-    //}
-
-    // Allele frequency spectrum - known transversions.
-    //for (sIter = vs.afsKnownTransversions.begin(); sIter != vs.afsKnownTransversions.end(); sIter++) {
-    //  result.afsKnownTransversions[sIter->first] = this->afsKnownTransversions[sIter->first] + vs.afsKnownTransversions[sIter->first];
-    //}
+    // Allele count spectrum.
+    for (acsIter = vs.acs.begin(); acsIter != vs.acs.end(); acsIter++) {
+      result.acs[acsIter->first].novelTransitions = this->acs[acsIter->first].novelTransitions + vs.acs[acsIter->first].novelTransitions;
+      result.acs[acsIter->first].knownTransitions = this->acs[acsIter->first].knownTransitions + vs.acs[acsIter->first].knownTransitions;
+      result.acs[acsIter->first].novelTransversions = this->acs[acsIter->first].novelTransversions + vs.acs[acsIter->first].novelTransversions;
+      result.acs[acsIter->first].knownTransversions = this->acs[acsIter->first].knownTransversions + vs.acs[acsIter->first].knownTransversions;
+    }
 
     // Annotations (transitions).
     for (sIter = vs.annotationsTs.begin(); sIter != vs.annotationsTs.end(); sIter++) {
       result.annotationsTs[sIter->first] = this->annotationsTs[sIter->first] + vs.annotationsTs[sIter->first];
+    }
+
+    // Annotations (transversions).
+    for (sIter = vs.annotationsTv.begin(); sIter != vs.annotationsTv.end(); sIter++) {
+      result.annotationsTv[sIter->first] = this->annotationsTv[sIter->first] + vs.annotationsTv[sIter->first];
+    }
+
+    // Annotations (tri-allelic SNPs).
+    for (sIter = vs.annotationsTriallelicSnp.begin(); sIter != vs.annotationsTriallelicSnp.end(); sIter++) {
+      result.annotationsTriallelicSnp[sIter->first] = this->annotationsTriallelicSnp[sIter->first] + vs.annotationsTriallelicSnp[sIter->first];
+    }
+
+    // Annotations (quad-allelic SNPs).
+    for (sIter = vs.annotationsQuadallelicSnp.begin(); sIter != vs.annotationsQuadallelicSnp.end(); sIter++) {
+      result.annotationsQuadallelicSnp[sIter->first] = this->annotationsQuadallelicSnp[sIter->first] + vs.annotationsQuadallelicSnp[sIter->first];
+    }
+
+    // Annotations (MNPs).
+    for (sIter = vs.annotationsMnp.begin(); sIter != vs.annotationsMnp.end(); sIter++) {
+      result.annotationsMnp[sIter->first] = this->annotationsMnp[sIter->first] + vs.annotationsMnp[sIter->first];
     }
 
     // Annotations (insertions).
@@ -132,11 +141,6 @@ struct variantStruct {
       result.annotationsDel[sIter->first] = this->annotationsDel[sIter->first] + vs.annotationsDel[sIter->first];
     }
 
-    // Annotations (transversions).
-    for (sIter = vs.annotationsTv.begin(); sIter != vs.annotationsTv.end(); sIter++) {
-      result.annotationsTv[sIter->first] = this->annotationsTv[sIter->first] + vs.annotationsTv[sIter->first];
-    }
-
     return result;
   }
 };
@@ -145,9 +149,10 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(vcf&, bool);
+    void generateStatistics(vcf&, unsigned int, vector<variantDescription>&, vInfo&, bool);
     void printSnpStatistics(ostream*);
     void printSnpAnnotations(ostream*);
+    void printAcs(ostream*);
     void printAfs(ostream*);
     void printMnpStatistics(ostream*);
     void printIndelStatistics(ostream*);

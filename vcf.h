@@ -68,6 +68,42 @@ struct variantGroup {
   }
 };
 
+// This structure contains a description of a particular
+// variant.  A map containing a structure for each variant
+// is created at each variant locus.  General information
+// about the locus is contained in the following vInfo
+// structure.
+struct variantDescription {
+
+  // Variant descriptions.
+  string record;
+  string referenceSequence;
+  string rsid;
+  string ref;
+  string altString;
+  double quality;
+  string filters;
+  string info;
+  string genotypeFormatString;
+  string genotypeString;
+  unsigned int variantClass;
+};
+
+// This structure contains general information about the
+// variants described in the variantsDescription structure.
+struct vInfo {
+  string referenceSequence;
+
+  // Logical flags.
+  bool containsBiallelicSnp;
+  bool containsMultipleSnp;
+  bool containsTriallelicSnp;
+  bool containsQuadallelicSnp;
+  bool containsMnp;
+  bool containsInsertion;
+  bool containsDeletion;
+};
+
 class vcf {
   public:
     vcf(void);
@@ -82,16 +118,19 @@ class vcf {
     bool headerTitles(string&);
     bool noHeader();
     bool getRecord();
-    void clear();
+    void addVariantToStructure();
+    unsigned int determineVariantClass(string&, string&);
+    bool buildVariantStructure(unsigned int, string&, bool, ostream*);
     bool getVariantGroup(variantGroup&, string&);
-    void processInfoFields();
+    void processInfoFields(string&);
     information getInfo(string&);
     void processGenotypeFields(string&);
     information getGenotypeInfo(string&);
     bool parseVcf(string&, unsigned int, bool, ostream*, bool);
     bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
     string getDbsnpInfo();
-    string buildRecord(bool);
+    string buildRecord(variantDescription&);
+    void writeRecord(ostream*);
 
   public:
     istream* input;
@@ -100,6 +139,11 @@ class vcf {
 
 // General information.
     bool dbsnpVcf;
+
+// Keep track of when a record is read successfully.
+    bool success;
+    bool update;
+    bool removeGenotypes;
 
 // Header information and text.
     bool hasHeader;
@@ -115,20 +159,25 @@ class vcf {
     map<unsigned int, string> includedDataSets;
 
 // variant information
+    variantDescription variantRecord;
+    int position;
+    map<unsigned int, vector<variantDescription> > variants;
+    map<unsigned int, vInfo> variantsInformation;
+    map<unsigned int, vector<variantDescription> >::iterator variantsIter;
+    map<string, string> infoTags;
+
     string record;
     string referenceSequence;
     vector<string> referenceSequenceVector;
     map<string, bool> referenceSequences;
-    int position;
     string rsid;
     string ref;
     string altString;
     vector<string> alt;
-    float quality;
+    double quality;
     string sQuality;
     string filters;
     string info;
-    map<string, string> infoTags;
     bool hasMultipleAlternates;
     vector<bool> isSNP;
     vector<bool> isMNP;

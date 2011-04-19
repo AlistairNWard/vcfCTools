@@ -36,10 +36,13 @@ std::vector<std::string> &split(const std::string &s, char delim, std::vector<st
     std::stringstream ss(s);
     std::string item;
     int counter = 1;
-    while(std::getline(ss, item, delim) && counter <= n) {
+    while(std::getline(ss, item, delim) && counter < n) {
       elems.push_back(item);
       counter++;
     }
+    elems.push_back(item);
+    std::getline(ss, item);
+    elems.push_back(item);
 
     return elems;
 }

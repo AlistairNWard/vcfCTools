@@ -43,6 +43,7 @@ class statsTool : public AbstractTool {
     bool groupVariants;
     bool generateAfs;
     string referenceFasta;
+    unsigned int recordsInMemory;
 };
 
 } // namespace vcfCTools

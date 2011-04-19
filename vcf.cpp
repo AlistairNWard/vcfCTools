@@ -22,6 +22,7 @@ using namespace vcfCTools;
 
 // Constructor.
 vcf::vcf(void) {
+  removeGenotypes = false;
   hasHeader = true;
   processInfo = false;
   hasGenotypes = true;
@@ -221,46 +222,53 @@ bool vcf::noHeader() {
   return false;
 }
 
-// Clear the contents of vcf.
-void vcf::clear() {
-}
-
 // Get the next record from the vcf file.
 bool vcf::getRecord() {
 
-// Clear previous info.
-  alt.clear();
-  isSNP.clear();
-  isMNP.clear();
-  isInsertion.clear();
-  isDeletion.clear();
-
+// Read in the vcf record.
   bool success = true;
   success = getline(*input, record);
 
 // Return false if no more records remain.
   if (!success) {return false;}
 
-  vector<string> recordFields;
-  if (processGenotypes) {recordFields = split(record, '\t');}
-  else {recordFields = split(record, '\t', 9);}
+// Break the record up into its individual parts.  Leave the genotype fields
+// as a string for now.  If the genotypes require parsing, this can be broken
+// up when it is needed.
+  vector<string> recordFields = split(record, '\t', 9);
 
-// Populate the variant values.
-  referenceSequence = recordFields[0];
-  position  = atoi(recordFields[1].c_str());
-  rsid      = recordFields[2];
-  ref       = recordFields[3];
-  altString = recordFields[4];
-  sQuality  = recordFields[5];
-  quality   = atof(recordFields[5].c_str());
-  filters   = recordFields[6];
-  info      = recordFields[7];
+// Resolve the information for this variant and add to a temporary structure.
+// This will be added to the map of variants when all information has been
+// collated.
+  variantRecord.referenceSequence = recordFields[0];
+  position                        = atoi(recordFields[1].c_str());
+  variantRecord.rsid              = recordFields[2];
+  variantRecord.ref               = recordFields[3];
+  variantRecord.altString         = recordFields[4];
+  variantRecord.quality           = atof(recordFields[5].c_str());
+  variantRecord.filters           = recordFields[6];
+  variantRecord.info              = recordFields[7];
+
+  // If genotypes have been removed, only store the non-genotype part of the
+  // record.
+  if (removeGenotypes) {
+    variantRecord.record = "";
+    for (unsigned int i = 0; i < 7; i++) {
+      variantRecord.record.append(recordFields[i]);
+      variantRecord.record.append("	");
+    }
+    variantRecord.record.append(recordFields[7]);
+  } else {variantRecord.record = record;}
+
+  // Check that genotypes exist.
   if (recordFields.size() < 9) {hasGenotypes = false;}
-  else {genotypeFormatString = recordFields[8];}
+  else {
+    variantRecord.genotypeFormatString = recordFields[8];
+    variantRecord.genotypeString = recordFields[9];
+  }
 
 // If the position is not an integer, the conversion to an integer will have
 // failed and position = 0.  In this case, terminate with an error.
-  //if (position == 0 || quality == 0) {
   if (position == 0) {
     cerr << "Error processing record." << endl;
     if (position == 0) {cerr << "Variant position is not an integer." << endl;}
@@ -270,32 +278,72 @@ bool vcf::getRecord() {
     exit(1);
   }
 
-// Determine the variant type and whether or not there are multiple alternate
-// alleles.
-  size_t found = altString.find(",");
-  if (found != string::npos) {
-    hasMultipleAlternates = true;
-    alt = split(altString, ",");
-  } else {
-    hasMultipleAlternates = false;
-    alt.push_back(altString);
+  return success;
+}
+
+// Add the variant to variant structure.
+void vcf::addVariantToStructure() {
+
+// If this is the first variant at this position, create a new entry in the
+// information structure.
+  if (variants.count(position) == 0) {
+    variantsInformation[position].referenceSequence     = variantRecord.referenceSequence;
+    variantsInformation[position].containsBiallelicSnp  = false;
+    variantsInformation[position].containsMultipleSnp   = false;
+    variantsInformation[position].containsTriallelicSnp = false;
+    variantsInformation[position].containsMnp           = false;
+    variantsInformation[position].containsInsertion     = false;
+    variantsInformation[position].containsDeletion      = false;
   }
-  for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
-    // Alt allele is a SNP.
-    if (ref.size() == 1 && (ref.size() - (*iter).size()) == 0) {isSNP.push_back(true);}
-    else {isSNP.push_back(false);}
 
-    // Alt allele is an MNP.
-    if (ref.size() != 1 && (ref.size() - (*iter).size()) == 0) {isMNP.push_back(true);}
-    else {isMNP.push_back(false);}
+// Determine if there are multiple alleles.  If the variant is a triallelic SNP,
+// leave the variant as is, otherwise, put each alternate allele in the
+// structure seperately.
+  size_t found = variantRecord.altString.find(",");
 
-    // Alt allele is a deletion.
-    if ( ref.size() > (*iter).size() ) {isDeletion.push_back(true);}
-    else {isDeletion.push_back(false);}
+  // Single alternate allele.
+  if (found == string::npos) {
+    variantRecord.variantClass = determineVariantClass(variantRecord.ref, variantRecord.altString);
 
-    // Alt allele is an insertion.
-    if ( (*iter).size() - ref.size() ) {isInsertion.push_back(true);}
-    else {isInsertion.push_back(false);}
+    variants[position].push_back(variantRecord);
+  } else {
+    alt = split(variantRecord.altString, ",");
+
+    // Tri-allelic SNP.
+    if (alt.size() == 2 && alt[0].size() == 1 && alt[1].size() == 1) {
+      variantRecord.variantClass = 2;
+      variants[position].push_back(variantRecord);
+      variantsInformation[position].containsTriallelicSnp = true;
+
+    // Quad-allelic SNP.
+    } else if (alt.size() == 3 && alt[0].size() == 1 && alt[1].size() == 1 && alt[2].size() == 1) {
+      variantRecord.variantClass = 3;
+      variants[position].push_back(variantRecord);
+      variantsInformation[position].containsQuadallelicSnp = true;
+
+    // MNPs, insertions and deletions.
+    } else {
+      for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
+        variantRecord.variantClass = determineVariantClass(variantRecord.ref, *iter);
+
+        // For insertions and deletions, the alt allele is aligned to the ref allele
+        // using a Smith-Waterman algorithm.  This determines the unambigous start
+        // position of the variant and ensures that the variant structure is
+        // constructed correctly.
+        if (variantRecord.variantClass == 5 || variantRecord.variantClass == 6) {
+
+          // If the position is modified write a warning to stderr.
+          // if (newPosition != position) {cerr << 
+          cerr << "Haven't handled indels yet." << endl;
+          exit(1);
+        }
+        variants[position].push_back(variantRecord);
+
+        // Clear the genotype string.  Otherwise, this will be kept in memory
+        // for each of the alt alleles.
+        variantRecord.genotypeString = "";
+      }
+    }
   }
 
 // Add the reference sequence to the map.  If it didn't previously
@@ -309,23 +357,120 @@ bool vcf::getRecord() {
 
 // If required, parse the genotype format string and create a vector
 // containing all of the individual sample genotype strings.
-  if (processGenotypes) {
-    genotypeFormat = split(genotypeFormatString, ":");
+  //if (processGenotypes) {
+  //  genotypeFormat = split(genotypeFormatString, ":");
 
 // Check that the number of genotype fields is equal to the number of samples
-    genotypes = recordFields;
-    genotypes.erase(genotypes.begin(), genotypes.begin() + 9);
-    if (samples.size() != genotypes.size()) {
-      cerr << "Error processing genotypes." << endl;
-      cerr << "The number or genotypes (" << genotypes.size() << ") is not equal to the number of samples (" << samples.size() << ")." << endl;
-      exit(1);
+  //  genotypes = recordFields;
+  //  genotypes.erase(genotypes.begin(), genotypes.begin() + 9);
+  //  if (samples.size() != genotypes.size()) {
+  //    cerr << "Error processing genotypes." << endl;
+  //    cerr << "The number or genotypes (" << genotypes.size() << ") is not equal to the number of samples (" << samples.size() << ")." << endl;
+  //    exit(1);
+  //  }
+  //}
+}
+
+// Determine the variant class from the ref and alt alleles.
+//
+// 1: bi-allelic SNP,
+// 2: tri-allelic SNP,
+// 3: quad-allelic SNP,
+// 4: MNP,
+// 5: Insertion,
+// 6: Deletion.
+unsigned int vcf::determineVariantClass(string& ref, string& alt) {
+  unsigned int variantClass;
+  // SNP.
+  if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
+    variantClass = 1;
+    variantsInformation[position].containsMultipleSnp = (variantsInformation[position].containsBiallelicSnp) ? true : false;
+    variantsInformation[position].containsBiallelicSnp = true;
+
+  // MNP.
+  } else if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
+    variantClass = 3;
+    variantsInformation[position].containsMnp = true;
+
+  // Insertion.
+  } else if ( alt.size() - ref.size() ) {
+    variantClass = 4;
+    variantsInformation[position].containsInsertion = true;
+
+  // Deletion.
+  } else if ( ref.size() > alt.size() ) {
+    variantClass = 5;
+    variantsInformation[position].containsDeletion = true;
+
+  // None of the known types.
+  } else {
+    cerr << "Unknown variant class:" << endl;
+    cerr << "Coordinates: " << variantsInformation[position].referenceSequence << ": " << position << endl;
+    cerr << "Ref: " << ref << endl << "Alt: " << alt << endl;
+    exit(1);
+  }
+
+  return variantClass;
+}
+
+// Parse the vcf file and add the variants to the structure.  Read in the
+// number of specified records or terminate at the end of the file or when
+// a new referenceSequence is encountered.
+bool vcf::buildVariantStructure(unsigned int recordsInMemory, string& currentReferenceSequence, bool write, ostream* output) {
+  unsigned int count = 0;
+  string tempReferenceSequence;
+
+// If the vcf file being parse has the wrong reference sequence, parse through
+// the file until the correct reference sequence is found.
+  if (success && variantRecord.referenceSequence != currentReferenceSequence) {
+    tempReferenceSequence = variantRecord.referenceSequence;
+
+    while (tempReferenceSequence != currentReferenceSequence) {
+
+      // Build the variant structure.  This step ensures correct sorting of the
+      // variants.
+      while (success && variantRecord.referenceSequence == tempReferenceSequence && count < recordsInMemory) {
+        addVariantToStructure();
+        success = getRecord();
+        count++;
+      }
+
+      // Parse through the structure, writing out records if necessary until this
+      // reference sequence has been completed.
+      while (success && variantRecord.referenceSequence == tempReferenceSequence) {
+        addVariantToStructure();
+        variantsIter = variants.begin();
+        if (write) {writeRecord(output);}
+        variants.erase(variantsIter);
+        success = getRecord();
+      }
+
+      // Clear any remaining variants from the structure.
+      for (variantsIter = variants.begin(); variantsIter != variants.end(); variantsIter++) {
+        if (write) {writeRecord(output);}
+        variants.erase(variantsIter);
+      }
+
+      // Set the temporary reference sequence to that of the next read in the file.
+      tempReferenceSequence = variantRecord.referenceSequence;
     }
   }
 
-// If required, process the info fields.
-  if (processInfo) {processInfoFields();}
+// When variants in the correct reference sequence are found, build the variant
+// structure.
+  count = 0;
+  while (success && variantRecord.referenceSequence == currentReferenceSequence && count < recordsInMemory) {
+    addVariantToStructure();
+    success = getRecord();
+    count++;
+  }
 
-  return true;
+  // Set the update flag.  If the last record read is in the current reference
+  // sequence, this should be true, otherwise false.
+  update = (variantRecord.referenceSequence == currentReferenceSequence) ? true : false;
+  update = (!success) ? false : update;
+
+  return success;
 }
 
 bool vcf::getVariantGroup(variantGroup& vg, string& refFa) {
@@ -351,9 +496,9 @@ bool vcf::getVariantGroup(variantGroup& vg, string& refFa) {
 }
 
 // Process the info entries.
-void vcf::processInfoFields() {
+void vcf::processInfoFields(string& infoString) {
   infoTags.clear();
-  vector<string> infoEntries = split(info, ';');
+  vector<string> infoEntries = split(infoString, ';');
   for (vector<string>::iterator iter = infoEntries.begin(); iter != infoEntries.end(); iter++) {
     size_t found = (*iter).find_first_of("=");
     string tag = (*iter).substr(0, found);
@@ -395,18 +540,17 @@ information vcf::getInfo(string& tag) {
   information sInfo;
   sInfo.tag = tag;
 
-// If this routine has been called and processInfo is set to false, terminate the
-// program.  Information can only be retrieved if the info fields have been
-// processed and so entering this routine without having procesed the info fields
-// will results in a failue to extract information.
-  if (!processInfo) {
-    cerr << "Routine vcf::getInfo called while processInfo = false." << endl;
-    cerr << "The tool calling this routine must set processInfo = true for this object." << endl;
-    cerr << "If processInfo = false, the info fields are not interrogated (in order to save time)," << endl;
-    cerr << "but the getInfo routine is useless in this instance as required data structures" << endl;
-    cerr << "have not been populated." << endl;
+// If this routine has been called and processInfoFields has no, or there are
+// no fields in the info string, terminate the program.  Information can only
+// be retrieved if the info fields have been processed and so entering this
+// routine without having procesed the info fields will result in a failue toi
+// extract information.
+  if (infoTags.size() == 0) {
+    cerr << "Routine vcf::getInfo called while there is no information in the" << endl;
+    cerr << "info string, or the routine processInfoFields has not previously been" << endl;
+    cerr << "called.  Please ensure that information exists in the vcf file" << endl;
+    cerr << "and that processInfoFields has been called." << endl;
     cerr << endl;
-    cerr << "Please check the logic of the called tool." << endl;
     exit(1);
   }
 
@@ -425,8 +569,7 @@ information vcf::getInfo(string& tag) {
         cerr << "Error processing info string." << endl;
         cerr << "Header inforamtion for entry: " << tag << " lists a flag with a non-zero number of entries." << endl;
         exit(1);
-      }
-      else {
+      } else {
         sInfo.values = split(infoTags[tag],",");
         if (sInfo.number != 0 && sInfo.values.size() != sInfo.number) {
           cerr << "Error processing info string." << endl;
@@ -434,8 +577,14 @@ information vcf::getInfo(string& tag) {
           exit(1);
         }
       }
+
+    // Requested info tag is not in the info string
+    } else {
+      //sInfo.number = 0;
+      cerr << "Tag: " << tag << " is not present in the info string." << endl;
+      cerr << "Terminating program." << endl;
+      exit(1);
     }
-    else {sInfo.number = 0;}
   }
   else {
     cerr << "Error processing info string." << endl;
@@ -472,20 +621,17 @@ information vcf::getGenotypeInfo(string& tag) {
 // Parse through the vcf file until the correct reference sequence is
 // encountered and the position is greater than or equal to that requested.
 bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output, bool passFilters) {
-  bool success = true;
-  if (referenceSequence != compReferenceSequence) {
-    while (referenceSequence != compReferenceSequence and success) {
+  while (success && variantRecord.referenceSequence == compReferenceSequence) {
+    variantsIter = variants.begin();
+    if (variantsIter->first < compPosition) {
       if (write) {
-        if (!passFilters || (passFilters && filters == "PASS") ) {*output << record << endl;}
+        //OUTPUT
       }
+      variants.erase(variantsIter);
       success = getRecord();
+    } else {
+      break;
     }
-  }
-  while ( (referenceSequence == compReferenceSequence) && (position < compPosition) && success) {
-    if (write) {
-      if (!passFilters || (passFilters && filters == "PASS") ) {*output << record << endl;}
-    }
-    success = getRecord();
   }
 
   return success;
@@ -513,23 +659,36 @@ bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsign
   return success;
 }
 
-// Construct a vcf record.
-string vcf::buildRecord(bool removeGenotypes) {
-  ostringstream sPosition;
-  sPosition << position;
-  string build= referenceSequence + "\t" + \
-                sPosition.str() + "\t" + \
-                rsid + "\t" + \
-                ref + "\t" + \
-                altString + "\t" + \
-                sQuality + "\t" + \
-                filters + "\t" + \
-                info;
+// Reconstruct a vcf record.
+string vcf::buildRecord(variantDescription& d) {
+  ostringstream sPosition, sQuality;
+  sPosition << variantsIter->first;
+  sQuality << d.quality;
+  string build = d.referenceSequence + "\t" + \
+                 sPosition.str() + "\t" + \
+                 d.rsid + "\t" + \
+                 d.ref + "\t" + \
+                 d.altString + "\t" + \
+                 sQuality.str() + "\t" + \
+                 d.filters + "\t" + \
+                 d.info;
 
   if (hasGenotypes && !removeGenotypes) {
-    size_t found = record.find(genotypeFormatString);
-    build += "\t" + record.substr(found);
+    build += "\t" + d.genotypeFormatString + "\t" + d.genotypeString;
   }
 
   return build;
+}
+
+// Write a variant to the output stream.  Depending on the number of
+// variants at this locus, different options for writing out are
+// available.
+void vcf::writeRecord(ostream* output) {
+  if (variantsIter->second.size() == 1) {
+    *output << variantsIter->second[0].record << endl;
+  } else {
+    for (vector<variantDescription>::iterator iter = variantsIter->second.begin(); iter != variantsIter->second.end(); iter++) {
+      *output << iter->record << endl;
+    }
+  }
 }
