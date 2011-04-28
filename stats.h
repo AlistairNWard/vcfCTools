@@ -11,8 +11,9 @@
 #ifndef STATS_H
 #define STATS_H
 
+#include "info.h"
 #include "stats.h"
-#include "vcf.h"
+#include "variant.h"
 
 #include <cstdio>
 #include <iostream>
@@ -149,7 +150,7 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(vcf&, unsigned int, vector<variantDescription>&, vInfo&, bool);
+    void generateStatistics(variant&, vcf&, int, bool);
     void printSnpStatistics(ostream*);
     void printSnpAnnotations(ostream*);
     void printAcs(ostream*);
@@ -171,12 +172,12 @@ class statistics {
     bool hasIndel;
     bool hasAnnotations;
     string currentReferenceSequence;
-    unsigned int lastSnpPosition;
+    int lastSnpPosition;
     map<string, string> referenceSequences;
     map<string, map<string, variantStruct> > variants;
     map<string, map<string, variantStruct> > totalVariants;
     map<string, map<string, unsigned int> > distributions;
-    map<unsigned int, unsigned int> snpDistribution;
+    map<int, unsigned int> snpDistribution;
     map<string, unsigned int> annotationNames;
 };
 

@@ -41,6 +41,7 @@ class bed {
     string bedFilename;
 
 // variant information
+    bool success;
     string record;
     string referenceSequence;
     vector<string> referenceSequenceVector;

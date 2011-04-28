@@ -86,7 +86,16 @@ struct variantDescription {
   string info;
   string genotypeFormatString;
   string genotypeString;
-  unsigned int variantClass;
+  
+  // Boolean flags describing variant class.
+  bool isBiallelicSnp;
+  bool isTriallelicSnp;
+  bool isQuadallelicSnp;
+  bool isMnp;
+  bool isInsertion;
+  bool isDeletion;
+
+  unsigned int variantClass; //DELETE
 };
 
 // This structure contains general information about the
@@ -117,7 +126,7 @@ class vcf {
     bool headerAdditionalInfo(string&);
     bool headerTitles(string&);
     bool noHeader();
-    bool getRecord();
+    bool getRecord(string&);
     void addVariantToStructure();
     unsigned int determineVariantClass(string&, string&);
     bool buildVariantStructure(unsigned int, string&, bool, ostream*);
@@ -129,7 +138,7 @@ class vcf {
     bool parseVcf(string&, unsigned int, bool, ostream*, bool);
     bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
     string getDbsnpInfo();
-    string buildRecord(variantDescription&);
+    string buildRecord(int, variantDescription&);
     void writeRecord(ostream*);
 
   public:
@@ -146,6 +155,7 @@ class vcf {
     bool removeGenotypes;
 
 // Header information and text.
+    bool fromHeader;
     bool hasHeader;
     bool processInfo;
     string headerLine;
@@ -170,6 +180,7 @@ class vcf {
     string referenceSequence;
     vector<string> referenceSequenceVector;
     map<string, bool> referenceSequences;
+    bool comparedReferenceSequence;
     string rsid;
     string ref;
     string altString;

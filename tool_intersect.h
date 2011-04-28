@@ -20,6 +20,7 @@
 
 #include "bed.h"
 #include "tools.h"
+#include "variant.h"
 #include "vcf.h"
 #include "vcfCTools_tool.h"
 
@@ -36,8 +37,7 @@ class intersectTool : public AbstractTool {
     int parseCommandLine(int argc, char* argv[]);
 
   private:
-    void intersectVcf(vcf&, vcf&);
-    void parseRemainingRef(vcf&, string&, string&);
+    void intersectVcf(vcf&, variant&, vcf&, variant&);
     void intersectVcfBed(vcf&, bed&);
 
   private:
@@ -54,6 +54,11 @@ class intersectTool : public AbstractTool {
     bool findUnique;
     string writeFrom;
     string currentReferenceSequence;
+
+    // Boolean flags.
+    bool processSnps;
+    bool processMnps;
+    bool processIndels;
 };
 
 } // namespace vcfCTools

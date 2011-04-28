@@ -49,7 +49,7 @@ unsigned int alignAlternate(string& referenceSequence, int& position, string& re
     alRef = alRef.substr(flankLength, alRef.length() - 2 * flankLength);
     alAlt = alAlt.substr(flankLength, alAlt.length() - 2 * flankLength);
 
-    //Find the earliest unambigous start.
+    //Find the left-most unambigous start location for the reference allele..
     start = position;
     altIter = alAlt.begin();
     for (refIter = alRef.begin(); refIter != alRef.end(); refIter++) {

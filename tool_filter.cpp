@@ -20,7 +20,6 @@ using namespace vcfCTools;
 filterTool::filterTool(void)
   : AbstractTool()
 {
-  recordsInMemory = 100;
   markPass = false;
   filterFail = false;
   filterQuality = false;
@@ -30,6 +29,8 @@ filterTool::filterTool(void)
   stripRecords = false;
   conditionalFilter = false;
   filterString = "";
+  currentReferenceSequence = "";
+  useSampleList = false;
 }
 
 // Destructor.
@@ -61,8 +62,16 @@ int filterTool::Help(void) {
   cout << "	filter on variant quality." << endl;
   cout << "  -r, --remove-genotypes" << endl;
   cout << "	do not include genotypes in the output vcf file." << endl;
-  cout << "  -s, --strip-records" << endl;
+  cout << "  -s, --samples" << endl;
+  cout << "	output variants that occur in the provided list of samples.." << endl;
+  cout << "  -t, --strip-records" << endl;
   cout << "	strip out records containing the specified info field (comma separated list)." << endl;
+  cout << "  -1, --snps" << endl;
+  cout << "     analyse SNPs." << endl;
+  cout << "  -2, --mnps" << endl;
+  cout << "     analyse MNPs." << endl;
+  cout << "  -3, --indels" << endl;
+  cout << "     analyse indels." << endl;
   cout << endl;
   exit(0);
 
@@ -92,13 +101,17 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"mark-as-pass", no_argument, 0, 'm'},
       {"quality", required_argument, 0, 'q'},
       {"remove-genotypes", required_argument, 0, 'r'},
-      {"strip-records", required_argument, 0, 's'},
+      {"samples", required_argument, 0, 's'},
+      {"strip-records", required_argument, 0, 't'},
+      {"snps", no_argument, 0, '1'},
+      {"mnps", no_argument, 0, '2'},
+      {"indels", no_argument, 0, '3'},
 
       {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:f:elq:mrs:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:d:f:elq:mrs:t:123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -152,10 +165,33 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
         removeGenotypes = true;
         break;
  
-      // Strip out records with the specified info field.
+      // Read in a list of samples.  Only variants that occur
+      // in these samples will be considered.  This option
+      // requires genotypes to be present.
       case 's':
+        useSampleList = true;
+        samplesListFile = optarg;
+        break;
+
+      // Strip out records with the specified info field.
+      case 't':
         stripRecords = true;
         stripInfo = optarg;
+        break;
+
+      // Analyse SNPs.
+      case '1':
+        processSnps = true;
+        break;
+
+      // Analyse MNPs.
+      case '2':
+        processMnps = true;
+        break;
+
+      // Analyse indels.
+      case '3':
+        processIndels = true;
         break;
 
       // Help.
@@ -190,85 +226,116 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
 }
 
 // Perform the required filtering tasks on the variants.
-void filterTool::filter(vcf& v) {
-  information info;
+void filterTool::filter(vcf& v, variant& var) {
 
-  for (vector<variantDescription>::iterator iter = v.variantsIter->second.begin(); iter != v.variantsIter->second.end(); iter++) {
-    string filterString = "";
-
-// Split up the info string if the information is required.
-    if (stripRecords || removeInfo) {
-      v.processInfoFields(iter->info);
-      info = v.getInfo(removeInfoString);
+  // SNPs.
+  if (var.processSnps) {
+    for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
+      performFilter(v, var.vmIter->first, *var.variantIter);
     }
+    for (var.variantIter = var.vmIter->second.multiSnps.begin(); var.variantIter != var.vmIter->second.multiSnps.end(); var.variantIter++) {
+      performFilter(v, var.vmIter->first, *var.variantIter);
+    }
+  }
 
-// Mark the record as "PASS" if --mark-as-pass was applied.
-    if (markPass) {filterString = "PASS";}
+  // MNPs.
+  if (var.processMnps) {
+    for (var.variantIter = var.vmIter->second.mnps.begin(); var.variantIter != var.vmIter->second.mnps.end(); var.variantIter++) {
+      performFilter(v, var.vmIter->first, *var.variantIter);
+    }
+  }
 
-// Check for quality filtering.
-    if (filterQuality && !markPass) {
-      if (iter->quality < filterQualityValue) {
-        ostringstream s;
-        s << filterQualityValue;
-        filterString = (filterString != "") ? filterString + ";" + "Q" + s.str() : "Q" + s.str();
+  // Indels.
+  if (var.processIndels) {
+    for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
+      performFilter(v, var.vmIter->first, *var.variantIter);
+    }
+  }
+}
+
+void filterTool::performFilter(vcf& v, int position, variantDescription& varIter) {
+  variantInfo info;
+  string filterString = "";
+  vector<string> geno;
+
+  // If a samples list was provided, check that one of the listed samples shows evidence
+  // for the alternate allele.  If none of the samples do, do not output this record.
+  if (useSampleList || findHets) {geno = split(varIter.genotypeString, "\t");}
+  if (useSampleList) {
+    cout << "CHECK " << geno[1] << endl;
+    exit(0);
+ }
+
+  // Split up the info string if the information is required.
+  if (stripRecords || removeInfo) {info.processInfoFields(varIter.info);}
+
+  // Mark the record as "PASS" if --mark-as-pass was applied.
+  if (markPass) {filterString = "PASS";}
+
+    // Check for quality filtering.
+  if (filterQuality && !markPass) {
+    if (varIter.quality < filterQualityValue) {
+      ostringstream s;
+      s << filterQualityValue;
+      filterString = (filterString != "") ? filterString + ";" + "Q" + s.str() : "Q" + s.str();
+    }
+  }
+
+  // Remove info fields if necessary.
+  if (removeInfo) {
+    if (info.infoTags.count(removeInfoString) > 0) {
+      info.getInfo(removeInfoString, varIter.referenceSequence, position);
+      string infoTag = removeInfoString;
+      if (v.headerInfoFields[removeInfoString].type != "Flag") {infoTag += "=";}
+      size_t found = varIter.info.find(infoTag);
+      size_t end   = varIter.info.find(";", found + 1);
+      string replaceString = "";
+
+      // If the info tag is at the end of the line, remove the trailing ";".
+      // Also, if this is the only entry in the info string, replace the
+      // info string with ".".
+      if (end != string::npos) {end = end - found + 1;}
+      else {
+      if (found != 0) {found--;}
+        else {replaceString = ".";}
+        end = varIter.info.length();
+      }
+      varIter.info.replace(found, end, replaceString);
+    }
+  }
+
+  // If genotypes need to be analysed, do that here.
+  if (findHets) {
+    string foundGeno = "";
+    string hetString = "";
+    unsigned int count = 0;
+
+    for (vector<string>::iterator genIter = geno.begin(); genIter != geno.end(); genIter++) {
+      foundGeno = (split(*genIter, ":") )[genotypePosition];
+      if (foundGeno == "0/1" || foundGeno == "1/0") {
+        hetString = (hetString == "") ? v.samples[count] : hetString + "," + v.samples[count];
+      }
+      count++;
+    }
+    if (hetString != "" ) {varIter.info += ";HET=" + hetString;}
+  }
+
+  filterString = (filterString == "") ? varIter.filters : filterString;
+  varIter.filters = filterString;
+
+  writeRecord = true;
+  if (filterFail && varIter.filters != "PASS") {writeRecord = false;}
+  if (stripRecords) {
+    for (vector<string>::iterator stripIter = stripInfoList.begin(); stripIter != stripInfoList.end(); stripIter++) {
+      if (info.infoTags.count(*stripIter) != 0) {
+        writeRecord = false;
+        break;
       }
     }
-
-// Remove info fields if necessary.
-    if (removeInfo) {
-      if (v.infoTags.count(removeInfoString) > 0) {
-        info = v.getInfo(removeInfoString);
-        string infoTag = removeInfoString;
-        if (v.headerInfoFields[removeInfoString].type != "Flag") {infoTag += "=";}
-        size_t found = iter->info.find(infoTag);
-        size_t end   = iter->info.find(";", found + 1);
-        string replaceString = "";
-
-        // If the info tag is at the end of the line, remove the trailing ";".
-        // Also, if this is the only entry in the info string, replace the
-        // info string with ".".
-        if (end != string::npos) {end = end - found + 1;}
-        else {
-        if (found != 0) {found--;}
-          else {replaceString = ".";}
-          end = iter->info.length();
-        }
-        iter->info.replace(found, end, replaceString);
-      }
-    }
-
-// If genotypes need to be analysed, do that here.
-    if (findHets) {
-      string foundGeno = "";
-      unsigned int count = 0;
-
-      vector<string> geno = split(iter->genotypeString, "\t");
-      for (vector<string>::iterator genIter = geno.begin(); genIter != geno.end(); genIter++) {
-        foundGeno = (split(*genIter, ":") )[genotypePosition];
-        if (foundGeno == "0/1" || foundGeno == "1/0") {
-          iter->info += ";HET=" + v.samples[count];
-        }
-        count++;
-      }
-    }
-
-    filterString = (filterString == "") ? iter->filters : filterString;
-    iter->filters = filterString;
-
-    writeRecord = true;
-    if (filterFail && iter->filters != "PASS") {writeRecord = false;}
-    if (stripRecords) {
-      for (vector<string>::iterator stripIter = stripInfoList.begin(); stripIter != stripInfoList.end(); stripIter++) {
-        if (v.infoTags.count(*stripIter) != 0) {
-          writeRecord = false;
-          break;
-        }
-      }
-    }
-    if (writeRecord) {
-      string record = v.buildRecord(*iter);
-      *output << record << endl;
-    }
+  }
+  if (writeRecord) {
+    string record = v.buildRecord(position, varIter);
+    *output << record << endl;
   }
 }
 
@@ -277,6 +344,8 @@ int filterTool::Run(int argc, char* argv[]) {
   int getOptions = filterTool::parseCommandLine(argc, argv);
 
   vcf v; // Define vcf object.
+  variant var; // Define variant object.
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels);
   v.openVcf(vcfFile); // Open the vcf file.
   output = openOutputFile(outputFile);
 
@@ -290,6 +359,18 @@ int filterTool::Run(int argc, char* argv[]) {
     cerr << "Input files does not contain genotype information." << endl;
     cerr << "Cannot identify sample genotypes." << endl;
     exit(1);
+  }
+
+// Add an information line to the header describing the HET info.
+  if (findHets) {v.headerInfoLine["HET"] = "##INFO=<ID=HET,Number=.,Type=String,Description=\"List of samples heterozygous at this locus.\">";}
+
+  // If variants that are found in the list of provided samples are to be outputted,
+  // check that genotypes exist and that the provided file contains at least one 
+  // sample.  Also check that the samples provided exist in the vcf file.
+  if (useSampleList) {
+    samples sl; // Create a samples list object.
+    sl.openSamplesFile(samplesListFile);
+    sl.getSamples(v);
   }
 
 // If the genotypes are to be removed, set the removeGenotypes value to 
@@ -318,23 +399,19 @@ int filterTool::Run(int argc, char* argv[]) {
 // Write out the header.
   writeHeader(output, v, removeGenotypes, taskDescription);
 
-// If information is being removed from the info string, ensure
-// that the info string is processed.
-  //if (removeInfo || stripRecords) {v.processInfo = true;}
-
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
-  v.success = v.getRecord();
-  string currentReferenceSequence = v.variantRecord.referenceSequence;
-  v.success = v.buildVariantStructure(recordsInMemory, currentReferenceSequence, false, output);
+  v.update = true;
 
 // If the genotypes need to be found, determine which position in the genotype
 // format string the genotypes appear.
-  if (findHets) {
+  if (findHets || useSampleList) {
     unsigned int count = 0;
-    v.variantsIter = v.variants.begin();
-    vector<variantDescription>::iterator i = v.variantsIter->second.begin();
-    vector<string> s = split(i->genotypeFormatString, ":");
+    if (!v.hasGenotypes) {
+      cerr << "Genotypes must be present to pick out variants occuring in a list of samples." << endl;
+      exit(1);
+    }
+    vector<string> s = split(v.variantRecord.genotypeFormatString, ":");
     for (vector<string>::iterator iter = s.begin(); iter != s.end(); iter++) {
       if (*iter == "GT") {break;}
       count++;
@@ -343,33 +420,25 @@ int filterTool::Run(int argc, char* argv[]) {
   }
 
   while (v.success) {
-    if (v.variantRecord.referenceSequence == currentReferenceSequence) {
-
-      // Add the new variant to the structure and process the first element,
-      // finally erasing this element.  The structure should consequently
-      // maintain the same size.
-      v.addVariantToStructure();
-      v.variantsIter = v.variants.begin();
-
-// Perform all filtering tasks on this variant.
-      filter(v);
-
-      v.variants.erase(v.variantsIter);
-      v.success = v.getRecord();
-    } else {
-
-    // Process all of the elements remaining in the variants structure (i.e.
-    // those for the current reference sequence), deleting them as they are
-    // processed, then set the currentReferenceSequence to the new value and
-    // rebuild the variant structure.
-      for (v.variantsIter = v.variants.begin(); v.variantsIter != v.variants.end(); v.variantsIter++) {
-
-// Perform all filtering tasks on this variant.
-        filter(v);
-        v.variants.erase(v.variantsIter);
-      }
+    // Build the variant structure for this reference sequence.
+    if (var.variantMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;
-      v.success = v.buildVariantStructure(recordsInMemory, currentReferenceSequence, false, output);
+      v.success = var.buildVariantStructure(v, currentReferenceSequence, false, output);
+    }
+
+    // Loop over the variant structure until it is empty.  While v.update is true,
+    // i.e. when the reference sequence is still the current reference sequence,
+    // keep adding variants to the structre.
+    while (var.variantMap.size() != 0) {
+      if (v.update && v.success) {
+        var.addVariantToStructure(v.position, v.variantRecord);
+        v.success = v.getRecord(currentReferenceSequence);
+      }
+      var.vmIter = var.variantMap.begin();
+
+// Perform all filtering tasks on this variant.
+      filter(v, var);
+      var.variantMap.erase(var.vmIter);
     }
   }
 

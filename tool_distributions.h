@@ -5,11 +5,11 @@
 // ------------------------------------------------------
 // Last modified: 18 February 2011
 // ------------------------------------------------------
-// Generate statistics about the input vcf file.
+// Collate information.
 // ******************************************************
 
-#ifndef TOOL_STATS_H
-#define TOOL_STATS_H
+#ifndef TOOL_DISTRIBUTIONS_H
+#define TOOL_DISTRIBUTIONS_H
 
 #include <cstdio>
 #include <iostream>
@@ -18,7 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 
-#include "stats.h"
+#include "info.h"
 #include "tools.h"
 #include "variant.h"
 #include "vcf.h"
@@ -28,13 +28,22 @@ using namespace std;
 
 namespace vcfCTools {
 
-class statsTool : public AbstractTool {
+struct distributionsStruct {
+  unsigned int number;
+  map<string, double> secondary;
+};
+
+class distributionsTool : public AbstractTool {
   public:
-    statsTool( void );
-    ~statsTool( void );
+    distributionsTool( void );
+    ~distributionsTool( void );
     int Help( void );
     int Run( int argc, char* argv[] );
     int parseCommandLine( int argc, char* argv[] );
+    void distributions(vcf&, variant&);
+    void performCollate(vcf&, int, variantDescription&);
+    void writePrimaryInfo();
+    void writeDistributions();
 
   private:
     string commandLine;
@@ -42,7 +51,18 @@ class statsTool : public AbstractTool {
     string outputFile;
     ostream* output;
     string currentReferenceSequence;
-    bool generateAfs;
+    string primaryInfo;
+    string secondaryInfoString;
+    vector<string> secondaryInfo;
+    vector<string> distFields;
+    bool secondaryQuality;
+    bool usePrimary;
+    bool useDistributions;
+    bool useDistQ;
+    string distString;
+    map<string, map<string, unsigned int> > dist;
+    map<double, unsigned int> distQ;
+    map<string, distributionsStruct> distributionsdInfo;
 
     // Boolean flags.
     bool processSnps;

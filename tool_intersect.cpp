@@ -23,6 +23,7 @@ intersectTool::intersectTool(void)
   findCommon = false;
   findUnion  = false;
   findUnique = false;
+  currentReferenceSequence = "";
 }
 
 // Destructor.
@@ -50,6 +51,12 @@ int intersectTool::Help(void) {
   cout << "	output variants unique to one of the files." << endl;
   cout << "  -p, --pass-filters" << endl;
   cout << "	Only variants that pass filters are considered." << endl;
+  cout << "  -1, --snps" << endl;
+  cout << "     analyse SNPs." << endl;
+  cout << "  -2, --mnps" << endl;
+  cout << "     analyse MNPs." << endl;
+  cout << "  -3, --indels" << endl;
+  cout << "     analyse indels." << endl;
   cout << endl;
   cout << "Additional information:" << endl;
   cout << "  The -c, -u and -q options require either 'a', 'b' or 'q' (not valid for -q) as an argument." << endl;
@@ -74,22 +81,25 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
   int argument; // Counter for getopt.
 
   // Define the long options.
+  static struct option long_options[] = {
+    {"help", no_argument, 0, 'h'},
+    {"bed", required_argument, 0, 'b'},
+    {"in", required_argument, 0, 'i'},
+    {"out", required_argument, 0, 'o'},
+    {"pass-filters", no_argument, 0, 'p'},
+    {"common", required_argument, 0, 'c'},
+    {"union", required_argument, 0, 'u'},
+    {"unique", required_argument, 0, 'q'},
+    {"snps", no_argument, 0, '1'},
+    {"mnps", no_argument, 0, '2'},
+    {"indels", no_argument, 0, '3'},
+
+    {0, 0, 0, 0}
+  };
+
   while (true) {
-    static struct option long_options[] = {
-      {"help", no_argument, 0, 'h'},
-      {"bed", required_argument, 0, 'b'},
-      {"in", required_argument, 0, 'i'},
-      {"out", required_argument, 0, 'o'},
-      {"pass-filters", no_argument, 0, 'p'},
-      {"common", required_argument, 0, 'c'},
-      {"union", required_argument, 0, 'u'},
-      {"unique", required_argument, 0, 'q'},
-
-      {0, 0, 0, 0}
-    };
-
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:pc:u:q:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:pc:u:q:123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -135,6 +145,21 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
         passFilters = true;
         break;
 
+      // Analyse SNPs.
+      case '1':
+        processSnps = true;
+        break;
+
+      // Analyse MNPs.
+      case '2':
+        processMnps = true;
+        break;
+
+      // Analyse indels.
+      case '3':
+        processIndels = true;
+        break;
+      
       //
       case '?':
         cout << "Unknown option: " << argv[optind - 1] << endl;
@@ -183,156 +208,103 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 }
 
 // Intersect two vcf files.  Intersect by variant position only.
-void intersectTool::intersectVcf(vcf& v1, vcf& v2) {
-  v1.success = v1.getRecord();
-  v2.success = v2.getRecord();
+void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2) {
+  v1.update = true;
+  v2.update = true;
 
-// Define writeWhileParse.  If parsing through one of the vcf files to find the next
-// common coordinate, this Boolean will instruct the parseVcf routine on whether or
-// not to write the records to the output file.
-  bool write;
+  // The following Boolean flags are used when adding variants to the map.  They
+  // determine whether or not to write out records that are unique to one of the
+  // files.
+  bool write1 = ( (findUnique && writeFrom == "a") || findUnion) ? true : false;
+  bool write2 = ( (findUnique && writeFrom == "b") || findUnion) ? true : false;
 
-  string currentReferenceSequence = v1.variantRecord.referenceSequence;
-  write = ( (findUnique && writeFrom == "a") || findUnion) ? true : false;
-  v1.success = v1.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-  write = ( (findUnique && writeFrom == "b") || findUnion) ? true : false;
-  v2.success = v2.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
+  // Build the variant structures for each 
+  var1.buildVariantStructure(v1, v1.variantRecord.referenceSequence, write1, output);
+  var2.buildVariantStructure(v2, v2.variantRecord.referenceSequence, write2, output);
 
-// Set the iterators to the start of each structure.
-  v1.variantsIter = v1.variants.begin();
-  v2.variantsIter = v2.variants.begin();
+  // Set the pointers to the start of each variant map.
+  var1.vmIter = var1.variantMap.begin();
+  var2.vmIter = var2.variantMap.begin();
 
-// Compare the variant structures for the two vcf files.  As variants are deleted,
-// new ones are added until there are no variants left.  Terminate the comparisons
-// as soon as the end of a file is reached.
-  while (v1.variants.size() != 0 && v2.variants.size() != 0) {
-    if (v1.variantsIter->first == v2.variantsIter->first) {
-      if (!findUnique) {v1.writeRecord(output);}
+  // Parse and compare the two variant structures until the end of one of the files
+  // is reached and the variant structure for that file is empty.
+  while ( !(var1.variantMap.size() == 0 && !v1.success) && !(var2.variantMap.size() == 0 && !v2.success) ) {
 
-      // Erase the variants from the structure.
-      v1.variants.erase(v1.variantsIter);
-      v2.variants.erase(v2.variantsIter);
+    // If the two variant structures are built with the same reference sequence, compare
+    // the contents and parse through all varians for this reference sequence.
+    if (var1.vmIter->second.referenceSequence == var2.vmIter->second.referenceSequence) {
+      currentReferenceSequence = var1.vmIter->second.referenceSequence;
 
-      // Add the next variants to the structure if any more exist for this reference
-      // sequence.
-      if (v1.update) {
-        v1.addVariantToStructure();
-        v1.success = v1.getRecord();
-        if (v1.variantRecord.referenceSequence != currentReferenceSequence || !v1.success) {v1.update = false;}
+      while (var1.variantMap.size() != 0 && var2.variantMap.size() != 0) {
+
+        // Variants at the same locus.
+        if (var1.vmIter->first == var2.vmIter->first) {
+          if (!findUnique) {var1.writeVariants(output);}
+
+          // Clear the compared variants from the structure and add the next one from 
+          // the file into the structure if it is from the same reference sequence.
+          var1.variantMap.erase(var1.vmIter);
+          if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
+            var1.addVariantToStructure(v1.position, v1.variantRecord);
+            v1.success = v1.getRecord(currentReferenceSequence);
+          }
+          if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
+
+          var2.variantMap.erase(var2.vmIter);
+          if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
+            var2.addVariantToStructure(v2.position, v2.variantRecord);
+            v2.success = v2.getRecord(currentReferenceSequence);
+          }
+          if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+
+        // Variant from the first vcf file is at a larger coordinate than that in the
+        // second vcf file.  Parse through the second file until the position is greater
+        // than or equal to that in the second file.
+        } else if (var1.vmIter->first > var2.vmIter->first) {
+          if (write2) {var2.writeVariants(output);}
+          var2.variantMap.erase(var2.vmIter);
+          if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
+            var2.addVariantToStructure(v2.position, v2.variantRecord);
+            v2.success = v2.getRecord(currentReferenceSequence);
+          }
+          if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+          
+        // Variant from the first vcf file is at a smaller coordinate than that in the
+        // second vcf file.
+        } else if (var1.vmIter->first < var2.vmIter->first) {
+          if (write1) {var1.writeVariants(output);}
+          var1.variantMap.erase(var1.vmIter);
+          if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
+            var1.addVariantToStructure(v1.position, v1.variantRecord);
+            v1.success = v1.getRecord(currentReferenceSequence);
+          }
+          if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
+
+        }
       }
-      if (v2.update) {
-        v2.addVariantToStructure();
-        v2.success = v2.getRecord();
-        if (v2.variantRecord.referenceSequence != currentReferenceSequence || !v2.success) {v2.update = false;}
-      }
 
-    // If the variant in v1 is after that in v2, remove the variant from v2 and update
-    // it's structure.
-    } else if (v1.variantsIter->first > v2.variantsIter->first) {
-      if ( (findUnique && writeFrom == "b") || findUnion) {v2.writeRecord(output);}
-      v2.variants.erase(v2.variantsIter);
-      if (v2.update) {
-        v2.addVariantToStructure();
-        v2.success = v2.getRecord();
-        if (v2.variantRecord.referenceSequence != currentReferenceSequence || !v2.success) {v2.update = false;}
-      }
+      // Having finished comparing, there may still be variants left from one of the two files.
+      // Check that the two variant structures are empty and if not, finish processing the
+      // remaining variants for this reference sequence.
+      if (var1.variantMap.size() != 0) {var1.clearReferenceSequence(v1, currentReferenceSequence, write1, output);}
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, currentReferenceSequence, write2, output);}
 
-    // If the variant in v1 is after that in v2, remove the variant from v2 and update
-    // it's structure.
-    } else if (v2.variantsIter->first > v1.variantsIter->first) {
-      if ( (findUnique && writeFrom == "a") || findUnion) {v1.writeRecord(output);}
-      v1.variants.erase(v1.variantsIter);
-      if (v1.update) {
-        v1.addVariantToStructure();
-        v1.success = v1.getRecord();
-        if (v1.variantRecord.referenceSequence != currentReferenceSequence || !v1.success) {v1.update = false;}
-      }
+      // Now both variant maps are exhausted, so rebuild the maps with the variants from the
+      // next reference sequence in the file.
+      var1.buildVariantStructure(v1, v1.variantRecord.referenceSequence, write1, output);
+      var2.buildVariantStructure(v2, v2.variantRecord.referenceSequence, write2, output);
+ 
+      if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
+      if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+
+    // If the variant structures are from different reference sequences, parse through the
+    // second vcf file until the next reference sequence is found.  If finding the union
+    // of the variants unique to the second vcf file, write them out.
+    } else {
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, var2.vmIter->second.referenceSequence, write2, output);}
+      var2.buildVariantStructure(v2, v2.variantRecord.referenceSequence, write2, output);
+      if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }
-
-    // If either of the variant structures is empty, but the end of the file hasn't been
-    // reached, process the variants remaining in the other vcf files variant structure,
-    // then rebuild the structures for the next reference sequence.
-    //
-    // If v1 is empty or both v1 and v2 are empty, the first conditional in the if
-    // statement is true.  parseRemainingRef will then clear the contents of v2 if it 
-    // wasn't empty.  If v1 isn't empy, but v2 is, the else condition is triggered.
-    // Whichever way, if either v1 or v2 are empty, both of them will be empty and then
-    // rebuilt after the if statement.
-    if (v1.variants.size() == 0 && v1.success) {
-      string fileId = "b";
-      parseRemainingRef(v2, currentReferenceSequence, fileId);
-      currentReferenceSequence = v1.variantRecord.referenceSequence;
-      v1.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-      v2.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-    } else if (v2.variants.size() == 0 && v2.success) {
-      string fileId = "a";
-      parseRemainingRef(v1, currentReferenceSequence, fileId);
-      currentReferenceSequence = v1.variantRecord.referenceSequence;
-      v1.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-      v2.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-    }
-
-    // Reset the iterators to the first elements in the structures.
-    v1.variantsIter = v1.variants.begin();
-    v2.variantsIter = v2.variants.begin();
-  }
-
-  // Check that both variant structures are empty.  At most, one may still have variants in it.
-  if (v1.variants.size() != 0 && v2.variants.size() != 0) {
-    cerr << "The intersection loop has terminated and yet both variant" << endl;
-    cerr << "structures still contain entries.  A bug must exist in the" << endl;
-    cerr << "intersection algorithm." << endl;
-    cerr << "PROGRAM TERMINATED UNEXPECTEDLY." << endl;
-    exit(1);
-  }
-
-  // If v1 still contains variants, process them.
-  if (v1.variants.size() != 0) {
-
-    // Empty the variant structure.
-    string fileId = "a";
-    parseRemainingRef(v1, currentReferenceSequence, fileId);
-
-    // Parse any remaining variants in the vcf file.  These are all unique, since the second
-    // vcf file has given up all it's variants
-    while (v1.success) {
-      currentReferenceSequence = v1.variantRecord.referenceSequence;
-      v1.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-      parseRemainingRef(v1, currentReferenceSequence, fileId);
-    }
-
-  // If v2 still contains variants, process them.
-  } else if (v2.variants.size() != 0) {
-
-    // Empty the variant structure.
-    string fileId = "a";
-    parseRemainingRef(v1, currentReferenceSequence, fileId);
-
-    // Parse any remaining variants in the vcf file.  These are all unique, since the second
-    // vcf file has given up all it's variants
-    while (v1.success) {
-      currentReferenceSequence = v1.variantRecord.referenceSequence;
-      v1.buildVariantStructure(recordsInMemory, currentReferenceSequence, write, output);
-      parseRemainingRef(v1, currentReferenceSequence, fileId);
-    }
-  }
-}
-
-// Parse through the rest of the variants in the vcf file for a particular reference sequence,
-// then process all variants remaining in the variant structure.
-void intersectTool::parseRemainingRef(vcf& v, string& currentReferenceSequence, string& fileId) {
-  while (v.success && v.variantRecord.referenceSequence == currentReferenceSequence) {
-    v.addVariantToStructure();
-    v.variantsIter = v.variants.begin();
-    if ( (findUnique && writeFrom == fileId) || findUnion) {v.writeRecord(output);}
-    v.variants.erase(v.variantsIter);
-    v.success = v.getRecord();
-  }
-
-  // Process the variants remaining in the structure.
-  for (v.variantsIter = v.variants.begin(); v.variantsIter != v.variants.end(); v.variantsIter++) {
-    if ( (findUnique && writeFrom == fileId) || findUnion) {v.writeRecord(output);}
-    v.variants.erase(v.variantsIter);
   }
 }
 
@@ -342,8 +314,9 @@ void intersectTool::parseRemainingRef(vcf& v, string& currentReferenceSequence, 
 // in common reference sequence.
 void intersectTool::intersectVcfBed(vcf& v, bed& b) {
   bool successBed = b.getRecord();
-  bool successVcf = v.getRecord();
+  bool successVcf = v.getRecord(currentReferenceSequence);
   string currentReferenceSequence = v.referenceSequence;
+  v.update = true;
 
 // As soon as the end of the first file is reached, there are no
 // more intersections and the program can terminate.
@@ -353,7 +326,7 @@ void intersectTool::intersectVcfBed(vcf& v, bed& b) {
       else if (v.position > b.end) {successBed = b.parseBed(v.referenceSequence, v.position);}
       else {
         *output << v.record << endl;
-        successVcf = v.getRecord();
+        successVcf = v.getRecord(currentReferenceSequence);
       }
     } else {
       if (v.referenceSequence == currentReferenceSequence) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output, passFilters);}
@@ -402,7 +375,12 @@ int intersectTool::Run(int argc, char* argv[]) {
     //b.closeBed();
   } else {
     vcf v1; // Create a vcf object.
+    variant var1; // Create a variant object.
+    var1.determineVariantsToProcess(processSnps, processMnps, processIndels);
+
     vcf v2; // Create a vcf object.
+    variant var2;
+    var2.determineVariantsToProcess(processSnps, processMnps, processIndels);
     
 // Open the vcf files.
     v1.openVcf(vcfFiles[0]);
@@ -423,7 +401,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     }
 
 // Intersect the two vcf files.
-    intersectVcf(v1, v2);
+    intersectVcf(v1, var1, v2, var2);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.

@@ -52,6 +52,12 @@ class annotateTool : public AbstractTool {
     bool annotateVcf;
     bool annotateBed;
     ostream* output;
+    unsigned int recordsInMemory;
+
+    // Boolean flags.
+    bool processSnps;
+    bool processMnps;
+    bool processIndels;
 };
 
 } // namespace vcfCTools

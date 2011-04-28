@@ -14,7 +14,10 @@
 #ifndef TOOL_FILTER_H
 #define TOOL_FILTER_H
 
+#include "info.h"
+#include "samples.h"
 #include "tools.h"
+#include "variant.h"
 #include "vcf.h"
 #include "vcfCTools_tool.h"
 
@@ -34,29 +37,37 @@ class filterTool : public AbstractTool {
     int Help(void);
     int Run(int argc, char* argv[]);
     int parseCommandLine(int argc, char* argv[]);
-    void filter(vcf&);
+    void filter(vcf&, variant&);
+    void performFilter(vcf&, int, variantDescription&);
 
   private:
     string commandLine;
     string vcfFile;
     string outputFile;
     ostream* output;
-    bool filterQuality;
     double filterQualityValue;
+    string removeInfoString;
+    string stripInfo;
+    vector<string> stripInfoList;
+    bool writeRecord;
+    bool conditionalFilter;
+    string currentReferenceSequence;
+    string filterString;
+    unsigned int genotypePosition;
+    string samplesListFile;
+
+    // Boolean flags.
+    bool processSnps;
+    bool processMnps;
+    bool processIndels;
+    bool filterQuality;
     bool markPass;
     bool filterFail;
     bool removeGenotypes;
     bool removeInfo;
-    string removeInfoString;
     bool stripRecords;
-    string stripInfo;
-    vector<string> stripInfoList;
-    bool writeRecord;
-    unsigned int recordsInMemory;
-    bool conditionalFilter;
-    string filterString;
     bool findHets;
-    unsigned int genotypePosition;
+    bool useSampleList;
 };
 
 } // namespace vcfCTools

@@ -20,7 +20,6 @@ statistics::statistics(void) {
   hasIndel = false;
   hasMnp = false;
   hasSnp = false;
-  hasAnnotations = false;
 
 // Initialise the arrays.
   variants.clear();
@@ -29,154 +28,193 @@ statistics::statistics(void) {
 // Destructor.
 statistics::~statistics(void) {}
 
-void statistics::generateStatistics(vcf& v, unsigned int position, vector<variantDescription>& vs, vInfo& vsInfo, bool generateAfs) {
-  string tag;
+// Parse the variants at this locus and generate statistics.
+void statistics::generateStatistics(variant& var, vcf& v, int position, bool generateAfs) {
   unsigned int ac;
   double af;
-  information info;
-  unsigned int iterationNumber = 0;
+  variantInfo info;
 
-// Deal with each alternate allele in turn.
-  for (vector<variantDescription>::iterator iter = vs.begin(); iter != vs.end(); iter++) {
-    iterationNumber++;
+// Deal with each alternate allele in turn.  Only generate statistics on the requested
+// variant classes.  By default, this is all classes.
 
-    // Process the info fields to determine annotations etc.
-    v.processInfoFields(iter->info);
+  // SNPs.
+  if (var.processSnps) {
+    unsigned int iterationNumber = 0;
+    // Biallelic SNPs.
+    for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
+      iterationNumber++;
+      info.processInfoFields(var.variantIter->info);
 
-    // Determine the allele count and the allele frequency if the allele frequency (count)
-    // dependence is required.
-    if (generateAfs) {
-
-      // Get the alternate allele count.
-      tag = "AC";
-      info = v.getInfo(tag);
-      ac = atoi(info.values[0].c_str());
-
-      // Get the allele frequency.
-      tag = "AF";
-      info = v.getInfo(tag);
-      af = atof(info.values[0].c_str());
-    }
-
-    // Check if this variant is annotated as being in dbsnp.
-    inDbsnp = (iter->rsid == ".") ? false : true;
-
-    // Bi-allelic SNP.
-    if (iter->variantClass == 1) {
+      if (generateAfs) {
+        info.getInfo(string("AC"), var.variantIter->referenceSequence, var.vmIter->first);
+        ac = atoi(info.values[0].c_str());
+        info.getInfo(string("AF"), var.variantIter->referenceSequence, var.vmIter->first);
+        af = atof(info.values[0].c_str());
+      }
+      // Check if this variant is annotated as being in dbsnp.
+      inDbsnp = (var.variantIter->rsid == ".") ? false : true;
       hasSnp = true;
+
+      // Check for annotations.
+      if (info.infoTags.count("ANN") != 0) {info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);}
+
       // If this locus contains multiple SNPs, then the vcf file must contain at least two
       // SNPs at this locus.  In this case, treat the variant as a triallelic SNP.  If three
       // alternates come up, treat it as a quad-allelic.
-      if (vsInfo.containsMultipleSnp) {
-        if (iterationNumber == 1) {variants[iter->referenceSequence][iter->filters].multiAllelic++;}
+      if (var.vmIter->second.biSnps.size() > 1) {
+        if (iterationNumber == 1) {variants[var.variantIter->referenceSequence][var.variantIter->filters].multiAllelic++;}
       }
-
+  
       // If this is the only biallelic SNP at this locus, determine if it is a transition or a transversion
       // and update the statistics accordingly.
       else {
         isTransition   = false;
         isTransversion = false;
-
+  
         // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
         // order.  A simple comparison can then be made to determine if the SNP is a 
         // transition or a transversion.
-        string alleles = iter->ref + iter->altString;
+        string alleles = var.variantIter->ref + var.variantIter->altString;
         for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
         sort(alleles.begin(), alleles.end());
-
+  
         // Transition:   A <-> G or C <-> T.
         if (alleles == "ag" || alleles == "ct") {
           isTransition = true;
           if (inDbsnp) {
-            variants[iter->referenceSequence][iter->filters].knownTransitions++;
-            if (v.infoTags.count("dbSNPX") != 0) {variants[iter->referenceSequence][iter->filters].diffKnownTransitions++;}
+            variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransitions++;
+            if (info.infoTags.count("dbSNPX") != 0) {variants[var.variantIter->referenceSequence][var.variantIter->filters].diffKnownTransitions++;}
             if (generateAfs) {
-              variants[iter->referenceSequence][iter->filters].acs[ac].knownTransitions++;
-              variants[iter->referenceSequence][iter->filters].afs[af].knownTransitions++;
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].knownTransitions++;
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].knownTransitions++;
             }
           } else {
-            variants[iter->referenceSequence][iter->filters].novelTransitions++;
+            variants[var.variantIter->referenceSequence][var.variantIter->filters].novelTransitions++;
             if (generateAfs) {
-              variants[iter->referenceSequence][iter->filters].acs[ac].novelTransitions++;
-              variants[iter->referenceSequence][iter->filters].afs[af].novelTransitions++;
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].novelTransitions++;
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].novelTransitions++;
             }
           }
 
-        // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
+          // Annotations.
+          if (info.values.size() != 0) {
+            hasAnnotations = true;
+            for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+              if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs[*annIter]++;
+            }
+          }
+  
+          // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
         } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
           isTransversion = true;
           if (inDbsnp) {
-            variants[iter->referenceSequence][iter->filters].knownTransversions++;
-            if (v.infoTags.count("dbSNPX") != 0) {variants[iter->referenceSequence][iter->filters].diffKnownTransversions++;}
+            variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransversions++;
+            if (info.infoTags.count("dbSNPX") != 0) {variants[var.variantIter->referenceSequence][var.variantIter->filters].diffKnownTransversions++;}
             if (generateAfs) {
-              variants[iter->referenceSequence][iter->filters].acs[ac].knownTransversions++;
-              variants[iter->referenceSequence][iter->filters].afs[af].knownTransversions++;
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].knownTransversions++;
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].knownTransversions++;
             }
           } else {
-            variants[iter->referenceSequence][iter->filters].novelTransversions++;
+            variants[var.variantIter->referenceSequence][var.variantIter->filters].novelTransversions++;
             if (generateAfs) {
-              variants[iter->referenceSequence][iter->filters].acs[ac].novelTransversions++; 
-              variants[iter->referenceSequence][iter->filters].afs[af].novelTransversions++; 
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].novelTransversions++; 
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].novelTransversions++; 
+            }
+          }
+
+          // Annotations.
+          if (info.values.size() != 0) {
+            hasAnnotations = true;
+            for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+              if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTv[*annIter]++;
             }
           }
         }
       }
-
+  
       // Keep track of the last SNP position, so that the distribution of 
       // the distance between SNPs can be maintained.
-      if (iter->referenceSequence != currentReferenceSequence) {
-        currentReferenceSequence = iter->referenceSequence;
+      if (var.variantIter->referenceSequence != currentReferenceSequence) {
+        currentReferenceSequence = var.variantIter->referenceSequence;
         lastSnpPosition = -1;
       }
       if (lastSnpPosition != -1) {
         unsigned int distance = position - lastSnpPosition;
         snpDistribution[distance]++;
       }
-
-    // Tri-allelic SNP.
-    } else if ( iter->variantClass == 2) {
-      variants[iter->referenceSequence][iter->filters].multiAllelic++;
-
-    // Quad-allelic SNP.
-    } else if ( iter->variantClass == 3) {
-      variants[iter->referenceSequence][iter->filters].multiAllelic++;
-
-    // MNP.
-    } else if ( iter->variantClass == 4) {
-      hasMnp = true;
-      variants[iter->referenceSequence][iter->filters].mnps[iter->altString.size()]++;
-
-    // Insertion.
-    } else if ( iter->variantClass == 5) {
-      hasIndel = true;
-      variants[iter->referenceSequence][iter->filters].indels[iter->ref.size() - iter->altString.size()].deletions++;
-
-    // Deletion.
-    } else if ( iter->variantClass == 6) {
-      hasIndel = true;
-      variants[iter->referenceSequence][iter->filters].indels[iter->altString.size() - iter->ref.size()].insertions++;
     }
 
-    // If the vcf file has been annotated and stats on these annotations are requested,
-    // search for the ANN tag and build stats for the following string.
-    if (v.infoTags.count("ANN") != 0) {
-      tag = "ANN";
-      info = v.getInfo(tag);
-      hasAnnotations = true;
-
-      // Update annotation statistics.
-      for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-        if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-        if (iter->variantClass == 1 && isTransition) {variants[iter->referenceSequence][iter->filters].annotationsTs[*annIter]++;}
-        else if (iter->variantClass == 1 && isTransversion) {variants[iter->referenceSequence][iter->filters].annotationsTv[*annIter]++;}
-        else if (iter->variantClass == 2) {variants[iter->referenceSequence][iter->filters].annotationsTriallelicSnp[*annIter]++;}
-        else if (iter->variantClass == 3) {variants[iter->referenceSequence][iter->filters].annotationsQuadallelicSnp[*annIter]++;}
-        else if (iter->variantClass == 4) {variants[iter->referenceSequence][iter->filters].annotationsMnp[*annIter]++;}
-        else if (iter->variantClass == 5) {variants[iter->referenceSequence][iter->filters].annotationsIns[*annIter]++;}
-        else if (iter->variantClass == 6) {variants[iter->referenceSequence][iter->filters].annotationsDel[*annIter]++;}
+    // Multiallelic SNPs.
+    for (var.variantIter = var.vmIter->second.multiSnps.begin(); var.variantIter != var.vmIter->second.multiSnps.end(); var.variantIter++) {
+      info.processInfoFields(var.variantIter->info);
+      
+      // Check for annotations.
+      if (info.infoTags.count("ANN") != 0) {
+        hasAnnotations = true;
+        info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);
+        if (info.values.size() != 0) {
+          for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+            if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+            if (var.variantIter->isTriallelicSnp) {
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTriallelicSnp[*annIter]++;
+            } else if (var.variantIter->isQuadallelicSnp) {
+              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsQuadallelicSnp[*annIter]++;
+            }
+          }
+        }
       }
+      variants[var.variantIter->referenceSequence][var.variantIter->filters].multiAllelic++;
     }
   }
+
+  // MNPs.
+  if (var.processMnps) {
+    for (var.variantIter = var.vmIter->second.mnps.begin(); var.variantIter != var.vmIter->second.mnps.end(); var.variantIter++) {
+      info.processInfoFields(var.variantIter->info);
+
+      // Check for annotations.
+      if (info.infoTags.count("ANN") != 0) {
+        hasAnnotations = true;
+        info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);
+        if (info.values.size() != 0) {
+          for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+            if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+            variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsMnp[*annIter]++;
+          }
+        }
+      }
+      hasMnp = true;
+      variants[var.variantIter->referenceSequence][var.variantIter->filters].mnps[var.variantIter->altString.size()]++;
+    }
+  }
+
+  //Indels.
+  if (var.processIndels) {
+    for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
+      info.processInfoFields(var.variantIter->info);
+
+      // Check for annotations.
+      if (info.infoTags.count("ANN") != 0) {
+        hasAnnotations = true;
+        info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);
+        if (info.values.size() != 0) {
+          for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+            if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+            if (var.variantIter->isInsertion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsIns[*annIter]++;}
+            if (var.variantIter->isDeletion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsDel[*annIter]++;}
+          }
+        }
+      }
+
+      hasIndel = true;
+      int indelSize = var.variantIter->ref.size() - var.variantIter->altString.size();
+      if (var.variantIter->isDeletion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].indels[indelSize].deletions++;}
+      if (var.variantIter->isInsertion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].indels[abs(indelSize)].insertions++;}
+    }
+  }
+
 }
 
 // Print out the statistics to the output file.
@@ -289,33 +327,46 @@ void statistics::printVariantStruct(ostream* output, string& filter, variantStru
 // Print out annotation information for SNPs.
 void statistics::printSnpAnnotations(ostream* output) {
   for (map<string, unsigned int>::iterator annIter = annotationNames.begin(); annIter != annotationNames.end(); annIter++) {
-    *output << endl;
+    //*output << endl;
     string annotationName = annIter->first;
-    *output << "SNP annotation information for: " << annotationName << endl;
-    *output << endl;
-    *output << setw(22) << "filter";
-    *output << setw(16) << "total";
-    *output << setw(16) << "transitions";
-    *output << setw(16) << "transversions";
-    *output << setw(16) << "ts/tv";
-    *output << endl;
-    for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
-      if (iter->first != "all" && iter->first != "PASS") {
-        string filter = iter->first;
-        printSnpAnnotationStruct(output, filter, (*iter).second, annotationName);
-      }
-    }
-    *output << setw(22) << "";
-    *output << "--------------------------------------------------------------------";
-    *output << endl;
-    string filter = "PASS";
-    printSnpAnnotationStruct(output, filter, totalVariants["total"]["PASS"], annotationName);
-    filter = "Total";
-    printSnpAnnotationStruct(output, filter, totalVariants["total"]["all"], annotationName);
-    *output << setw(22) << "";
-    *output << "--------------------------------------------------------------------";
-    *output << endl;
+    //*output << "SNP annotation information for: " << annotationName << endl;
+    //*output << endl;
+    //*output << setw(22) << "filter";
+    //*output << setw(16) << "total";
+    //*output << setw(16) << "transitions";
+    //*output << setw(16) << "transversions";
+    //*output << setw(16) << "ts/tv";
+    //*output << endl;
+    //for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
+    //  if (iter->first != "all" && iter->first != "PASS") {
+    //    string filter = iter->first;
+    //    printSnpAnnotationStruct(output, filter, (*iter).second, annotationName);
+    //  }
+    //}
+    //*output << setw(22) << "";
+    //*output << "--------------------------------------------------------------------";
+    //*output << endl;
+    //string filter = "PASS";
+    //printSnpAnnotationStruct(output, filter, totalVariants["total"]["PASS"], annotationName);
+    //filter = "Total";
+    //printSnpAnnotationStruct(output, filter, totalVariants["total"]["all"], annotationName);
+    printSnpAnnotationStruct(output, annotationName, totalVariants["total"]["all"], annotationName);
+    //*output << setw(22) << "";
+    //*output << "--------------------------------------------------------------------";
+    //*output << endl;
   }
+  *output << endl;
+}
+
+// Print out the information structure for annotated SNPs.
+void statistics::printSnpAnnotationStruct(ostream* output, string& filter, variantStruct& var, string& ann) {
+  double tstv = (var.annotationsTv[ann] == 0) ? 0. : (double(var.annotationsTs[ann]) / double(var.annotationsTv[ann]));
+
+  *output << setw(22) << filter;
+  *output << setw(16) << setprecision(10) << var.annotationsTs[ann] + var.annotationsTv[ann];
+  *output << setw(16) << var.annotationsTs[ann];
+  *output << setw(16) << var.annotationsTv[ann];
+  *output << setw(16) << setprecision(3) << tstv;
   *output << endl;
 }
 
@@ -416,18 +467,6 @@ void statistics::printAfs(ostream* output) {
     *output << setw(8) << setprecision(6) << knownTstv;
     *output << endl;
   }
-  *output << endl;
-}
-
-// Print out the information structure for annotated SNPs.
-void statistics::printSnpAnnotationStruct(ostream* output, string& filter, variantStruct& var, string& ann) {
-  double tstv = (var.annotationsTv[ann] == 0) ? 0. : (double(var.annotationsTs[ann]) / double(var.annotationsTv[ann]));
-
-  *output << setw(22) << filter;
-  *output << setw(16) << setprecision(10) << var.annotationsTs[ann] + var.annotationsTv[ann];
-  *output << setw(16) << var.annotationsTs[ann];
-  *output << setw(16) << var.annotationsTv[ann];
-  *output << setw(16) << setprecision(3) << tstv;
   *output << endl;
 }
 

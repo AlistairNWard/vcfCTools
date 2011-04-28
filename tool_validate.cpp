@@ -23,7 +23,9 @@ using namespace vcfCTools;
 // validateTool imlementation.
 validateTool::validateTool(void)
   : AbstractTool()
-{}
+{
+  currentReferenceSequence = true;
+}
 
 // Destructor.
 validateTool::~validateTool(void) {}
@@ -31,6 +33,21 @@ validateTool::~validateTool(void) {}
 // Help
 int validateTool::Help(void) {
   cout << "Validation help" << endl;
+  cout << "Usage: ./vcfCTools validate [options]." << endl;
+  cout << endl;
+  cout << "Options:" << endl;
+  cout << "  -h, --help" << endl;
+  cout << "     display intersect help." << endl;
+  cout << "  -i, --in" << endl;
+  cout << "     input vcf file." << endl;
+  cout << "  -o, --output" << endl;
+  cout << "     output file." << endl;
+  cout << "  -1, --snps" << endl;
+  cout << "     analyse SNPs." << endl;
+  cout << "  -2, --mnps" << endl;
+  cout << "     analyse MNPs." << endl;
+  cout << "  -3, --indels" << endl;
+  cout << "     analyse indels." << endl;
   return 0;
 }
 
@@ -47,6 +64,9 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"help", no_argument, 0, 'h'},
     {"in", required_argument, 0, 'i'},
+    {"snps", no_argument, 0, '1'},
+    {"mnps", no_argument, 0, '2'},
+    {"indels", no_argument, 0, '3'},
 
     {0, 0, 0, 0}
   };
@@ -64,6 +84,21 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
         vcfFile = optarg;
         break;
 
+      // Analyse SNPs.
+      case '1':
+        processSnps = true;
+        break;
+
+      // Analyse MNPs.
+      case '2':
+        processMnps = true;
+        break;
+
+      // Analyse indels.
+      case '3':
+        processIndels = true;
+        break;
+      
       // Help.
       case 'h':
         return Help();
@@ -138,7 +173,7 @@ int validateTool::Run(int argc, char* argv[]) {
   map<string, bool> parsedReferenceSequences;
 
 // Read through all the entries in the file.
-  while(v.getRecord()) {
+  while(v.getRecord(currentReferenceSequence)) {
 
 // Check that the current record is not before the previous one (i.e.
 // check that the vcf file is sorted).

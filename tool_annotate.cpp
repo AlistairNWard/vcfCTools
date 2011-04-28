@@ -19,6 +19,8 @@ using namespace vcfCTools;
 annotateTool::annotateTool(void)
   : AbstractTool()
 {
+  recordsInMemory = 100;
+  currentReferenceSequence = "";
   annotateDbsnp = false;
   annotateVcf = false;
   annotateBed = false;
@@ -45,6 +47,12 @@ int annotateTool::Help(void) {
   cout << "	input dbsnp vcf file." << endl;
   cout << "  -b, --bed" << endl;
   cout << "	input bed file." << endl;
+  cout << "  -1, --snps" << endl;
+  cout << "     analyse SNPs." << endl;
+  cout << "  -2, --mnps" << endl;
+  cout << "     analyse MNPs." << endl;
+  cout << "  -3, --indels" << endl;
+  cout << "     analyse indels." << endl;
   cout << endl;
 
   return 0;
@@ -69,12 +77,15 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
     {"dbsnp", required_argument, 0, 'd'},
     {"annotation-vcf", required_argument, 0, 'a'},
     {"bed", required_argument, 0, 'b'},
+    {"snps", no_argument, 0, '1'},
+    {"mnps", no_argument, 0, '2'},
+    {"indels", no_argument, 0, '3'},
 
     {0, 0, 0, 0}
   };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:a:b:", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:d:a:b:123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -107,6 +118,21 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
         annotateBed = true;
         break;
 
+      // Analyse SNPs.
+      case '1':
+        processSnps = true;
+        break;
+
+      // Analyse MNPs.
+      case '2':
+        processMnps = true;
+        break;
+
+      // Analyse indels.
+      case '3':
+        processIndels = true;
+        break;
+      
       // Help.
       case 'h':
         return Help();
@@ -151,7 +177,9 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 // in the same order.
 void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDbsnp, bool haveVcf, bool haveBed, ostream* output) {
   bool successVcf;
-  successVcf = v.getRecord();
+  currentReferenceSequence = "";
+  successVcf = v.getRecord(currentReferenceSequence);
+  if (successVcf) {v.update = true;}
   currentReferenceSequence = v.referenceSequence;
   string tag;
   information annInfo;
@@ -161,8 +189,8 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
   bool successAnnVcf = false;
   bool successBed = false;
   bool build = false;
-  if (haveDbsnp) {successDbsnp = dbsnp.getRecord();}
-  if (haveVcf) {successAnnVcf = annVcf.getRecord();}
+  if (haveDbsnp) {successDbsnp = dbsnp.getRecord(currentReferenceSequence);}
+  if (haveVcf) {successAnnVcf = annVcf.getRecord(currentReferenceSequence);}
   if (haveBed) {successBed = b.getRecord();}
 
 // Finish when the end of the first file has been reached.
@@ -174,7 +202,7 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
 // remaining records from the vcf file.
     if (!successDbsnp && !successAnnVcf && !successBed) {
       *output << v.record << endl;
-      successVcf = v.getRecord();
+      successVcf = v.getRecord(currentReferenceSequence);
       if (!successVcf) {break;}
     }
 
@@ -218,7 +246,7 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
               v.rsid = ".";
             }
             build = true;
-            successDbsnp = dbsnp.getRecord();
+            successDbsnp = dbsnp.getRecord(currentReferenceSequence);
           }
         }
       }
@@ -249,7 +277,7 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
           v.info += ";ANN=" + annVcf.filters;
         }
         build = true;
-        successAnnVcf = annVcf.getRecord();
+        successAnnVcf = annVcf.getRecord(currentReferenceSequence);
       }
     }
 
@@ -289,7 +317,7 @@ void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDb
       newRecord = v.record;
     }
     *output << newRecord << endl;
-    successVcf = v.getRecord();
+    successVcf = v.getRecord(currentReferenceSequence);
 
 // If the reference sequence in the vcf file changes, ensure that the annotation files are on the same
 // reference sequence.

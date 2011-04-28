@@ -38,6 +38,12 @@ class validateTool : public AbstractTool {
   private:
     string commandLine;
     string vcfFile;
+    string currentReferenceSequence;
+
+    // Boolean flags.
+    bool processSnps;
+    bool processMnps;
+    bool processIndels;
 };
 
 } // namespace vcfCTools

@@ -29,6 +29,7 @@ vcf::vcf(void) {
   processGenotypes = false;
   numberDataSets = 0;
   dbsnpVcf = false;
+  comparedReferenceSequence = false;
 }
 
 // Destructor.
@@ -67,10 +68,21 @@ void vcf::parseHeader() {
     else if (headerLine.substr(0, 8) == "##FORMAT") {success = headerInfo(headerLine, 1);}
     else if (headerLine.substr(0, 6) == "##FILE") {success = headerFiles(headerLine);}
     else if (headerLine.substr(0, 2) == "##") {success = headerAdditionalInfo(headerLine);}
-    else if (headerLine.substr(0, 1) == "#") {success = headerTitles(headerLine);}
+    else if (headerLine.substr(0, 1) == "#") {
+      success = headerTitles(headerLine);
+      getline(*input, headerLine);
+    }
     else {success = noHeader();}
     if (!success) {break;}
   }
+
+// headerLine contains the first vcf record.  Process this record
+// in preparation for the tools.
+  
+  fromHeader = true;
+  record = headerLine;
+  string temp = "";
+  success = getRecord(temp);
 }
 
 // Parse information from the info and format descriptors.
@@ -90,7 +102,7 @@ bool vcf::headerInfo(string& headerLine, unsigned int headerLineType) {
   headerInfoStruct infoTag;
   string tag = line.substr(idPosition + 3, numberPosition - idPosition - 4);
   if (idPosition == string::npos || numberPosition == string::npos || 
-      typePosition == string::npos || descPosition == string::npos) {
+    typePosition == string::npos || descPosition == string::npos) {
     infoTag.number  = 0;
     infoTag.type    = "unknown";
     infoTag.success = false;
@@ -216,18 +228,16 @@ bool vcf::noHeader() {
 
   hasHeader = false;
 
-  closeVcf();
-  openVcf(vcfFilename);
-
   return false;
 }
 
 // Get the next record from the vcf file.
-bool vcf::getRecord() {
+bool vcf::getRecord(string& currentReferenceSequence) {
 
 // Read in the vcf record.
-  bool success = true;
-  success = getline(*input, record);
+  success = true;
+  if (fromHeader) {fromHeader = false;}
+  else {success = getline(*input, record);}
 
 // Return false if no more records remain.
   if (!success) {return false;}
@@ -277,6 +287,14 @@ bool vcf::getRecord() {
     cerr << "Record:" << endl << endl << record << endl;
     exit(1);
   }
+
+// Set the update flag.  If the record read in has the same reference sequence
+// as that provided, update = true.  This is used to determine if the reference
+// sequence has changed and will determine if this record gets added to the
+// variants structure or not.  If not, the tool being used will clear all variants
+// for the current reference sequence and then build a new variant structure for
+// the next reference sequence and repeat.
+  update = (variantRecord.referenceSequence == currentReferenceSequence) ? true : false;
 
   return success;
 }
@@ -431,7 +449,7 @@ bool vcf::buildVariantStructure(unsigned int recordsInMemory, string& currentRef
       // variants.
       while (success && variantRecord.referenceSequence == tempReferenceSequence && count < recordsInMemory) {
         addVariantToStructure();
-        success = getRecord();
+        success = getRecord(currentReferenceSequence);
         count++;
       }
 
@@ -442,7 +460,7 @@ bool vcf::buildVariantStructure(unsigned int recordsInMemory, string& currentRef
         variantsIter = variants.begin();
         if (write) {writeRecord(output);}
         variants.erase(variantsIter);
-        success = getRecord();
+        success = getRecord(currentReferenceSequence);
       }
 
       // Clear any remaining variants from the structure.
@@ -461,7 +479,7 @@ bool vcf::buildVariantStructure(unsigned int recordsInMemory, string& currentRef
   count = 0;
   while (success && variantRecord.referenceSequence == currentReferenceSequence && count < recordsInMemory) {
     addVariantToStructure();
-    success = getRecord();
+    success = getRecord(currentReferenceSequence);
     count++;
   }
 
@@ -582,6 +600,7 @@ information vcf::getInfo(string& tag) {
     } else {
       //sInfo.number = 0;
       cerr << "Tag: " << tag << " is not present in the info string." << endl;
+      cerr << variantsIter->first << endl;
       cerr << "Terminating program." << endl;
       exit(1);
     }
@@ -628,7 +647,7 @@ bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, boo
         //OUTPUT
       }
       variants.erase(variantsIter);
-      success = getRecord();
+      success = getRecord(compReferenceSequence);
     } else {
       break;
     }
@@ -647,7 +666,7 @@ bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsign
   if (vc.referenceSequence != compReferenceSequence) {
     while (referenceSequence != compReferenceSequence && success) {
       //if (write) {*output << record << endl;}
-      success = getRecord();
+      success = getRecord(compReferenceSequence);
     }
   }
   if (success) {success = getVariantGroup(vc, refFa);}
@@ -660,10 +679,11 @@ bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsign
 }
 
 // Reconstruct a vcf record.
-string vcf::buildRecord(variantDescription& d) {
+string vcf::buildRecord(int position, variantDescription& d) {
   ostringstream sPosition, sQuality;
-  sPosition << variantsIter->first;
+  sPosition << position;
   sQuality << d.quality;
+
   string build = d.referenceSequence + "\t" + \
                  sPosition.str() + "\t" + \
                  d.rsid + "\t" + \

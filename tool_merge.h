@@ -12,6 +12,7 @@
 #define TOOL_TEMPLATE_H
 
 #include "tools.h"
+#include "variant.h"
 #include "vcfCTools_tool.h"
 #include "vcf.h"
 
@@ -38,6 +39,12 @@ class mergeTool : public AbstractTool {
     vector<string> vcfFiles;
     string outputFile;
     ostream* output;
+    string currentReferenceSequence;
+
+    // Boolean flags.
+    bool processSnps;
+    bool processMnps;
+    bool processIndels;
 };
 
 } // namespace vcfCTools
