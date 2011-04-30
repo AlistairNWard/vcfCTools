@@ -25,6 +25,13 @@ using namespace std;
 
 namespace vcfCTools {
 
+struct bedRecord {
+  string referenceSequence;
+  int start;
+  int end;
+  string info;
+};
+
 class bed {
   public:
     bed(void);
@@ -32,8 +39,8 @@ class bed {
   public:
     bool openBed(string& filename);
     void closeBed();
+    void parseHeader();
     bool getRecord();
-    bool parseBed(string&, unsigned int);
 
   public:
     istream* input;
@@ -49,9 +56,7 @@ class bed {
     unsigned int numberTargets;
     unsigned int targetLength;
     unsigned int targetVariance;
-    unsigned int start;
-    unsigned int end;
-    string info;
+    bedRecord bRecord;
 };
 
 } // namespace vcfCTools

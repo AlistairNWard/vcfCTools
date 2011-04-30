@@ -129,7 +129,6 @@ class vcf {
     bool getRecord(string&);
     void addVariantToStructure();
     unsigned int determineVariantClass(string&, string&);
-    bool buildVariantStructure(unsigned int, string&, bool, ostream*);
     bool getVariantGroup(variantGroup&, string&);
     void processInfoFields(string&);
     information getInfo(string&);

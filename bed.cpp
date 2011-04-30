@@ -47,18 +47,17 @@ void bed::closeBed() {
   }
 }
 
+// Parse the bed header.
+void bed::parseHeader() {
+  success = getRecord();
+  while (success && record.substr(0, 1) == "#") {
+    success = getline(*input, record);
+  }
+}
+
 // Get the next record from the vcf file.
 bool bed::getRecord() {
-  bool success = getline(*input, record);
-
-// If the bed file has some header lines, parse through them to get to the data.
-  if (record.substr(0, 1) == "#") {
-    bool header = true;
-    while (success && header) {
-      success = getline(*input, record);
-      if (record.substr(0, 1) != "#") {header = false;}
-    }
-  }
+  success = getline(*input, record);
 
 // Return false if no more records remain.
   if (!success) {return false;}
@@ -66,13 +65,13 @@ bool bed::getRecord() {
   vector<string> recordFields = split(record, '\t');
 
 // Populate the variant values.
-  referenceSequence = recordFields[0];
-  start = atoi(recordFields[1].c_str()) + 1;
-  end   = atoi(recordFields[2].c_str());
-  if (recordFields.size() > 3) {info = recordFields[3];}
+  bRecord.referenceSequence = recordFields[0];
+  bRecord.start = atoi(recordFields[1].c_str()) + 1;
+  bRecord.end   = atoi(recordFields[2].c_str());
+  if (recordFields.size() > 3) {bRecord.info = recordFields[3];}
 
 // Check that the start and end coordinates define a valid interval.
-  if ( (end - start) < 0 ) {
+  if ( (bRecord.end - bRecord.start) < 0 ) {
     cerr << "Invalid target interval:" << endl;
     cerr << "\t" << record << endl;
     exit(1);
@@ -80,7 +79,7 @@ bool bed::getRecord() {
 
 // Update statistics on the targets.
   numberTargets++;
-  targetLength += (end - start);
+  targetLength += (bRecord.end - bRecord.start);
   targetVariance = 0;
 
 // Add the reference sequence to the map.  If it didn't previously
@@ -93,15 +92,4 @@ bool bed::getRecord() {
   }
 
   return true;
-}
-
-// Parse through the bed file until the correct reference sequence is
-// encountered and the end position is greater than or equal to that requested.
-// def parseBed(self, referenceSequence, position):
-bool bed::parseBed(string& vcfReferenceSequence, unsigned int position) {
-  bool success = true;
-  if (referenceSequence != vcfReferenceSequence) {
-    while (referenceSequence != vcfReferenceSequence && success) {success = getRecord();}
-  }
-  while ( (referenceSequence == vcfReferenceSequence) && (end < position) && success) {success = getRecord();}
 }

@@ -163,12 +163,11 @@ int mergeTool::Run(int argc, char* argv[]) {
     }
 
 // Print out the records.
-    v.update = true;
     while (v.success) {
       // Build the variant structure for this reference sequence.
       if (var.variantMap.size() == 0) {
         currentReferenceSequence = v.variantRecord.referenceSequence;
-        v.success = var.buildVariantStructure(v, currentReferenceSequence, false, output);
+        v.success = var.buildVariantStructure(v);
       }
 
       // Loop over the variant structure until it is empty.  While v.update is true,

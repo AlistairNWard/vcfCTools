@@ -209,8 +209,6 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 
 // Intersect two vcf files.  Intersect by variant position only.
 void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2) {
-  v1.update = true;
-  v2.update = true;
 
   // The following Boolean flags are used when adding variants to the map.  They
   // determine whether or not to write out records that are unique to one of the
@@ -218,9 +216,9 @@ void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2)
   bool write1 = ( (findUnique && writeFrom == "a") || findUnion) ? true : false;
   bool write2 = ( (findUnique && writeFrom == "b") || findUnion) ? true : false;
 
-  // Build the variant structures for each 
-  var1.buildVariantStructure(v1, v1.variantRecord.referenceSequence, write1, output);
-  var2.buildVariantStructure(v2, v2.variantRecord.referenceSequence, write2, output);
+  // Build the variant structures for each vcf file.
+  v1.success = var1.buildVariantStructure(v1);
+  v2.success = var2.buildVariantStructure(v2);
 
   // Set the pointers to the start of each variant map.
   var1.vmIter = var1.variantMap.begin();
@@ -279,7 +277,6 @@ void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2)
             v1.success = v1.getRecord(currentReferenceSequence);
           }
           if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
-
         }
       }
 
@@ -291,8 +288,8 @@ void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2)
 
       // Now both variant maps are exhausted, so rebuild the maps with the variants from the
       // next reference sequence in the file.
-      var1.buildVariantStructure(v1, v1.variantRecord.referenceSequence, write1, output);
-      var2.buildVariantStructure(v2, v2.variantRecord.referenceSequence, write2, output);
+      v1.success = var1.buildVariantStructure(v1);
+      v2.success = var2.buildVariantStructure(v2);
  
       if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
@@ -302,7 +299,7 @@ void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2)
     // of the variants unique to the second vcf file, write them out.
     } else {
       if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, var2.vmIter->second.referenceSequence, write2, output);}
-      var2.buildVariantStructure(v2, v2.variantRecord.referenceSequence, write2, output);
+      var2.buildVariantStructure(v2);
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }
   }
@@ -312,26 +309,123 @@ void intersectTool::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2)
 // two files are sorted by genomic coordinates and the reference
 // sequences are in the same order.  Do not group together variants
 // in common reference sequence.
-void intersectTool::intersectVcfBed(vcf& v, bed& b) {
-  bool successBed = b.getRecord();
-  bool successVcf = v.getRecord(currentReferenceSequence);
-  string currentReferenceSequence = v.referenceSequence;
-  v.update = true;
+void intersectTool::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs) {
+  map<int, bedRecord>::iterator bmNext;
+  bool lastBedInterval = false;
 
-// As soon as the end of the first file is reached, there are no
+  // Build the variant structures for the vcf and bed files.
+  v.success = var.buildVariantStructure(v);
+  b.success = bs.buildBedStructure(b);
+
+  // Set the pointers to the start of each variant map.
+  var.vmIter = var.variantMap.begin();
+  bs.bmIter = bs.bedMap.begin();
+  bmNext = bs.bedMap.begin();
+  bmNext++;
+  if (bmNext == bs.bedMap.end()) {lastBedInterval = true;}
+
+  // Check if the end position of the current interval is larger than the start
+  // position of the next interval in the structure.  If so, the intervals
+  // overlap and need to be split up.
+  if (!lastBedInterval) {
+    if (bs.bmIter->second.end >= bmNext->first) {bs.resolveOverlaps(false);}
+  }
+
+  string currentReferenceSequence = v.referenceSequence;
+
+// As soon as the end of the vcf file is reached, there are no
 // more intersections and the program can terminate.
-  while (successVcf && successBed) {
-    if (v.referenceSequence == b.referenceSequence) {
-      if (v.position < b.start) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output, passFilters);}
-      else if (v.position > b.end) {successBed = b.parseBed(v.referenceSequence, v.position);}
-      else {
-        *output << v.record << endl;
-        successVcf = v.getRecord(currentReferenceSequence);
+  while (v.success && var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
+    if (var.vmIter->second.referenceSequence == bs.bmIter->second.referenceSequence) {
+
+      // Variant is prior to the bed interval.
+      if (var.vmIter->first < bs.bmIter->first) {
+        if (findUnique) {var.writeVariants(output);}
+        var.variantMap.erase(var.vmIter);
+        if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
+          var.addVariantToStructure(v.position, v.variantRecord);
+          v.success = v.getRecord(currentReferenceSequence);
+        }
+        if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
+
+      // Variant has start coordinate past the bed interval.
+      } else if (var.vmIter->first > bs.bmIter->second.end) {
+        bs.bedMap.erase(bs.bmIter);
+        if (b.bRecord.referenceSequence == currentReferenceSequence && b.success) {
+          bs.addIntervalToStructure(b.bRecord);
+          b.success = b.getRecord();
+        }
+        if (bs.bedMap.size() != 0) {
+          bs.bmIter = bs.bedMap.begin();
+          if (bs.bedMap.begin()++ != bs.bedMap.end()) {
+            bmNext = bs.bedMap.begin();
+            bmNext++;
+          } else {lastBedInterval = true;}
+
+          // Check if the end position of the current interval is larger than the start
+          // position of the next interval in the structure.  If so, the intervals
+          // overlap and need to be split up.
+          if (!lastBedInterval) {
+            if (bs.bmIter->second.end >= bmNext->first) {bs.resolveOverlaps(false);}
+          }
+
+        // If the bed map is exhausted, clear out the variant map and move to the next
+        // reference sequence.
+        } else {
+
+          // If there are variants in the variant map, clear them out and set the current
+          // reference sequence to the next reference sequence in the vcf file.
+          if (var.variantMap.size() != 0) {
+            bool write = (findUnique) ? true : false;
+            var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
+          }
+          v.success = var.buildVariantStructure(v);
+          if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
+
+          lastBedInterval = false;
+
+          // Build the new bed structure.
+          b.success = bs.buildBedStructure(b);
+          if (bs.bedMap.size() != 0) {bs.bmIter = bs.bedMap.begin();}
+        }
+
+      // Variant lies within the bed interval.
+      } else {
+        if (!findUnique) {var.writeVariants(output);}
+        var.variantMap.erase(var.vmIter);
+        if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
+          var.addVariantToStructure(v.position, v.variantRecord);
+          v.success = v.getRecord(currentReferenceSequence);
+        }
+        if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
       }
+
+    // If the reference sequence of the bed interval is not the same as that of the vcf
+    // record,
     } else {
-      if (v.referenceSequence == currentReferenceSequence) {successVcf = v.parseVcf(b.referenceSequence, b.start, false, output, passFilters);}
-      if (b.referenceSequence == currentReferenceSequence) {successBed = b.parseBed(v.referenceSequence, v.position);}
-      currentReferenceSequence = v.referenceSequence;
+
+      // If there are variants in the variant map, clear them out and set the current
+      // reference sequence to the next reference sequence in the vcf file.
+      if (var.variantMap.size() != 0) {
+        bool write = (findUnique) ? false : true;
+        var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
+      }
+      v.success = var.buildVariantStructure(v);
+      if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
+
+      lastBedInterval = false;
+
+      // Clear the bed map.
+      bs.bedMap.clear();
+
+      // Read through the remaining records until the correct reference sequence is
+      // found.  There is no need to put the records in the map, since the vcf will
+      // not be intersected with these records.
+      while (b.bRecord.referenceSequence != currentReferenceSequence && b.success) {b.success = b.getRecord();}
+
+      // Build the new bed structure.
+      b.success = bs.buildBedStructure(b);
+      if (bs.bedMap.size() != 0) {bs.bmIter = bs.bedMap.begin();}
     }
   }
 }
@@ -344,26 +438,29 @@ int intersectTool::Run(int argc, char* argv[]) {
 // If intersection is between a vcf file and a bed file, create a vcf and a bed object
 // and intersect.
   if (bedFile != "") {
-    cerr << "Not updated bed intersection tool." << endl;
-    exit(1);
-    //vcf v; // Create a vcf object.
-    //bed b; // Create a bed object.
+    vcf v; // Create a vcf object.
+    variant var; // Create a variant object.
 
-    //v.openVcf(vcfFiles[0]);
-    //b.openBed(bedFile);
-    //v.parseHeader();
+    bed b; // Create a bed object.
+    bedStructure bs; // Create a bed structure.
+
+    v.openVcf(vcfFiles[0]);
+    b.openBed(bedFile);
+
+// Parse the headers.
+    v.parseHeader();
+    b.parseHeader();
 
 // Write the header to the output file.
-    //string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
-    //writeHeader(output, v, false, taskDescription);
+    string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
+    writeHeader(output, v, false, taskDescription);
 
 // Intersect the files.
     //if (groupVariants) {
       //intersectVariantGroupsBed(v, b, output);
       //intersectVariantGroupsBed(v, b);
     //} else {
-      //intersectVcfBed(v, b, output);
-      //intersectVcfBed(v, b);
+      intersectVcfBed(v, var, b, bs);
     //}
 
 // Check that the input files had the same list of reference sequences.

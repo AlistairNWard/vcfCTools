@@ -42,18 +42,18 @@ class variant {
     variant(void);
     ~variant(void);
     void determineVariantsToProcess(bool, bool, bool);
-    bool buildVariantStructure(vcf&, string&, bool, ostream*);
+    bool buildVariantStructure(vcf&);
     void addVariantToStructure(int, variantDescription&);
     void clearReferenceSequence(vcf&, string&, bool, ostream*);
+    void determineVariantClass(int, string&, string&, variantDescription&);
     void writeVariants(ostream*);
 
   public:
     unsigned int recordsInMemory;
     string referenceSequence;
-    map<unsigned int, variantsAtLocus> variantMap;
-    map<unsigned int, variantsAtLocus>::iterator vmIter;
+    map<int, variantsAtLocus> variantMap;
+    map<int, variantsAtLocus>::iterator vmIter;
     vector<variantDescription>::iterator variantIter;
-    void determineVariantClass(int, string&, string&, variantDescription&);
 
     // Boolean flags.
     bool processSnps;

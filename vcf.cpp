@@ -62,7 +62,7 @@ void vcf::closeVcf() {
 
 // Parse the vcf header.
 void vcf::parseHeader() {
-  bool success = true;
+  success = false;
   while(getline(*input, headerLine)) {
     if (headerLine.substr(0, 6) == "##INFO") {success = headerInfo(headerLine, 0);}
     else if (headerLine.substr(0, 8) == "##FORMAT") {success = headerInfo(headerLine, 1);}
@@ -77,12 +77,14 @@ void vcf::parseHeader() {
   }
 
 // headerLine contains the first vcf record.  Process this record
-// in preparation for the tools.
-  
-  fromHeader = true;
-  record = headerLine;
-  string temp = "";
-  success = getRecord(temp);
+// in preparation for the tools.  Check that this line contains
+// data.  Empty files will have a blank line here.
+  if (headerLine != "") {
+    fromHeader = true;
+    record = headerLine;
+    string temp = "";
+    success = getRecord(temp);
+  }
 }
 
 // Parse information from the info and format descriptors.
@@ -294,84 +296,84 @@ bool vcf::getRecord(string& currentReferenceSequence) {
 // variants structure or not.  If not, the tool being used will clear all variants
 // for the current reference sequence and then build a new variant structure for
 // the next reference sequence and repeat.
-  update = (variantRecord.referenceSequence == currentReferenceSequence) ? true : false;
+  //update = (variantRecord.referenceSequence == currentReferenceSequence) ? true : false;
 
   return success;
 }
 
 // Add the variant to variant structure.
-void vcf::addVariantToStructure() {
-
-// If this is the first variant at this position, create a new entry in the
-// information structure.
-  if (variants.count(position) == 0) {
-    variantsInformation[position].referenceSequence     = variantRecord.referenceSequence;
-    variantsInformation[position].containsBiallelicSnp  = false;
-    variantsInformation[position].containsMultipleSnp   = false;
-    variantsInformation[position].containsTriallelicSnp = false;
-    variantsInformation[position].containsMnp           = false;
-    variantsInformation[position].containsInsertion     = false;
-    variantsInformation[position].containsDeletion      = false;
-  }
-
-// Determine if there are multiple alleles.  If the variant is a triallelic SNP,
-// leave the variant as is, otherwise, put each alternate allele in the
-// structure seperately.
-  size_t found = variantRecord.altString.find(",");
-
-  // Single alternate allele.
-  if (found == string::npos) {
-    variantRecord.variantClass = determineVariantClass(variantRecord.ref, variantRecord.altString);
-
-    variants[position].push_back(variantRecord);
-  } else {
-    alt = split(variantRecord.altString, ",");
-
-    // Tri-allelic SNP.
-    if (alt.size() == 2 && alt[0].size() == 1 && alt[1].size() == 1) {
-      variantRecord.variantClass = 2;
-      variants[position].push_back(variantRecord);
-      variantsInformation[position].containsTriallelicSnp = true;
-
-    // Quad-allelic SNP.
-    } else if (alt.size() == 3 && alt[0].size() == 1 && alt[1].size() == 1 && alt[2].size() == 1) {
-      variantRecord.variantClass = 3;
-      variants[position].push_back(variantRecord);
-      variantsInformation[position].containsQuadallelicSnp = true;
-
-    // MNPs, insertions and deletions.
-    } else {
-      for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
-        variantRecord.variantClass = determineVariantClass(variantRecord.ref, *iter);
-
-        // For insertions and deletions, the alt allele is aligned to the ref allele
-        // using a Smith-Waterman algorithm.  This determines the unambigous start
-        // position of the variant and ensures that the variant structure is
-        // constructed correctly.
-        if (variantRecord.variantClass == 5 || variantRecord.variantClass == 6) {
-
-          // If the position is modified write a warning to stderr.
-          // if (newPosition != position) {cerr << 
-          cerr << "Haven't handled indels yet." << endl;
-          exit(1);
-        }
-        variants[position].push_back(variantRecord);
-
-        // Clear the genotype string.  Otherwise, this will be kept in memory
-        // for each of the alt alleles.
-        variantRecord.genotypeString = "";
-      }
-    }
-  }
+//void vcf::addVariantToStructure() {
+//
+//// If this is the first variant at this position, create a new entry in the
+//// information structure.
+//  if (variants.count(position) == 0) {
+//    variantsInformation[position].referenceSequence     = variantRecord.referenceSequence;
+//    variantsInformation[position].containsBiallelicSnp  = false;
+//    variantsInformation[position].containsMultipleSnp   = false;
+//    variantsInformation[position].containsTriallelicSnp = false;
+//    variantsInformation[position].containsMnp           = false;
+//    variantsInformation[position].containsInsertion     = false;
+//    variantsInformation[position].containsDeletion      = false;
+//  }
+//
+//// Determine if there are multiple alleles.  If the variant is a triallelic SNP,
+//// leave the variant as is, otherwise, put each alternate allele in the
+//// structure seperately.
+//  size_t found = variantRecord.altString.find(",");
+//
+//  // Single alternate allele.
+//  if (found == string::npos) {
+//    variantRecord.variantClass = determineVariantClass(variantRecord.ref, variantRecord.altString);
+//
+//    variants[position].push_back(variantRecord);
+//  } else {
+//    alt = split(variantRecord.altString, ",");
+//
+//    // Tri-allelic SNP.
+//    if (alt.size() == 2 && alt[0].size() == 1 && alt[1].size() == 1) {
+//      variantRecord.variantClass = 2;
+//      variants[position].push_back(variantRecord);
+//      variantsInformation[position].containsTriallelicSnp = true;
+//
+//    // Quad-allelic SNP.
+//    } else if (alt.size() == 3 && alt[0].size() == 1 && alt[1].size() == 1 && alt[2].size() == 1) {
+//      variantRecord.variantClass = 3;
+//      variants[position].push_back(variantRecord);
+//      variantsInformation[position].containsQuadallelicSnp = true;
+//
+//    // MNPs, insertions and deletions.
+//    } else {
+//      for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
+//        variantRecord.variantClass = determineVariantClass(variantRecord.ref, *iter);
+//
+//        // For insertions and deletions, the alt allele is aligned to the ref allele
+//        // using a Smith-Waterman algorithm.  This determines the unambigous start
+//        // position of the variant and ensures that the variant structure is
+//        // constructed correctly.
+//        if (variantRecord.variantClass == 5 || variantRecord.variantClass == 6) {
+//
+//          // If the position is modified write a warning to stderr.
+//          // if (newPosition != position) {cerr << 
+//          cerr << "Haven't handled indels yet." << endl;
+//          exit(1);
+//        }
+//        variants[position].push_back(variantRecord);
+//
+//        // Clear the genotype string.  Otherwise, this will be kept in memory
+//        // for each of the alt alleles.
+//        variantRecord.genotypeString = "";
+//      }
+//    }
+//  }
 
 // Add the reference sequence to the map.  If it didn't previously
 // exist append the reference sequence to the end of the list as well. 
 // This ensures that the order in which the reference sequences appeared
 // in the header can be preserved.
-  if (referenceSequences.count(referenceSequence) == 0) {
-    referenceSequences[referenceSequence] = true;
-    referenceSequenceVector.push_back(referenceSequence);
-  }
+  //if (referenceSequences.count(referenceSequence) == 0) {
+  //  referenceSequences[referenceSequence] = true;
+  //  referenceSequenceVector.push_back(referenceSequence);
+  //}
 
 // If required, parse the genotype format string and create a vector
 // containing all of the individual sample genotype strings.
@@ -387,7 +389,7 @@ void vcf::addVariantToStructure() {
   //    exit(1);
   //  }
   //}
-}
+//}
 
 // Determine the variant class from the ref and alt alleles.
 //
@@ -397,100 +399,41 @@ void vcf::addVariantToStructure() {
 // 4: MNP,
 // 5: Insertion,
 // 6: Deletion.
-unsigned int vcf::determineVariantClass(string& ref, string& alt) {
-  unsigned int variantClass;
-  // SNP.
-  if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
-    variantClass = 1;
-    variantsInformation[position].containsMultipleSnp = (variantsInformation[position].containsBiallelicSnp) ? true : false;
-    variantsInformation[position].containsBiallelicSnp = true;
+//unsigned int vcf::determineVariantClass(string& ref, string& alt) {
+//  unsigned int variantClass;
+//  // SNP.
+//  if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
+//    variantClass = 1;
+//    variantsInformation[position].containsMultipleSnp = (variantsInformation[position].containsBiallelicSnp) ? true : false;
+//    variantsInformation[position].containsBiallelicSnp = true;
+//
+//  // MNP.
+//  } else if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
+//    variantClass = 3;
+//    variantsInformation[position].containsMnp = true;
+//
+//  // Insertion.
+//  } else if ( alt.size() - ref.size() ) {
+//    variantClass = 4;
+//    variantsInformation[position].containsInsertion = true;
+//
+//  // Deletion.
+//  } else if ( ref.size() > alt.size() ) {
+//    variantClass = 5;
+//    variantsInformation[position].containsDeletion = true;
+//
+//  // None of the known types.
+//  } else {
+//    cerr << "Unknown variant class:" << endl;
+//    cerr << "Coordinates: " << variantsInformation[position].referenceSequence << ": " << position << endl;
+//    cerr << "Ref: " << ref << endl << "Alt: " << alt << endl;
+//    exit(1);
+//  }
+//
+//  return variantClass;
+//}
 
-  // MNP.
-  } else if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
-    variantClass = 3;
-    variantsInformation[position].containsMnp = true;
-
-  // Insertion.
-  } else if ( alt.size() - ref.size() ) {
-    variantClass = 4;
-    variantsInformation[position].containsInsertion = true;
-
-  // Deletion.
-  } else if ( ref.size() > alt.size() ) {
-    variantClass = 5;
-    variantsInformation[position].containsDeletion = true;
-
-  // None of the known types.
-  } else {
-    cerr << "Unknown variant class:" << endl;
-    cerr << "Coordinates: " << variantsInformation[position].referenceSequence << ": " << position << endl;
-    cerr << "Ref: " << ref << endl << "Alt: " << alt << endl;
-    exit(1);
-  }
-
-  return variantClass;
-}
-
-// Parse the vcf file and add the variants to the structure.  Read in the
-// number of specified records or terminate at the end of the file or when
-// a new referenceSequence is encountered.
-bool vcf::buildVariantStructure(unsigned int recordsInMemory, string& currentReferenceSequence, bool write, ostream* output) {
-  unsigned int count = 0;
-  string tempReferenceSequence;
-
-// If the vcf file being parse has the wrong reference sequence, parse through
-// the file until the correct reference sequence is found.
-  if (success && variantRecord.referenceSequence != currentReferenceSequence) {
-    tempReferenceSequence = variantRecord.referenceSequence;
-
-    while (tempReferenceSequence != currentReferenceSequence) {
-
-      // Build the variant structure.  This step ensures correct sorting of the
-      // variants.
-      while (success && variantRecord.referenceSequence == tempReferenceSequence && count < recordsInMemory) {
-        addVariantToStructure();
-        success = getRecord(currentReferenceSequence);
-        count++;
-      }
-
-      // Parse through the structure, writing out records if necessary until this
-      // reference sequence has been completed.
-      while (success && variantRecord.referenceSequence == tempReferenceSequence) {
-        addVariantToStructure();
-        variantsIter = variants.begin();
-        if (write) {writeRecord(output);}
-        variants.erase(variantsIter);
-        success = getRecord(currentReferenceSequence);
-      }
-
-      // Clear any remaining variants from the structure.
-      for (variantsIter = variants.begin(); variantsIter != variants.end(); variantsIter++) {
-        if (write) {writeRecord(output);}
-        variants.erase(variantsIter);
-      }
-
-      // Set the temporary reference sequence to that of the next read in the file.
-      tempReferenceSequence = variantRecord.referenceSequence;
-    }
-  }
-
-// When variants in the correct reference sequence are found, build the variant
-// structure.
-  count = 0;
-  while (success && variantRecord.referenceSequence == currentReferenceSequence && count < recordsInMemory) {
-    addVariantToStructure();
-    success = getRecord(currentReferenceSequence);
-    count++;
-  }
-
-  // Set the update flag.  If the last record read is in the current reference
-  // sequence, this should be true, otherwise false.
-  update = (variantRecord.referenceSequence == currentReferenceSequence) ? true : false;
-  update = (!success) ? false : update;
-
-  return success;
-}
-
+//
 bool vcf::getVariantGroup(variantGroup& vg, string& refFa) {
   bool success = true, inGroup = true;
   string alRef, alAlt;

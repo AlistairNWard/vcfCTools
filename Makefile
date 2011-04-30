@@ -1,5 +1,6 @@
 #OBJ_DIR = ./
 HEADERS = bed.h \
+          bedStructure.h \
           Fasta.h \
           info.h \
           samples.h \
@@ -19,6 +20,7 @@ HEADERS = bed.h \
           vcf_aux.h \
 	  vcfCTools_tool.h
 SOURCES = bed.cpp \
+          bedStructure.cpp \
           Fasta.cpp \
           info.cpp \
           samples.cpp \

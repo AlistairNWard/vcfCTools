@@ -34,58 +34,18 @@ void variant::determineVariantsToProcess(bool snps, bool mnps, bool indels) {
 }
 
 // Build up a structure containing variants.
-bool variant::buildVariantStructure(vcf& v, string& currentReferenceSequence, bool write, ostream* output) {
+bool variant::buildVariantStructure(vcf& v) {
   unsigned int count = 0;
-  string tempReferenceSequence;
-
-// If the vcf file being parse has the wrong reference sequence, parse through
-// the file until the correct reference sequence is found.
-  //if (v.success && v.variantRecord.referenceSequence != currentReferenceSequence) {
-  //  tempReferenceSequence = v.variantRecord.referenceSequence;
-
-  //  while (v.success && tempReferenceSequence != currentReferenceSequence) {
-
-      // Build the variant structure.  This step ensures correct sorting of the
-      // variants.
-  //    while (v.success && v.variantRecord.referenceSequence == tempReferenceSequence && count < recordsInMemory) {
-  //      addVariantToStructure(v.position, v.variantRecord);
-  //      v.success = v.getRecord(currentReferenceSequence);
-  //      count++;
-  //    }
-
-      // Parse through the structure, writing out records if necessary until this
-      // reference sequence has been completed.
-  //    while (variantMap.size() != 0) {
-  //      vmIter = variantMap.begin();
-  //      if (write) {writeVariants(output);}
-  //      variantMap.erase(vmIter);
-  //      if (v.success && v.update) {
-  //        addVariantToStructure(v.position, v.variantRecord);
-  //        v.success = v.getRecord(tempReferenceSequence);
-  //      }
-  //    }
-
-      // Set the temporary reference sequence to that of the next read in the file.
-  //    tempReferenceSequence = v.variantRecord.referenceSequence;
-  //  }
-  //}
 
 // When variants in the correct reference sequence are found, build the variant
 // structure.
   count = 0;
-  //while (v.success && v.variantRecord.referenceSequence == currentReferenceSequence && count < recordsInMemory) {
-  tempReferenceSequence = v.variantRecord.referenceSequence;
+  string tempReferenceSequence = v.variantRecord.referenceSequence;
   while (v.success && count < recordsInMemory && v.variantRecord.referenceSequence == tempReferenceSequence) {
     addVariantToStructure(v.position, v.variantRecord);
-    //v.success = v.getRecord(currentReferenceSequence); 
     v.success = v.getRecord(tempReferenceSequence); 
     count++;
   }
-
-  // Set the update flag.  If the last record read is in the current reference
-  // sequence, this should be true, otherwise false.
-  //v.update = (v.variantRecord.referenceSequence == currentReferenceSequence) ? true : false;
-  //v.update = (!v.success) ? false : v.update;
 
   return v.success;
 }
@@ -165,11 +125,14 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
     // Multi-base variants have the alt allele aligned to the ref allele
     // to unambiguously determine the variant type and the start
     // position.
-    int pos = position;
-    string alRef, alAlt;
-    string refFa = "/d2/data/references/build_37/human_reference_v37.fa";
-    int start = alignAlternate(variant.referenceSequence, pos, ref, alt, alRef, alAlt, refFa);
-    if (pos != start) {cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;}
+    bool alignAlleles = false;
+    if (alignAlleles) {
+      int pos = position;
+      string alRef, alAlt;
+      string refFa = "/d2/data/references/build_37/human_reference_v37.fa";
+      int start = alignAlternate(variant.referenceSequence, pos, ref, alt, alRef, alAlt, refFa); // vcf_aux.cpp
+      if (pos != start) {cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;}
+    }
 
     // MNP.
     if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {

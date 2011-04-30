@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include "bed.h"
+#include "bedStructure.h"
 #include "tools.h"
 #include "variant.h"
 #include "vcf.h"
@@ -38,7 +39,7 @@ class intersectTool : public AbstractTool {
 
   private:
     void intersectVcf(vcf&, variant&, vcf&, variant&);
-    void intersectVcfBed(vcf&, bed&);
+    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&);
 
   private:
     string commandLine;
