@@ -20,6 +20,7 @@
 #include <map>
 #include <vector>
 
+#include "bed.h"
 #include "vcf.h"
 
 using namespace std;
@@ -46,6 +47,8 @@ class variant {
     void addVariantToStructure(int, variantDescription&);
     void clearReferenceSequence(vcf&, string&, bool, ostream*);
     void determineVariantClass(int, string&, string&, variantDescription&);
+    void annotateRecordVcf(variantsAtLocus&, bool);
+    void annotateRecordBed(bedRecord&);
     void writeVariants(ostream*);
 
   public:

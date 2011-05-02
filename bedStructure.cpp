@@ -230,7 +230,7 @@ void bedStructure::resolveOverlaps(bool annotate) {
         // This record overlaps the reconstructed interval, so add the annotation
         // information to the map.
         } else if (bIter->start <= *enIter) {
-          ann = split(bIter->info, ",");
+          ann = split(bIter->info, ";");
           for (annIter = ann.begin(); annIter != ann.end(); annIter++) {
             annMap[*annIter] = 1;
           }

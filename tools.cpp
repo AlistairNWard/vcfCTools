@@ -183,53 +183,18 @@ void checkDataSets(vcf& v1, vcf& v2) {
   }
 }
 
-// Write out a vcf record to file.  The record written depends on the
-// value of 'priority' and could therefore be the record from either
-// of the vcf files, or a combination of them.
-void writeVcfRecord(unsigned int priority, vcf& v1, vcf& v2, ostream* output) {
-  if (priority == 0) {
-    if (v1.quality >= v2.quality) {*output << v1.record << endl;}
-    else {*output << v2.record << endl;}
-  }
-  else if (priority == 1) {*output << v1.record << endl;}
-  else if (priority == 2) {*output << v2.record << endl;}
-  else if (priority == 3) {
-    cerr << "Functionality currently disabled." << endl;
-    exit(1);
+// Build a variant record from its constituent parts.
+void buildRecord(int position, variantDescription& v) {
+  ostringstream sPosition, sQuality;
+  sPosition << position;
+  sQuality << v.quality;
 
-// Define the missing entry values (depends on the number of data sets
-// in the file).
-    //string info = "";
-    //string missingEntry1 = ".";
-    //string missingEntry2 = ".";
-    //for (unsigned int i = 0; i < v1.numberDataSets; i++) {missingEntry1 += "/.";}
-    //for (unsigned int i = 0; i < v2.numberDataSets; i++) {missingEntry2 += "/.";}
-    //map<string, string> secondList = v2.infoTags;
-
-// Build up the info field.
-    //for (map<string, string>::iterator iter = v1.infoTags.begin(); iter != v1.infoTags.end(); iter++) {
-    //  string tag = (*iter).first;
-    //  if (secondList.count(tag) != 0) {
-    //    if (v1.headerInfoFields[tag].type != "Flag") {info += tag + "=" + v1.infoTags[tag] + "/" + v2.infoTags[tag] + ";";}
-    //    secondList.erase(tag);
-    //  }
-    //  else if (v1.headerInfoFields[tag].type != "Flag") {info += tag + "=" + v1.infoTags[tag] + "/" + missingEntry2 + ";";}
-    //}
-
-// Now include the info tags that are not populated in the first vcf file.
-    //for (map<string, string>::iterator iter = secondList.begin(); iter != secondList.end(); iter++) {
-    //  string tag = (*iter).first;
-    //  if (v2.headerInfoFields[tag].type != "Flag") {info += tag + "=" + missingEntry1 + "/" + v2.infoTags[tag] + ";";}
-    //}
-
-// Build the complete record.
-    //info.erase(info.end() - 1, info.end());
-    //*output << v1.referenceSequence << "	" << v1.position << "	" << v1.rsid << "	" << v1.ref;
-    //*output << "	" << v1.alt << "	" << v2.alt << "	" << v1.quality << "/" << v2.quality;
-    //*output << "	.	" << info << endl;
-  }
-  else {
-    cerr << "Unknown file priority." << endl;
-    exit(1);
-  }
+  v.record = v.referenceSequence + "	" +
+             sPosition.str() + "	" +
+             v.rsid + "	" +
+             v.ref + "	" +
+             v.altString + "	" +
+             sQuality.str() + "	" +
+             v.filters + "	" + 
+             v.info + "	";
 }

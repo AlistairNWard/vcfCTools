@@ -5,37 +5,29 @@
 // ------------------------------------------------------
 // Last modified: 18 February 2011
 // ------------------------------------------------------
-// Additional tools
+// Perform file intersections
 // ******************************************************
 
-#ifndef TOOLS_H
-#define TOOLS_H
+#ifndef INTERSECT_H
+#define INTERSECT_H
 
 #include <cstdio>
 #include <iostream>
-#include <fstream>
-#include <iomanip>
 #include <string>
 #include <getopt.h>
 #include <stdlib.h>
-#include <map>
-#include <vector>
-#include <algorithm>
 
-#include "Fasta.h"
-#include "SmithWatermanGotoh.h"
-#include "split.h"
+#include "bed.h"
+#include "bedStructure.h"
+#include "tools.h"
+#include "variant.h"
 #include "vcf.h"
+#include "vcfCTools_tool.h"
 
 using namespace std;
 using namespace vcfCTools;
 
-ostream* openOutputFile(string&);
-unsigned int setVcfPriority(string&, vector<string>&);
-void checkReferenceSequences(vector<string>&, vector<string>&);
-void mergeHeaders(vcf&, vcf&, vcf&);
-void writeHeader(ostream*, vcf&, bool, string&);
-void checkDataSets(vcf&, vcf&);
-void buildRecord(int, variantDescription&);
+void intersectVcf(vcf&, variant&, vcf&, variant&, bool, bool, bool, string, ostream*);
+void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, bool, bool, ostream*);
 
 #endif

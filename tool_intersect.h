@@ -20,6 +20,7 @@
 
 #include "bed.h"
 #include "bedStructure.h"
+#include "intersect.h"
 #include "tools.h"
 #include "variant.h"
 #include "vcf.h"
@@ -36,10 +37,6 @@ class intersectTool : public AbstractTool {
     int Help(void);
     int Run(int argc, char* argv[]);
     int parseCommandLine(int argc, char* argv[]);
-
-  private:
-    void intersectVcf(vcf&, variant&, vcf&, variant&);
-    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&);
 
   private:
     string commandLine;

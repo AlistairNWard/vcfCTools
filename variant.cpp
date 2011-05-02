@@ -8,6 +8,8 @@
 // vcfClass describes the vcf class and all operations.
 // ******************************************************
 
+#include "info.h"
+#include "tools.h"
 #include "variant.h"
 
 using namespace std;
@@ -155,6 +157,180 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
       cerr << "Coordinates: " << variant.referenceSequence << ": " << position << endl;
       cerr << "Ref: " << ref << endl << "Alt: " << alt << endl;
       exit(1);
+    }
+  }
+}
+
+// Annotate the variants at this locus with the contents of the vcf file.
+void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
+  variantInfo annInfo;
+  variantInfo vcfInfo;
+  vector<variantDescription>::iterator iter;
+
+// If the vcf file used for annotation is a dbSNP vcf file, only compare the
+// relevant variant classes.  Also, parse the info string to check that the
+// variant class as determined by vcfCTools agrees with that listed in the
+// variant class (VC) info field.
+  if (isDbsnp) {
+
+    // Annotate SNPs.
+    for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
+
+      // Check that the VC class lists this entry as a SNP.
+      annInfo.processInfoFields(iter->info);
+      annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+      if (annInfo.values[0] != "SNP") {
+        cerr << "dbSNP entry not as expected." << endl;
+        cerr << "ref and alt alleles suggest a SNP, but VC listed as " << annInfo.values[0] << endl;
+        cerr << "Error occcurred at " << v.referenceSequence << ":" << vmIter->first << endl;
+        exit(1);
+      }
+
+      // Annotate the SNPs with the rsid value.
+      for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+        variantIter->rsid = iter->rsid;
+        buildRecord(vmIter->first, *variantIter); // tools.cpp
+      }
+    }
+
+    // Annotate MNPs.
+    for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
+
+      // Check that the VC class lists this entry as an MNP.
+      annInfo.processInfoFields(iter->info);
+      annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+      if (annInfo.values[0] != "SNP") {
+        cerr << "dbSNP entry not as expected." << endl;
+        cerr << "ref and alt alleles suggest an MNP, but VC listed as " << annInfo.values[0] << endl;
+        cerr << "Error occcurred at " << v.referenceSequence << ":" << vmIter->first << endl;
+        exit(1);
+      }
+
+      // Annotate the SNPs with the rsid value.
+      for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+        variantIter->rsid = iter->rsid;
+        buildRecord(vmIter->first, *variantIter); // tools.cpp
+      }
+    }
+
+    // Annotate indels.
+    for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
+
+      // Check that the VC class lists this entry as an indel.
+      annInfo.processInfoFields(iter->info);
+      annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+      if (annInfo.values[0] != "INDEL") {
+        cerr << "dbSNP entry not as expected." << endl;
+        cerr << "ref and alt alleles suggest an indel, but VC listed as " << annInfo.values[0] << endl;
+        cerr << "Error occcurred at " << v.referenceSequence << ":" << vmIter->first << endl;
+        exit(1);
+      }
+
+      // Annotate the SNPs with the rsid value.
+      for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+        variantIter->rsid = iter->rsid;
+        buildRecord(vmIter->first, *variantIter); // tools.cpp
+      }
+    }
+
+// If a vcf file is provided for performing annotations that is not a dbSNP
+// vcf file, add the info string from this file to the vcf file being
+// annotated.
+  } else {
+
+    // Annotate SNPs.
+    for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
+
+      // Break up the info field.  This will ensure that flags aren't repeated
+      // in the vcf info field.
+      annInfo.processInfoFields(iter->info);
+      for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+        vcfInfo.processInfoFields(variantIter->info);
+        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
+          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
+        }
+        buildRecord(vmIter->first, *variantIter);
+      }
+    }
+
+    // Annotate multiallelic SNPs.
+    for (iter = v.multiSnps.begin(); iter != v.multiSnps.end(); iter++) {
+
+      // Break up the info field.  This will ensure that flags aren't repeated
+      // in the vcf info field.
+      annInfo.processInfoFields(iter->info);
+      for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+        vcfInfo.processInfoFields(variantIter->info);
+        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
+          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
+        }
+        buildRecord(vmIter->first, *variantIter);
+      }
+    }
+
+    // Annotate MNPs.
+    for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
+
+      // Break up the info field.  This will ensure that flags aren't repeated
+      // in the vcf info field.
+      annInfo.processInfoFields(iter->info);
+      for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+        vcfInfo.processInfoFields(variantIter->info);
+        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
+          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
+        }
+        buildRecord(vmIter->first, *variantIter);
+      }
+    }
+
+    // Annotate indels.
+    for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
+
+      // Break up the info field.  This will ensure that flags aren't repeated
+      // in the vcf info field.
+      annInfo.processInfoFields(iter->info);
+      for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+        vcfInfo.processInfoFields(variantIter->info);
+        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
+          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
+        }
+        buildRecord(vmIter->first, *variantIter);
+      }
+    }
+  }
+}
+
+// Annotate the variants at this locus with the contents of the bed file.
+void variant::annotateRecordBed(bedRecord& b) {
+  // SNPs.
+  if (processSnps) {
+    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+      else {variantIter->info = b.info;}
+      buildRecord(vmIter->first, *variantIter); // tools.cpp
+    }
+    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+      else {variantIter->info = b.info;}
+      buildRecord(vmIter->first, *variantIter); // tools.cpp
+    }
+  }
+ 
+  // MNPs.
+  if (processMnps) {
+    for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+      else {variantIter->info = b.info;}
+      buildRecord(vmIter->first, *variantIter); // tools.cpp
+    }
+  }
+ 
+  // Indels.
+  if (processIndels) {
+    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+      else {variantIter->info = b.info;}
+      buildRecord(vmIter->first, *variantIter); // tools.cpp
     }
   }
 }

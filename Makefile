@@ -3,6 +3,7 @@ HEADERS = bed.h \
           bedStructure.h \
           Fasta.h \
           info.h \
+          intersect.h \
           samples.h \
           SmithWatermanGotoh.h \
           split.h \
@@ -23,6 +24,7 @@ SOURCES = bed.cpp \
           bedStructure.cpp \
           Fasta.cpp \
           info.cpp \
+          intersect.cpp \
           samples.cpp \
           SmithWatermanGotoh.cpp \
           split.cpp \

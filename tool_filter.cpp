@@ -255,8 +255,12 @@ void filterTool::filter(vcf& v, variant& var) {
 
 void filterTool::performFilter(vcf& v, int position, variantDescription& varIter) {
   variantInfo info;
-  string filterString = "";
   vector<string> geno;
+
+  // Set the filter string to blank if the variant is being filtered rather than having
+  // info removed or hets found etc.  If no actual filtering is taking place, the filter
+  // field should not be modified but left as is.
+  string filterString = (!filterQuality && !conditionalFilter) ? varIter.filters : "";
 
   // If a samples list was provided, check that one of the listed samples shows evidence
   // for the alternate allele.  If none of the samples do, do not output this record.
@@ -272,7 +276,7 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
   // Mark the record as "PASS" if --mark-as-pass was applied.
   if (markPass) {filterString = "PASS";}
 
-    // Check for quality filtering.
+  // Check for quality filtering.
   if (filterQuality && !markPass) {
     if (varIter.quality < filterQualityValue) {
       ostringstream s;
@@ -320,8 +324,13 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
     if (hetString != "" ) {varIter.info += ";HET=" + hetString;}
   }
 
-  filterString = (filterString == "") ? varIter.filters : filterString;
-  varIter.filters = filterString;
+  // If the filterString is blank, the record didn't fail any of the filters
+  // so set it the variant filter field to PASS, otherwise set it to
+  // the filter string.
+  //filterString = (filterString == "") ? varIter.filters : filterString;
+  //filterString = (filterString == "") ? varIter.filters : filterString;
+  //varIter.filters = filterString;
+  varIter.filters = (filterString == "") ? "PASS" : filterString;
 
   writeRecord = true;
   if (filterFail && varIter.filters != "PASS") {writeRecord = false;}

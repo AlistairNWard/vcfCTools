@@ -36,14 +36,9 @@ class annotateTool : public AbstractTool {
     int parseCommandLine(int argc, char* argv[]);
 
   private:
-    void annotate(vcf&, vcf&, vcf&, bed&, bool, bool, bool, ostream*);
-    void parseAnnotationVcf(vcf&, vcf&, string&, bool&);
-
-  private:
     string commandLine;
     string vcfFile;
     string outputFile;
-    string dbsnpFile;
     string annVcfFile;
     string bedFile;
     string currentReferenceSequence;

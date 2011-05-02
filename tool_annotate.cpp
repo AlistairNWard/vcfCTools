@@ -10,7 +10,10 @@
 // format.
 // ******************************************************
 
+#include "bedStructure.h"
+#include "intersect.h"
 #include "tool_annotate.h"
+#include "variant.h"
 
 using namespace std;
 using namespace vcfCTools;
@@ -102,7 +105,7 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 
       // Input dbsnp vcf file.
       case 'd':
-        dbsnpFile = optarg;
+        annVcfFile = optarg;
         annotateDbsnp = true;
         break;
 
@@ -172,244 +175,74 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
   return 0;
 }
 
-// Intersect two vcf files.  It is assumed that the two files are
-// sorted by genomic coordinates and the reference sequences are
-// in the same order.
-void annotateTool::annotate(vcf& v, vcf& dbsnp, vcf& annVcf, bed& b, bool haveDbsnp, bool haveVcf, bool haveBed, ostream* output) {
-//  bool successVcf;
-//  currentReferenceSequence = "";
-//  successVcf = v.getRecord(currentReferenceSequence);
-//  if (successVcf) {v.update = true;}
-//  currentReferenceSequence = v.referenceSequence;
-//  string tag;
-//  information annInfo;
-//
-//// Get the next record from the requested annotation files.
-//  bool successDbsnp = false;
-//  bool successAnnVcf = false;
-//  bool successBed = false;
-//  bool build = false;
-//  if (haveDbsnp) {successDbsnp = dbsnp.getRecord(currentReferenceSequence);}
-//  if (haveVcf) {successAnnVcf = annVcf.getRecord(currentReferenceSequence);}
-//  if (haveBed) {successBed = b.getRecord();}
-//
-//// Finish when the end of the first file has been reached.
-//  while (successVcf) {
-//    string alleles;
-//    string dbsnpAlleles;
-//
-//// If the end of the annotation files is reached, write out the
-//// remaining records from the vcf file.
-//    if (!successDbsnp && !successAnnVcf && !successBed) {
-//      *output << v.record << endl;
-//      successVcf = v.getRecord(currentReferenceSequence);
-//      if (!successVcf) {break;}
-//    }
-//
-//// If a dbSNP file was provided, parse until the position in the vcf file
-//// is found or passed.  Similarly for hapmap and bed files.
-//    if (haveDbsnp) {
-//      if (v.hasMultipleAlternates) {
-//        cerr << "Not yet able to handle checking multiple alternate alleles." << endl;
-//        cerr << "Reference sequence: " << v.referenceSequence << ", position: " << v.position << endl;
-//        exit(1);
-//      } else {
-//
-//        //Annotate biallelic SNPs.
-//        if (v.isSNP[0]) {
-//          if (dbsnp.referenceSequence == currentReferenceSequence && v.position > dbsnp.position) {
-//            successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output, false);
-//          }
-//          if (dbsnp.referenceSequence == v.referenceSequence && v.position == dbsnp.position) {
-//            tag = "VC";
-//            annInfo = dbsnp.getInfo(tag);
-//            if (annInfo.values[0] == "SNP") {
-//              v.rsid = dbsnp.rsid;
-//
-//              // Check that dbSNP and the vcf have the same alleles.  Tag the info field
-//              // with dbSNP if they match, dnSNPX otherwise.  If the site has multiple
-//              // alternates, do not include in the statistics.
-//              if (v.hasMultipleAlternates || dbsnp.hasMultipleAlternates) {
-//                v.info += ";dbSNPM";
-//              } else {
-//                alleles = v.ref + v.alt[0];
-//                dbsnpAlleles = dbsnp.ref + dbsnp.alt[0];
-//                for (int i = 0; i < 2; i++) {
-//                  alleles[i] = tolower(alleles[i]);
-//                  dbsnpAlleles[i] = tolower(dbsnpAlleles[i]);
-//                }
-//                sort(alleles.begin(), alleles.end());
-//                sort(dbsnpAlleles.begin(), dbsnpAlleles.end());
-//                v.info = (dbsnpAlleles == alleles) ? v.info + ";dbSNP" : v.info + ";dbSNPX";
-//              }
-//            } else {
-//              v.rsid = ".";
-//            }
-//            build = true;
-//            successDbsnp = dbsnp.getRecord(currentReferenceSequence);
-//          }
-//        }
-//      }
-//    }
-//
-//    // If another vcf file is provided for annotations, parse this file.
-//    if (haveVcf) {
-//      if (annVcf.referenceSequence == currentReferenceSequence && v.position > annVcf.position) {
-//        successAnnVcf = annVcf.parseVcf(v.referenceSequence, v.position, false, output, false);
-//      }
-//      if (v.referenceSequence == annVcf.referenceSequence && v.position == annVcf.position) {
-//        tag = "ANN";
-//        if (v.infoTags.count(tag) != 0) {
-//
-//          // If an annotation exists, add the new annotation to the end of the comma separated list.
-//          size_t found = v.info.find("ANN=");
-//          size_t end = v.info.find_first_of(";", found + 1);
-//
-//          // Find current values in ANN.
-//          annInfo = v.getInfo(tag);
-//          string newField = "ANN=";
-//          for (vector<string>::iterator iter = annInfo.values.begin(); iter != annInfo.values.end(); iter++) {
-//            newField += (*iter) + ",";
-//          }
-//          newField += annVcf.filters;
-//          v.info.replace(found, end - found - 1, newField);
-//        } else {
-//          v.info += ";ANN=" + annVcf.filters;
-//        }
-//        build = true;
-//        successAnnVcf = annVcf.getRecord(currentReferenceSequence);
-//      }
-//    }
-//
-//    //Finally, if a bed file is provided, parse this file and compare with the current 
-//    //vcf record.
-//    if (haveBed) {
-//      if (b.referenceSequence == currentReferenceSequence && v.position > b.end) {
-//        successBed = b.parseBed(v.referenceSequence, v.position);
-//      }
-//      if (v.referenceSequence == b.referenceSequence && v.position >= b.start && v.position <= b.end) {
-//        tag = "ANN";
-//        if (v.infoTags.count(tag) != 0) {
-//
-//          // If an annotation exists, add the new annotation to the end of the comma separated list.
-//          size_t found = v.info.find("ANN=");
-//          size_t end = v.info.find_first_of(";", found + 1);
-//
-//          // Find current values in ANN.
-//          annInfo = v.getInfo(tag);
-//          string newField = "ANN=";
-//          for (vector<string>::iterator iter = annInfo.values.begin(); iter != annInfo.values.end(); iter++) {
-//            newField += (*iter) + ",";
-//          }
-//          newField += b.info;
-//          v.info.replace(found, end - found - 1, newField);
-//        } else {
-//          v.info += ";ANN=" + b.info;
-//        }
-//        build = true;
-//      }
-//    }
-//
-//    if (build) {
-//      //newRecord = v.buildRecord(false);
-//      build = false;
-//    } else {
-//      newRecord = v.record;
-//    }
-//    *output << newRecord << endl;
-//    successVcf = v.getRecord(currentReferenceSequence);
-//
-//// If the reference sequence in the vcf file changes, ensure that the annotation files are on the same
-//// reference sequence.
-//    if (v.referenceSequence != currentReferenceSequence) {
-//      currentReferenceSequence = v.referenceSequence;
-//      // dbSNP
-//      if (haveDbsnp) {
-//        if (dbsnp.referenceSequence != v.referenceSequence) {successDbsnp = dbsnp.parseVcf(v.referenceSequence, v.position, false, output, false);}
-//      }
-//      // Annotation vcf file
-//      if (haveVcf) {
-//        if (annVcf.referenceSequence != v.referenceSequence) {successAnnVcf = annVcf.parseVcf(v.referenceSequence, v.position, false, output, false);}
-//      }
-//      // bed file
-//      if (haveBed) {
-//        if (b.referenceSequence != v.referenceSequence) {successBed = b.parseBed(v.referenceSequence, v.position);}
-//      }
-//    }
-//  }
-}
-
 // Run the tool.
 int annotateTool::Run(int argc, char* argv[]) {
   int getOptions = annotateTool::parseCommandLine(argc, argv);
   output = openOutputFile(outputFile);
 
   vcf v; // Define vcf object.
+  variant var; // Define variant object.
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+
+  // Open the vcf file and parse the header.
   v.openVcf(vcfFile);
   v.parseHeader();
 
-  vcf dbsnp; // Define dbsnp vcf object.
-  vcf annVcf; // Define dbsnp vcf object.
-  bed b; // Define dbsnp vcf object.
-  v.processInfo = true;
+  // Either a vcf file, a dbsnp vcf file or a bed file can be provided for
+  // annotation.  To annotate from multiple files, piping should be used.
+  vcf annVcf; // Define a vcf object.
+  variant annVar; // Define a variant object
+  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels);
 
-  if (annotateDbsnp) {
-    dbsnp.processInfo = true;
-    dbsnp.dbsnpVcf = true;
-    dbsnp.openVcf(dbsnpFile);
-    dbsnp.parseHeader();
-  }
-  if (annotateVcf) {
+  if (annotateDbsnp || annotateVcf) {
+
+    // Open the vcf file and parse the header.
     annVcf.openVcf(annVcfFile);
     annVcf.parseHeader();
+    if (annotateDbsnp) {annVcf.dbsnpVcf = true;}
   }
+
+  bed b; // Define a bed object.
+  bedStructure bs; // Define a bed structure object.
+
   if (annotateBed) {
+
+    // Open the bed file and parse the header.
     b.openBed(bedFile);
+    b.parseHeader();
   }
 
 // Add an extra line to the vcf header to indicate the file used for
 // performing dbsnp annotation.
   string taskDescription = "##vcfCTools=annotated vcf file with ";
   if (annotateDbsnp) {
-    v.headerInfoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + dbsnpFile;
+    v.headerInfoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
     v.headerInfoLine["dbSNP"] += " with common alleles.\">";
-    v.headerInfoLine["dbSNPX"] = "##INFO=<ID=dbSNPX,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + dbsnpFile;
+    v.headerInfoLine["dbSNPX"] = "##INFO=<ID=dbSNPX,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
     v.headerInfoLine["dbSNPX"] += " with different alleles.\">";
-    v.headerInfoLine["dbSNPM"] = "##INFO=<ID=dbSNPM,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + dbsnpFile;
+    v.headerInfoLine["dbSNPM"] = "##INFO=<ID=dbSNPM,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
     v.headerInfoLine["dbSNPM"] += ". Either the vcf or dbSNP entry show a variant with multiple alternate alleles.\">";
+    taskDescription += "vcf file " + annVcfFile;
   }
-  if (annotateVcf || annotateBed) {
+  else if (annotateVcf) { 
+    taskDescription += "vcf file " + annVcfFile;
 
-// Add the info line for the ANN tag in the header.  If an intersection with
-// the input bed file is found and the fourth column of the bed file is CDS, 
-// the string ANN=CDS will be added to the info string.  This needs to be
-// included in the header to ensure the tool works correctly.
-    if (annotateVcf) {
-      v.headerInfoLine["ANN"] = "##INFO=<ID=ANN,Number=.,Type=String,Description=\"Annotation from vcf file " + annVcfFile + "\">";
-    }
-    if (annotateBed) {
-      v.headerInfoLine["ANN"] = "##INFO=<ID=ANN,Number=.,Type=String,Description=\"Annotation from bed file " + bedFile + "\">";
-    }
-
-    if (annotateDbsnp) {taskDescription += ", ";}
-    if (annotateVcf) {taskDescription += "vcf file " + annVcfFile;}
-    if (annotateBed && annotateVcf) {taskDescription += ", bed file " + bedFile;}
-    else if (annotateBed) {taskDescription += "bed file " + bedFile;}
+  } else if (annotateBed) {
+    taskDescription += "bed file " + bedFile;
   }
   writeHeader(output, v, false, taskDescription); // tools.cpp
 
 // Annotate the vcf file.
-  annotate(v, dbsnp, annVcf, b, annotateDbsnp, annotateVcf, annotateBed, output);
+  if (annotateDbsnp || annotateVcf) {intersectVcf(v, var, annVcf, annVar, false, false, true, string("a"), output);}
+  else if (annotateBed) {intersectVcfBed(v, var, b, bs, false, true, output);}
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.
-  if (annotateDbsnp) {checkReferenceSequences(v.referenceSequenceVector, dbsnp.referenceSequenceVector);} // tools.cpp
-  if (annotateVcf) {checkReferenceSequences(v.referenceSequenceVector, annVcf.referenceSequenceVector);} // tools.cpp
+  if (annotateVcf || annotateDbsnp) {checkReferenceSequences(v.referenceSequenceVector, annVcf.referenceSequenceVector);} // tools.cpp
   if (annotateBed) {checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector);} // tools.cpp
 
 // Close the vcf files.
   v.closeVcf();
-  dbsnp.closeVcf();
   annVcf.closeVcf();
   b.closeBed();
 
