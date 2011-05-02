@@ -173,6 +173,8 @@ class statistics {
     bool hasAnnotations;
     string currentReferenceSequence;
     int lastSnpPosition;
+    int lastMnpPosition;
+    int lastIndelPosition;
     map<string, string> referenceSequences;
     map<string, map<string, variantStruct> > variants;
     map<string, map<string, variantStruct> > totalVariants;

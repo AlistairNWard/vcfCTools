@@ -52,11 +52,11 @@ int intersectTool::Help(void) {
   cout << "  -p, --pass-filters" << endl;
   cout << "	Only variants that pass filters are considered." << endl;
   cout << "  -1, --snps" << endl;
-  cout << "     analyse SNPs." << endl;
+  cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
-  cout << "     analyse MNPs." << endl;
+  cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
-  cout << "     analyse indels." << endl;
+  cout << "	analyse indels." << endl;
   cout << endl;
   cout << "Additional information:" << endl;
   cout << "  The -c, -u and -q options require either 'a', 'b' or 'q' (not valid for -q) as an argument." << endl;

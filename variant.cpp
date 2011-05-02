@@ -61,11 +61,14 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
   variant.isInsertion = false;
   variant.isDeletion = false;
 
+  variantMap[position].hasBiallelicSnp = false;
+  variantMap[position].hasMultiallelicSnp = false;
+  variantMap[position].hasMnp = false;
+  variantMap[position].hasIndel = false;
+
 // If this is the first variant at this position, create a new entry in the
 // information structure.
-  if (variantMap.count(position) == 0) {
-    variantMap[position].referenceSequence = variant.referenceSequence;
-  }
+  variantMap[position].referenceSequence = variant.referenceSequence;
 
 // Determine if there are multiple alleles.  If the variant is a triallelic SNP,
 // leave the variant as is, otherwise, put each alternate allele in the
@@ -82,10 +85,12 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
     if (alt.size() == 2 && alt[0].size() == 1 && alt[1].size() == 1) {
       variant.isTriallelicSnp = true;
       variantMap[position].multiSnps.push_back(variant);
+      variantMap[position].hasMultiallelicSnp = true;
 
     // Quad-allelic SNP.
     } else if (alt.size() == 3 && alt[0].size() == 1 && alt[1].size() == 1 && alt[2].size() == 1) {
       variantMap[position].multiSnps.push_back(variant);
+      variantMap[position].hasMultiallelicSnp = true;
       variant.isQuadallelicSnp = true;
 
     // MNPs, insertions and deletions.
@@ -121,6 +126,7 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
     variant.isBiallelicSnp = true;
     variantMap[position].biSnps.push_back(variant);
+    variantMap[position].hasBiallelicSnp = true;
 
   } else {
 
@@ -140,16 +146,19 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
     if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
       variant.isMnp = true;
       variantMap[position].mnps.push_back(variant);
+      variantMap[position].hasMnp = true;
 
     // Insertion.
     } else if ( alt.size() - ref.size() ) {
       variant.isInsertion = true;
       variantMap[position].indels.push_back(variant);
+      variantMap[position].hasIndel = true;
 
     // Deletion.
     } else if ( ref.size() > alt.size() ) {
       variant.isDeletion = true;
       variantMap[position].indels.push_back(variant);
+      variantMap[position].hasIndel = true;
 
     // None of the known types.
     } else {
@@ -174,62 +183,82 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
   if (isDbsnp) {
 
     // Annotate SNPs.
-    for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
-
-      // Check that the VC class lists this entry as a SNP.
-      annInfo.processInfoFields(iter->info);
-      annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-      if (annInfo.values[0] != "SNP") {
-        cerr << "dbSNP entry not as expected." << endl;
-        cerr << "ref and alt alleles suggest a SNP, but VC listed as " << annInfo.values[0] << endl;
-        cerr << "Error occcurred at " << v.referenceSequence << ":" << vmIter->first << endl;
-        exit(1);
+    if (vmIter->second.biSnps.size() != 0) {
+      for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
+  
+        // Check that the VC class lists this entry as a SNP.
+        annInfo.processInfoFields(iter->info);
+        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+        if (annInfo.values[0] != "SNP") {
+          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected SNP.";
+          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
+        }
+  
+        // Annotate the SNPs with the rsid value.
+        for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+          variantIter->rsid = iter->rsid;
+          buildRecord(vmIter->first, *variantIter); // tools.cpp
+        }
       }
+    }
 
-      // Annotate the SNPs with the rsid value.
-      for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-        variantIter->rsid = iter->rsid;
-        buildRecord(vmIter->first, *variantIter); // tools.cpp
+    // Annotate multiallelic SNPs.
+    if (vmIter->second.multiSnps.size() != 0) {
+      for (iter = v.multiSnps.begin(); iter != v.multiSnps.end(); iter++) {
+  
+        // Check that the VC class lists this entry as a SNP.
+        annInfo.processInfoFields(iter->info);
+        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+        if (annInfo.values[0] != "SNP") {
+          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected SNP.";
+          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
+        }
+  
+        // Annotate the SNPs with the rsid value.
+        for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+          variantIter->rsid = iter->rsid;
+          buildRecord(vmIter->first, *variantIter); // tools.cpp
+        }
       }
     }
 
     // Annotate MNPs.
-    for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
-
-      // Check that the VC class lists this entry as an MNP.
-      annInfo.processInfoFields(iter->info);
-      annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-      if (annInfo.values[0] != "SNP") {
-        cerr << "dbSNP entry not as expected." << endl;
-        cerr << "ref and alt alleles suggest an MNP, but VC listed as " << annInfo.values[0] << endl;
-        cerr << "Error occcurred at " << v.referenceSequence << ":" << vmIter->first << endl;
-        exit(1);
-      }
-
-      // Annotate the SNPs with the rsid value.
-      for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
-        variantIter->rsid = iter->rsid;
-        buildRecord(vmIter->first, *variantIter); // tools.cpp
+    if (vmIter->second.mnps.size() != 0) {
+      for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
+  
+        // Check that the VC class lists this entry as an MNP.
+        annInfo.processInfoFields(iter->info);
+        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+        if (annInfo.values[0] != "MULTI-BASE") {
+          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected MNP (MULTI-BASE).";
+          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
+        }
+  
+        // Annotate the SNPs with the rsid value.
+        for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+          variantIter->rsid = iter->rsid;
+          buildRecord(vmIter->first, *variantIter); // tools.cpp
+        }
       }
     }
 
     // Annotate indels.
-    for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
-
-      // Check that the VC class lists this entry as an indel.
-      annInfo.processInfoFields(iter->info);
-      annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-      if (annInfo.values[0] != "INDEL") {
-        cerr << "dbSNP entry not as expected." << endl;
-        cerr << "ref and alt alleles suggest an indel, but VC listed as " << annInfo.values[0] << endl;
-        cerr << "Error occcurred at " << v.referenceSequence << ":" << vmIter->first << endl;
-        exit(1);
-      }
-
-      // Annotate the SNPs with the rsid value.
-      for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-        variantIter->rsid = iter->rsid;
-        buildRecord(vmIter->first, *variantIter); // tools.cpp
+    if (vmIter->second.indels.size() != 0) {
+      for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
+  
+        // Check that the VC class lists this entry as an indel.
+        annInfo.processInfoFields(iter->info);
+        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
+        if (annInfo.values[0] != "INDEL") {
+          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected INDEL.";
+          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
+        }
+  
+        // Annotate the SNPs with the rsid value.
+        for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+          variantIter->rsid = iter->rsid;
+          buildRecord(vmIter->first, *variantIter); // tools.cpp
+        }
       }
     }
 

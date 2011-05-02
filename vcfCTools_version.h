@@ -14,8 +14,8 @@
 // CMake uses this file as a template to generate "bamtools_version.h".
 // These constants are defined to match the variables set in the build system. 
 #define VCFCTOOLS_VERSION_MAJOR 0
-#define VCFCTOOLS_VERSION_MINOR 14
-#define VCFCTOOLS_DATE "April 2011"
+#define VCFCTOOLS_VERSION_MINOR 15
+#define VCFCTOOLS_DATE "May 2011"
 
 #endif // VCFCTOOLS_VERSION_H
 

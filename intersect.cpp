@@ -144,7 +144,9 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
     if (bs.bmIter->second.end >= bmNext->first) {bs.resolveOverlaps(annotate);}
   }
 
-  string currentReferenceSequence = v.referenceSequence;
+  // Define the current reference sequence as that from the first entry in the
+  // variant map.
+  string currentReferenceSequence = var.vmIter->second.referenceSequence;
 
 // As soon as the end of the vcf file is reached, there are no
 // more intersections and the program can terminate.

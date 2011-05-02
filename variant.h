@@ -36,6 +36,12 @@ struct variantsAtLocus {
   vector<variantDescription> multiSnps;
   vector<variantDescription> mnps;
   vector<variantDescription> indels;
+
+  // Boolean flags.
+  bool hasBiallelicSnp;
+  bool hasMultiallelicSnp;
+  bool hasMnp;
+  bool hasIndel;
 };
 
 class variant {

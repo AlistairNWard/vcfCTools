@@ -36,11 +36,11 @@ int mergeTool::Help(void) {
   cout << "  -o, --out" << endl;
   cout << "	output vcf file." << endl;
   cout << "  -1, --snps" << endl;
-  cout << "     analyse SNPs." << endl;
+  cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
-  cout << "     analyse MNPs." << endl;
+  cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
-  cout << "     analyse indels." << endl;
+  cout << "	analyse indels." << endl;
   cout << endl;
 
   return 0;

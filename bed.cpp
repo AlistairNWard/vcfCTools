@@ -86,9 +86,9 @@ bool bed::getRecord() {
 // exist append the reference sequence to the end of the list as well. 
 // This ensures that the order in which the reference sequences appeared
 // in the header can be preserved.
-  if (referenceSequences.count(referenceSequence) == 0) {
-    referenceSequences[referenceSequence] = true;
-    referenceSequenceVector.push_back(referenceSequence);
+  if (referenceSequences.count(bRecord.referenceSequence) == 0) {
+    referenceSequences[bRecord.referenceSequence] = true;
+    referenceSequenceVector.push_back(bRecord.referenceSequence);
   }
 
   return true;

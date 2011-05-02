@@ -16,6 +16,8 @@ using namespace vcfCTools;
 // Constructor.
 statistics::statistics(void) {
   lastSnpPosition = -1;
+  lastSnpPosition = -1;
+  lastIndelPosition = -1;
   currentReferenceSequence = "";
   hasIndel = false;
   hasMnp = false;
@@ -33,6 +35,10 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool gen
   unsigned int ac;
   double af;
   variantInfo info;
+
+  cout << "HELLO " << position << endl;
+  
+  exit(0);
 
 // Deal with each alternate allele in turn.  Only generate statistics on the requested
 // variant classes.  By default, this is all classes.
