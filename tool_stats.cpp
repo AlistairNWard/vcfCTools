@@ -18,6 +18,8 @@ statsTool::statsTool(void)
   : AbstractTool()
 {
   generateAfs = false;
+  useAnnotations = false;
+  annotationFlagsString = "";
   currentReferenceSequence = "";
 }
 
@@ -38,6 +40,8 @@ int statsTool::Help(void) {
   cout << "     output vcf file." << endl;
   cout << "  -a, --allele-frequency-spectrum" << endl;
   cout << "     generate statistics as a function of the AFS." << endl;
+  cout << "  -n, --annotation" << endl;
+  cout << "     include statistics on listed annotations (comma separated list or 'all')." << endl;
   cout << "  -1, --snps" << endl;
   cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
@@ -62,6 +66,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
     {"allele-frequency-spectrum", no_argument, 0, 'a'},
+    {"annotations", required_argument, 0, 'n'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
@@ -71,7 +76,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:a123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:an:124", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -94,6 +99,13 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
       // Generate the allele frequency spectrum.
       case 'a':
         generateAfs = true;
+        break;
+
+      // Determine whether to output stats on annotations and
+      // if so, which flags.
+      case 'n':
+        useAnnotations = true;
+        annotationFlagsString = optarg;
         break;
 
       // Analyse SNPs.
@@ -151,6 +163,20 @@ int statsTool::Run(int argc, char* argv[]) {
   output = openOutputFile(outputFile);
   v.parseHeader();
 
+// If statistics on annotations are required, generate a list of flags to get
+// statistics on.  Provide a warning if the flags do not appear in the header.
+  if (useAnnotations) {
+    size_t found = annotationFlagsString.find(",");
+    annotationFlags.clear();
+    if (found == string::npos) {annotationFlags.push_back(annotationFlagsString);}
+    else {annotationFlags = split(annotationFlagsString, ",");}
+    for (vector<string>::iterator iter = annotationFlags.begin(); iter != annotationFlags.end(); iter++) {
+      if (v.headerInfoFields.count(*iter) == 0) {
+        cerr << "WARNING: Info ID " << *iter << " is to used for annotation stats, but does not appear in the header." << endl;
+      }
+    }
+  }
+
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
   while (v.success) {
@@ -170,7 +196,7 @@ int statsTool::Run(int argc, char* argv[]) {
         v.success = v.getRecord(currentReferenceSequence);
       }
       var.vmIter = var.variantMap.begin();
-      stats.generateStatistics(var, v, var.vmIter->first, generateAfs);
+      stats.generateStatistics(var, v, var.vmIter->first, useAnnotations, annotationFlags, generateAfs);
       var.variantMap.erase(var.vmIter);
     } 
   }

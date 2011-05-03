@@ -150,7 +150,8 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(variant&, vcf&, int, bool);
+    void generateStatistics(variant&, vcf&, int, bool, vector<string>&, bool);
+    void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
     void printSnpStatistics(ostream*);
     void printSnpAnnotations(ostream*);
     void printAcs(ostream*);

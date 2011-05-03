@@ -146,16 +146,19 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
   // position of the next interval in the structure.  If so, the intervals
   // overlap and need to be split up.
   if (!lastBedInterval) {
-    if (bs.bmIter->second.end >= bmNext->first) {bs.resolveOverlaps(annotate);}
+    if (bs.bmIter->second.end >= bmNext->first) {
+      bs.resolveOverlaps(annotate);
+      bs.bmIter = bs.bedMap.begin();
+    }
   }
 
   // Define the current reference sequence as that from the first entry in the
   // variant map.
   string currentReferenceSequence = var.vmIter->second.referenceSequence;
 
-// As soon as the end of the vcf file is reached, there are no
-// more intersections and the program can terminate.
-  while (var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
+// Parse through the vcf file until it is finished and the variant structure is empty.
+  //while (var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
+  while (var.variantMap.size() != 0 || v.success) {
     if (var.vmIter->second.referenceSequence == bs.bmIter->second.referenceSequence) {
 
       // Variant is prior to the bed interval.
@@ -186,7 +189,10 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
           // position of the next interval in the structure.  If so, the intervals
           // overlap and need to be split up.
           if (!lastBedInterval) {
-            if (bs.bmIter->second.end >= bmNext->first) {bs.resolveOverlaps(annotate);}
+            if (bs.bmIter->second.end >= bmNext->first) {
+              bs.resolveOverlaps(annotate);
+              bs.bmIter = bs.bedMap.begin();
+            }
           }
 
         // If the bed map is exhausted, clear out the variant map and move to the next
@@ -220,18 +226,6 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
         }
         if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
       }
-
-      // Having finished comparing, there may still be variants left from one of the two files.
-      // Check that the two variant structures are empty and if not, finish processing the
-      // remaining variants for this reference sequence.
-      bool write = (findUnique || annotate) ? true : false;
-      if (var.variantMap.size() != 0) {var.clearReferenceSequence(v, currentReferenceSequence, write, output);}
-
-      // Now both variant maps are exhausted, so rebuild the maps with the variants from the
-      // next reference sequence in the file.
-      v.success = var.buildVariantStructure(v);
-
-      if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
 
     // If the reference sequence of the bed interval is not the same as that of the vcf
     // record,

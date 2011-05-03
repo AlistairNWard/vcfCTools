@@ -42,9 +42,12 @@ class statsTool : public AbstractTool {
     string outputFile;
     ostream* output;
     string currentReferenceSequence;
-    bool generateAfs;
+    string annotationFlagsString;
+    vector<string> annotationFlags;
 
     // Boolean flags.
+    bool generateAfs;
+    bool useAnnotations;
     bool processSnps;
     bool processMnps;
     bool processIndels;

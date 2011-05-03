@@ -31,7 +31,7 @@ statistics::statistics(void) {
 statistics::~statistics(void) {}
 
 // Parse the variants at this locus and generate statistics.
-void statistics::generateStatistics(variant& var, vcf& v, int position, bool generateAfs) {
+void statistics::generateStatistics(variant& var, vcf& v, int position, bool useAnnotations, vector<string>& annFlags, bool generateAfs) {
   unsigned int ac;
   double af;
   variantInfo info;
@@ -56,9 +56,6 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool gen
       // Check if this variant is annotated as being in dbsnp.
       inDbsnp = (var.variantIter->rsid == ".") ? false : true;
       hasSnp = true;
-
-      // Check for annotations.
-      if (info.infoTags.count("ANN") != 0) {info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);}
 
       // If this locus contains multiple SNPs, then the vcf file must contain at least two
       // SNPs at this locus.  In this case, treat the variant as a triallelic SNP.  If three
@@ -99,13 +96,21 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool gen
           }
 
           // Annotations.
-          if (info.values.size() != 0) {
-            hasAnnotations = true;
-            for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-              if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs[*annIter]++;
-            }
-          }
+          if (useAnnotations) {
+            getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs);}
+          
+          //  for (vector<string>::iterator annIter = annFlags.begin(); annIter != annFlags.end(); annIter++) {
+          //    cout << *annIter << endl;
+          //  }
+
+            //if (info.values.size() != 0) {
+            //  hasAnnotations = true;
+            //  for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
+             //   if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
+            //   variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs[*annIter]++;
+            //  }
+         
+          //}
   
           // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
         } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
@@ -216,7 +221,22 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool gen
       if (var.variantIter->isInsertion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].indels[abs(indelSize)].insertions++;}
     }
   }
+}
 
+// Search for annotations in the info string.  This will either involve searching
+// for flags from a given vector or searching for all flags in the info field.
+void statistics::getAnnotations(vector<string>& annotationFlags, variantInfo& info, map<string, unsigned int>& annotation) {
+
+  // Search for all flags in the info field.
+  if (annotationFlags.size() == 1 && annotationFlags[0] == "all") {
+    cout << "LOOKING FOR ALL" << endl;
+
+  // Search for a specified set of flags.
+  } else {
+    for (vector<string>::iterator iter = annotationFlags.begin(); iter != annotationFlags.end(); iter++) {
+      cout << *iter << endl;
+    }
+  }
 }
 
 // Print out the statistics to the output file.
