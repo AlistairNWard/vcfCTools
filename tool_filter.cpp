@@ -24,6 +24,7 @@ filterTool::filterTool(void)
   filterFail = false;
   filterQuality = false;
   findHets = false;
+  keepRecords = false;
   removeGenotypes = false;
   removeInfo = false;
   stripRecords = false;
@@ -54,6 +55,8 @@ int filterTool::Help(void) {
   cout << "	output the samples that are hets to the info string." << endl;
   cout << "  -f, --filter-string" << endl;
   cout << "	a conditional statement on which to filter (enclosed in quotation marks)." << endl;
+  cout << "  -k, --keep-records" << endl;
+  cout << "	only keep records containing the specified info field (comma separated list)." << endl;
   cout << "  -l, --fail-filter" << endl;
   cout << "	filter out all variants that are not marked as 'PASS'." << endl;
   cout << "  -m, --mark-as-pass" << endl;
@@ -96,6 +99,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"out", required_argument, 0, 'o'},
       {"delete-info", required_argument, 0, 'd'},
       {"filter-string", required_argument, 0, 'f'},
+      {"keep-records", required_argument, 0, 'k'},
       {"fail-filter",no_argument, 0, 'l'},
       {"find-hets",no_argument, 0, 'e'},
       {"mark-as-pass", no_argument, 0, 'm'},
@@ -111,7 +115,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:f:elq:mrs:t:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:d:f:k:elq:mrs:t:123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -140,6 +144,12 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
 
       case 'e':
         findHets = true;
+        break;
+
+      // Only keep records containing the following info fields.
+      case 'k':
+        keepRecords = true;
+        keepInfoFields = optarg;
         break;
 
       // Filter out reads that are not marked as 'PASS'
@@ -222,6 +232,13 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
      exit(1);
    }
 
+// If keepRecords and stripRecords have been simultaneously specified, terminate
+// with an error.  This situation could lead to ambiguous decisions.
+  if (stripRecords && keepRecords) {
+    cerr << "ERROR: Cannot specify --strip-records (-t) and --keep-records (-k) simultaneously." << endl;
+    exit(1);
+  }
+
   return 0;
 }
 
@@ -271,7 +288,7 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
  }
 
   // Split up the info string if the information is required.
-  if (stripRecords || removeInfo) {info.processInfoFields(varIter.info);}
+  if (stripRecords || removeInfo || keepRecords) {info.processInfoFields(varIter.info);}
 
   // Mark the record as "PASS" if --mark-as-pass was applied.
   if (markPass) {filterString = "PASS";}
@@ -327,13 +344,12 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
   // If the filterString is blank, the record didn't fail any of the filters
   // so set it the variant filter field to PASS, otherwise set it to
   // the filter string.
-  //filterString = (filterString == "") ? varIter.filters : filterString;
-  //filterString = (filterString == "") ? varIter.filters : filterString;
-  //varIter.filters = filterString;
   varIter.filters = (filterString == "") ? "PASS" : filterString;
 
   writeRecord = true;
   if (filterFail && varIter.filters != "PASS") {writeRecord = false;}
+
+  // Check if this record is to be stripped out.
   if (stripRecords) {
     for (vector<string>::iterator stripIter = stripInfoList.begin(); stripIter != stripInfoList.end(); stripIter++) {
       if (info.infoTags.count(*stripIter) != 0) {
@@ -342,6 +358,18 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
       }
     }
   }
+
+  // Check if this record should be kept.
+  if (keepRecords) {
+    writeRecord = false;
+    for (vector<string>::iterator keepIter = keepInfoList.begin(); keepIter != keepInfoList.end(); keepIter++) {
+      if (info.infoTags.count(*keepIter) != 0) {
+        writeRecord = true;
+        break;
+      }
+    }
+  }
+
   if (writeRecord) {
     string record = v.buildRecord(position, varIter);
     *output << record << endl;
@@ -396,6 +424,20 @@ int filterTool::Run(int argc, char* argv[]) {
     for (vector<string>::iterator iter = stripInfoList.begin(); iter != stripInfoList.end(); iter++) {
       if (v.headerInfoFields.count(*iter) == 0) {
         cerr << "WARNING: Info ID " << *iter << " is to be stripped, but does not appear in the header." << endl;
+      }
+    }
+  }
+
+// If records are to be kept based on the contents of the info fields,
+// check the inputted IDs and populate the list of IDs to be kept.
+  if (keepRecords) {
+    size_t found = keepInfoFields.find(",");
+    keepInfoList.clear();
+    if (found == string::npos) {keepInfoList.push_back(keepInfoFields);}
+    else {keepInfoList = split(keepInfoFields, ",");}
+    for (vector<string>::iterator iter = keepInfoList.begin(); iter != keepInfoList.end(); iter++) {
+      if (v.headerInfoFields.count(*iter) == 0) {
+        cerr << "WARNING: Info ID " << *iter << " is to be kept, but does not appear in the header." << endl;
       }
     }
   }

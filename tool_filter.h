@@ -48,6 +48,8 @@ class filterTool : public AbstractTool {
     double filterQualityValue;
     string removeInfoString;
     string stripInfo;
+    string keepInfoFields;
+    vector<string> keepInfoList;
     vector<string> stripInfoList;
     bool writeRecord;
     bool conditionalFilter;
@@ -63,6 +65,7 @@ class filterTool : public AbstractTool {
     bool filterQuality;
     bool markPass;
     bool filterFail;
+    bool keepRecords;
     bool removeGenotypes;
     bool removeInfo;
     bool stripRecords;

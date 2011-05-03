@@ -36,10 +36,6 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool gen
   double af;
   variantInfo info;
 
-  cout << "HELLO " << position << endl;
-  
-  exit(0);
-
 // Deal with each alternate allele in turn.  Only generate statistics on the requested
 // variant classes.  By default, this is all classes.
 
