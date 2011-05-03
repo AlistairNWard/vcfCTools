@@ -116,6 +116,11 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }
   }
+
+// If the variant structures are not empty, there was a problem and a warning is given.
+  if (var1.variantMap.size() != 0 || var2.variantMap.size() != 0) {
+    cerr << "WARNING: Not all records were flushed out of the variant structure." << endl;
+  }
 }
 
 // Intersect a vcf file and a bed file.  It is assumed that the 
@@ -150,7 +155,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
 
 // As soon as the end of the vcf file is reached, there are no
 // more intersections and the program can terminate.
-  while (v.success && var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
+  while (var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
     if (var.vmIter->second.referenceSequence == bs.bmIter->second.referenceSequence) {
 
       // Variant is prior to the bed interval.
@@ -216,6 +221,18 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
         if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
       }
 
+      // Having finished comparing, there may still be variants left from one of the two files.
+      // Check that the two variant structures are empty and if not, finish processing the
+      // remaining variants for this reference sequence.
+      bool write = (findUnique || annotate) ? true : false;
+      if (var.variantMap.size() != 0) {var.clearReferenceSequence(v, currentReferenceSequence, write, output);}
+
+      // Now both variant maps are exhausted, so rebuild the maps with the variants from the
+      // next reference sequence in the file.
+      v.success = var.buildVariantStructure(v);
+
+      if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
+
     // If the reference sequence of the bed interval is not the same as that of the vcf
     // record,
     } else {
@@ -223,7 +240,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
       // If there are variants in the variant map, clear them out and set the current
       // reference sequence to the next reference sequence in the vcf file.
       if (var.variantMap.size() != 0) {
-        bool write = (findUnique || annotate) ? false : true;
+        bool write = (findUnique || annotate) ? true : false;
         var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
       }
       v.success = var.buildVariantStructure(v);
@@ -244,4 +261,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
       if (bs.bedMap.size() != 0) {bs.bmIter = bs.bedMap.begin();}
     }
   }
+
+// If the variant structure is not empty, not all of the records were parsed.
+  if (var.variantMap.size() != 0) {cerr << "WARNING: Not all records were flushed out of the variant structure." << endl;}
 }
