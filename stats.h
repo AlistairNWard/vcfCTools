@@ -64,8 +64,9 @@ struct variantStruct {
   map<string, unsigned int> annotationsDel;
 
 // Overload the + operator for structures.
+  //variantStruct operator+(variantStruct& vs) {
   variantStruct operator+(variantStruct& vs) {
-    variantStruct result;
+    variantStruct result = *this;
     map<unsigned int, indel>::iterator indelIter;
     map<unsigned int, snpTypes>::iterator acsIter;
     map<double, snpTypes>::iterator afsIter;
@@ -109,7 +110,7 @@ struct variantStruct {
 
     // Annotations (transitions).
     for (sIter = vs.annotationsTs.begin(); sIter != vs.annotationsTs.end(); sIter++) {
-      result.annotationsTs[sIter->first] = this->annotationsTs[sIter->first] + vs.annotationsTs[sIter->first];
+      result.annotationsTs[sIter->first] = this->annotationsTs[sIter->first] + sIter->second;
     }
 
     // Annotations (transversions).

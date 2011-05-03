@@ -149,7 +149,7 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
       variantMap[position].hasMnp = true;
 
     // Insertion.
-    } else if ( alt.size() - ref.size() ) {
+    } else if ( alt.size() > ref.size() ) {
       variant.isInsertion = true;
       variantMap[position].indels.push_back(variant);
       variantMap[position].hasIndel = true;

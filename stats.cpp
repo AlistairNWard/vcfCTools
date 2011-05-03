@@ -96,22 +96,8 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
           }
 
           // Annotations.
-          if (useAnnotations) {
-            getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs);}
+          if (useAnnotations) {getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs);}
           
-          //  for (vector<string>::iterator annIter = annFlags.begin(); annIter != annFlags.end(); annIter++) {
-          //    cout << *annIter << endl;
-          //  }
-
-            //if (info.values.size() != 0) {
-            //  hasAnnotations = true;
-            //  for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-             //   if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-            //   variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs[*annIter]++;
-            //  }
-         
-          //}
-  
           // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
         } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
           isTransversion = true;
@@ -131,13 +117,7 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
           }
 
           // Annotations.
-          if (info.values.size() != 0) {
-            hasAnnotations = true;
-            for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-              if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTv[*annIter]++;
-            }
-          }
+          if (useAnnotations) {getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTv);}
         }
       }
   
@@ -158,18 +138,11 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
       info.processInfoFields(var.variantIter->info);
       
       // Check for annotations.
-      if (info.infoTags.count("ANN") != 0) {
-        hasAnnotations = true;
-        info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);
-        if (info.values.size() != 0) {
-          for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-            if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-            if (var.variantIter->isTriallelicSnp) {
-              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTriallelicSnp[*annIter]++;
-            } else if (var.variantIter->isQuadallelicSnp) {
-              variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsQuadallelicSnp[*annIter]++;
-            }
-          }
+      if (useAnnotations) {
+        if (var.variantIter->isTriallelicSnp) {
+          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTriallelicSnp);
+        } else if (var.variantIter->isQuadallelicSnp) {
+          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsQuadallelicSnp);
         }
       }
       variants[var.variantIter->referenceSequence][var.variantIter->filters].multiAllelic++;
@@ -180,19 +153,10 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
   if (var.processMnps) {
     for (var.variantIter = var.vmIter->second.mnps.begin(); var.variantIter != var.vmIter->second.mnps.end(); var.variantIter++) {
       info.processInfoFields(var.variantIter->info);
+      hasMnp = true;
 
       // Check for annotations.
-      if (info.infoTags.count("ANN") != 0) {
-        hasAnnotations = true;
-        info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);
-        if (info.values.size() != 0) {
-          for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-            if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-            variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsMnp[*annIter]++;
-          }
-        }
-      }
-      hasMnp = true;
+      if (useAnnotations) {getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsMnp);}
       variants[var.variantIter->referenceSequence][var.variantIter->filters].mnps[var.variantIter->altString.size()]++;
     }
   }
@@ -203,15 +167,11 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
       info.processInfoFields(var.variantIter->info);
 
       // Check for annotations.
-      if (info.infoTags.count("ANN") != 0) {
-        hasAnnotations = true;
-        info.getInfo(string("ANN"), var.variantIter->referenceSequence, var.vmIter->first);
-        if (info.values.size() != 0) {
-          for (vector<string>::iterator annIter = info.values.begin(); annIter != info.values.end(); annIter++) {
-            if (annotationNames.count(*annIter) == 0) {annotationNames[*annIter] = 1;}
-            if (var.variantIter->isInsertion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsIns[*annIter]++;}
-            if (var.variantIter->isDeletion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsDel[*annIter]++;}
-          }
+      if (useAnnotations) {
+        if (var.variantIter->isInsertion) {
+          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsIns);
+        } else if (var.variantIter->isDeletion) {
+          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsDel);
         }
       }
 
@@ -226,15 +186,22 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
 // Search for annotations in the info string.  This will either involve searching
 // for flags from a given vector or searching for all flags in the info field.
 void statistics::getAnnotations(vector<string>& annotationFlags, variantInfo& info, map<string, unsigned int>& annotation) {
+  hasAnnotations = true;
 
   // Search for all flags in the info field.
   if (annotationFlags.size() == 1 && annotationFlags[0] == "all") {
-    cout << "LOOKING FOR ALL" << endl;
+    for (map<string, string>::iterator iter = info.infoTags.begin(); iter != info.infoTags.end(); iter++) {
+      if (iter->second == "flag") {
+        annotation[iter->first]++;
+        annotationNames[iter->first] = 1;
+      }
+    }
 
   // Search for a specified set of flags.
   } else {
     for (vector<string>::iterator iter = annotationFlags.begin(); iter != annotationFlags.end(); iter++) {
-      cout << *iter << endl;
+      annotationNames[*iter] = 1;
+      if (info.infoTags.count(*iter) != 0) {annotation[*iter]++;}
     }
   }
 }
@@ -301,13 +268,13 @@ void statistics::countByFilter() {
 
       // Populate the structure containing information across all reference sequences
       // and filters.
-      totalVariants[variantIter->first]["all"] = totalVariants[variantIter->first]["all"] + variants[variantIter->first][filterIter->first];
-      totalVariants["total"]["all"] = totalVariants["total"]["all"] + variants[variantIter->first][filterIter->first];
+      totalVariants[variantIter->first]["all"] = totalVariants[variantIter->first]["all"] + filterIter->second;
+      totalVariants["total"]["all"] = totalVariants["total"]["all"] + filterIter->second;
 
       // Iterate over the individual filters.
       for (fIter = filters.begin(); fIter != filters.end(); fIter++) {
-        totalVariants[variantIter->first][(*fIter)] = totalVariants[variantIter->first][(*fIter)] + variants[variantIter->first][filterIter->first];
-        totalVariants["total"][(*fIter)] = totalVariants["total"][(*fIter)] + variants[variantIter->first][filterIter->first];
+        totalVariants[variantIter->first][(*fIter)] = totalVariants[variantIter->first][(*fIter)] + filterIter->second;
+        totalVariants["total"][(*fIter)] = totalVariants["total"][(*fIter)] + filterIter->second;
       }
     }
   }
