@@ -49,15 +49,28 @@ void bed::closeBed() {
 
 // Parse the bed header.
 void bed::parseHeader() {
-  success = getRecord();
-  while (success && record.substr(0, 1) == "#") {
-    success = getline(*input, record);
+  string headerLine;
+
+  success = getline(*input, headerLine);
+  while (success && headerLine.substr(0, 1) == "#") {
+    success = getline(*input, headerLine);
+  }
+
+// headerLine contains the first vcf record.  Process this record
+// in preparation for the tools.  Check that this line contains
+// data.  Empty files will have a blank line here.
+  if (headerLine != "") {
+    fromHeader = true;
+    record = headerLine;
+    success = getRecord();
   }
 }
 
 // Get the next record from the vcf file.
 bool bed::getRecord() {
-  success = getline(*input, record);
+
+  if (fromHeader) {fromHeader = false;}
+  else {success = getline(*input, record);}
 
 // Return false if no more records remain.
   if (!success) {return false;}

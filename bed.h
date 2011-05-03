@@ -57,6 +57,7 @@ class bed {
     unsigned int targetLength;
     unsigned int targetVariance;
     bedRecord bRecord;
+    bool fromHeader;
 };
 
 } // namespace vcfCTools
