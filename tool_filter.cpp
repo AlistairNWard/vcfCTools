@@ -21,6 +21,7 @@ filterTool::filterTool(void)
   : AbstractTool()
 {
   markPass = false;
+  cleardbSnp = false;
   filterFail = false;
   filterQuality = false;
   findHets = false;
@@ -49,8 +50,10 @@ int filterTool::Help(void) {
   cout << "	input vcf files (two, or one if intersecting with bed file)." << endl;
   cout << "  -o, --out" << endl;
   cout << "	output vcf file." << endl;
+  cout << "  -c, --clear-dbsnp" << endl;
+  cout << "	clear the rsid field and remove dbSNP info flag." << endl;
   cout << "  -d, --delete-info" << endl;
-  cout << "	remove the entry from the info field." << endl;
+  cout << "	remove the entry from the info field (comma separated list)." << endl;
   cout << "  -e, --find-hets" << endl;
   cout << "	output the samples that are hets to the info string." << endl;
   cout << "  -f, --filter-string" << endl;
@@ -97,6 +100,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"help", no_argument, 0, 'h'},
       {"in", required_argument, 0, 'i'},
       {"out", required_argument, 0, 'o'},
+      {"clear-dbsnp", no_argument, 0, 'c'},
       {"delete-info", required_argument, 0, 'd'},
       {"filter-string", required_argument, 0, 'f'},
       {"keep-records", required_argument, 0, 'k'},
@@ -115,7 +119,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:f:k:elq:mrs:t:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:cd:f:k:elq:mrs:t:123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -128,6 +132,11 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       // Output vcf file.
       case 'o':
         outputFile = optarg;
+        break;
+
+      // Clear the rsid field and the dbSNP info tag.
+      case 'c':
+        cleardbSnp = true;
         break;
 
       // Remove an entry from the info field.
@@ -242,6 +251,24 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
   return 0;
 }
 
+// Check if info tags appear in the header and build a list
+// of info flags.
+vector<string> filterTool::checkInfoFields(vcf& v, string& infoString) {
+  vector<string> infoList;
+
+  size_t found = infoString.find(",");
+  infoList.clear();
+  if (found == string::npos) {infoList.push_back(infoString);}
+  else {infoList = split(infoString, ",");}
+  for (vector<string>::iterator iter = infoList.begin(); iter != infoList.end(); iter++) {
+    if (v.headerInfoFields.count(*iter) == 0) {
+      cerr << "WARNING: Info ID " << *iter << " is to be stripped, but does not appear in the header." << endl;
+    }
+  }
+
+  return infoList;
+}
+
 // Perform the required filtering tasks on the variants.
 void filterTool::filter(vcf& v, variant& var) {
 
@@ -304,24 +331,25 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
 
   // Remove info fields if necessary.
   if (removeInfo) {
-    if (info.infoTags.count(removeInfoString) > 0) {
-      info.getInfo(removeInfoString, varIter.referenceSequence, position);
-      string infoTag = removeInfoString;
-      if (v.headerInfoFields[removeInfoString].type != "Flag") {infoTag += "=";}
-      size_t found = varIter.info.find(infoTag);
-      size_t end   = varIter.info.find(";", found + 1);
-      string replaceString = "";
+    for (vector<string>::iterator iter = removeInfoList.begin(); iter != removeInfoList.end(); iter++) {
+      if (info.infoTags.count(*iter) > 0) {
+        info.getInfo(*iter, varIter.referenceSequence, position);
+        size_t found = varIter.info.find(*iter);
+        size_t end   = varIter.info.find(";", found + 1);
+        string replaceString = "";
 
-      // If the info tag is at the end of the line, remove the trailing ";".
-      // Also, if this is the only entry in the info string, replace the
-      // info string with ".".
-      if (end != string::npos) {end = end - found + 1;}
-      else {
-      if (found != 0) {found--;}
-        else {replaceString = ".";}
-        end = varIter.info.length();
+        // If the info tag is at the end of the line, remove the trailing ";".
+        // Also, if this is the only entry in the info string, replace the
+        // info string with ".".
+        if (end != string::npos) {
+          end = end - found + 1;
+        } else {
+          if (found != 0) {found--;}
+          else {replaceString = ".";}
+          end = varIter.info.length();
+        }
+        varIter.info.replace(found, end, replaceString);
       }
-      varIter.info.replace(found, end, replaceString);
     }
   }
 
@@ -370,6 +398,9 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
     }
   }
 
+  // If the dbSNP informaion is to be removed, set the rsid value to '.',
+  if (cleardbSnp) {varIter.rsid = ".";}
+
   if (writeRecord) {
     string record = v.buildRecord(position, varIter);
     *output << record << endl;
@@ -416,32 +447,25 @@ int filterTool::Run(int argc, char* argv[]) {
 
 // If records are to be stripped out of the vcf file, check the inputted
 // IDs and populate the list of IDs to be stripped.
-  if (stripRecords) {
-    size_t found = stripInfo.find(",");
-    stripInfoList.clear();
-    if (found == string::npos) {stripInfoList.push_back(stripInfo);}
-    else {stripInfoList = split(stripInfo, ",");}
-    for (vector<string>::iterator iter = stripInfoList.begin(); iter != stripInfoList.end(); iter++) {
-      if (v.headerInfoFields.count(*iter) == 0) {
-        cerr << "WARNING: Info ID " << *iter << " is to be stripped, but does not appear in the header." << endl;
-      }
-    }
-  }
+  if (stripRecords) {stripInfoList = checkInfoFields(v, stripInfo);}
 
 // If records are to be kept based on the contents of the info fields,
 // check the inputted IDs and populate the list of IDs to be kept.
-  if (keepRecords) {
-    size_t found = keepInfoFields.find(",");
-    keepInfoList.clear();
-    if (found == string::npos) {keepInfoList.push_back(keepInfoFields);}
-    else {keepInfoList = split(keepInfoFields, ",");}
-    for (vector<string>::iterator iter = keepInfoList.begin(); iter != keepInfoList.end(); iter++) {
-      if (v.headerInfoFields.count(*iter) == 0) {
-        cerr << "WARNING: Info ID " << *iter << " is to be kept, but does not appear in the header." << endl;
-      }
-    }
+  if (keepRecords) {keepInfoList = checkInfoFields(v, keepInfoFields);}
+
+// If info fields are to be deleted, check the inputted IDs exist in the
+// header and populate the list of IDs to be kept.
+  if (removeInfo) {removeInfoList = checkInfoFields(v, removeInfoString);}
+
+  // If dbSNP info is to be cleared, add the dbSNP tags to the remove info
+  // list if it exists.  If not cretae it.
+  if (cleardbSnp) {
+    removeInfo = true;
+    removeInfoList.push_back("dbSNP");
+    removeInfoList.push_back("dbSNPX");
+    removeInfoList.push_back("dbSNPM");
   }
-  
+
 // If a conditional filter string has been included, build up the methods to
 // evaulate it.
   //if (conditionalFilter) {
@@ -452,7 +476,6 @@ int filterTool::Run(int argc, char* argv[]) {
 
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
-  v.update = true;
 
 // If the genotypes need to be found, determine which position in the genotype
 // format string the genotypes appear.

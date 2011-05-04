@@ -37,6 +37,7 @@ class filterTool : public AbstractTool {
     int Help(void);
     int Run(int argc, char* argv[]);
     int parseCommandLine(int argc, char* argv[]);
+    vector<string> checkInfoFields(vcf&, string&);
     void filter(vcf&, variant&);
     void performFilter(vcf&, int, variantDescription&);
 
@@ -47,9 +48,10 @@ class filterTool : public AbstractTool {
     ostream* output;
     double filterQualityValue;
     string removeInfoString;
-    string stripInfo;
+    vector<string> removeInfoList;
     string keepInfoFields;
     vector<string> keepInfoList;
+    string stripInfo;
     vector<string> stripInfoList;
     bool writeRecord;
     bool conditionalFilter;
@@ -62,6 +64,7 @@ class filterTool : public AbstractTool {
     bool processSnps;
     bool processMnps;
     bool processIndels;
+    bool cleardbSnp;
     bool filterQuality;
     bool markPass;
     bool filterFail;
