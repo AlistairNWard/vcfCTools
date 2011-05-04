@@ -197,6 +197,8 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
         // Annotate the SNPs with the rsid value.
         for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
           variantIter->rsid = iter->rsid;
+          vcfInfo.processInfoFields(variantIter->info);
+          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
           buildRecord(vmIter->first, *variantIter); // tools.cpp
         }
       }
@@ -217,6 +219,8 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
         // Annotate the SNPs with the rsid value.
         for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
           variantIter->rsid = iter->rsid;
+          vcfInfo.processInfoFields(variantIter->info);
+          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
           buildRecord(vmIter->first, *variantIter); // tools.cpp
         }
       }
@@ -236,6 +240,8 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
   
         // Annotate the SNPs with the rsid value.
         for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+          vcfInfo.processInfoFields(variantIter->info);
+          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
           variantIter->rsid = iter->rsid;
           buildRecord(vmIter->first, *variantIter); // tools.cpp
         }
@@ -256,6 +262,8 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
   
         // Annotate the SNPs with the rsid value.
         for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+          vcfInfo.processInfoFields(variantIter->info);
+          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
           variantIter->rsid = iter->rsid;
           buildRecord(vmIter->first, *variantIter); // tools.cpp
         }
