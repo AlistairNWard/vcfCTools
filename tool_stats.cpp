@@ -171,8 +171,8 @@ int statsTool::Run(int argc, char* argv[]) {
     if (found == string::npos) {annotationFlags.push_back(annotationFlagsString);}
     else {annotationFlags = split(annotationFlagsString, ",");}
     for (vector<string>::iterator iter = annotationFlags.begin(); iter != annotationFlags.end(); iter++) {
-      if (v.headerInfoFields.count(*iter) == 0) {
-        cerr << "WARNING: Info ID " << *iter << " is to used for annotation stats, but does not appear in the header." << endl;
+      if (*iter != "all" && v.headerInfoFields.count(*iter) == 0) {
+        cerr << "WARNING: Info ID " << *iter << " is used for annotation stats, but does not appear in the header." << endl;
       }
     }
   }

@@ -270,14 +270,12 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
     // Annotate SNPs.
     for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
 
-      // Break up the info field.  This will ensure that flags aren't repeated
-      // in the vcf info field.
-      annInfo.processInfoFields(iter->info);
+      // Add the filter string from the annotation file to the info string of
+      // the vcf file.  First check that this does not already exist to avoid
+      // multiple instances of the same flag.
       for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
         vcfInfo.processInfoFields(variantIter->info);
-        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
-          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
-        }
+        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
         buildRecord(vmIter->first, *variantIter);
       }
     }
@@ -285,14 +283,12 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
     // Annotate multiallelic SNPs.
     for (iter = v.multiSnps.begin(); iter != v.multiSnps.end(); iter++) {
 
-      // Break up the info field.  This will ensure that flags aren't repeated
-      // in the vcf info field.
-      annInfo.processInfoFields(iter->info);
+      // Add the filter string from the annotation file to the info string of
+      // the vcf file.  First check that this does not already exist to avoid
+      // multiple instances of the same flag.
       for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
         vcfInfo.processInfoFields(variantIter->info);
-        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
-          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
-        }
+        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
         buildRecord(vmIter->first, *variantIter);
       }
     }
@@ -300,14 +296,12 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
     // Annotate MNPs.
     for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
 
-      // Break up the info field.  This will ensure that flags aren't repeated
-      // in the vcf info field.
-      annInfo.processInfoFields(iter->info);
+      // Add the filter string from the annotation file to the info string of
+      // the vcf file.  First check that this does not already exist to avoid
+      // multiple instances of the same flag.
       for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
         vcfInfo.processInfoFields(variantIter->info);
-        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
-          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
-        }
+        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
         buildRecord(vmIter->first, *variantIter);
       }
     }
@@ -315,14 +309,12 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
     // Annotate indels.
     for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
 
-      // Break up the info field.  This will ensure that flags aren't repeated
-      // in the vcf info field.
-      annInfo.processInfoFields(iter->info);
+      // Add the filter string from the annotation file to the info string of
+      // the vcf file.  First check that this does not already exist to avoid
+      // multiple instances of the same flag.
       for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
         vcfInfo.processInfoFields(variantIter->info);
-        for (map<string, string>::iterator i = annInfo.infoTags.begin(); i != annInfo.infoTags.end(); i++) {
-          if (vcfInfo.infoTags.count(i->first) == 0) {variantIter->info += ";" + i->first;}
-        }
+        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
         buildRecord(vmIter->first, *variantIter);
       }
     }

@@ -258,19 +258,19 @@ void bedStructure::generateCommonInterval(bedRecord& b1, bedRecord& b2, int star
   map<string, int> existingInfo;
 
   // Unpack the info strings from the two intersecting records.
-  vector<string> b1Info = split(b1.info, ",");
-  vector<string> b2Info = split(b2.info, ",");
+  vector<string> b1Info = split(b1.info, ";");
+  vector<string> b2Info = split(b2.info, ";");
 
   // Generate the new interval.
   bedMap[start].referenceSequence = b1.referenceSequence;
   bedMap[start].start = start;
   bedMap[start].end = end;
   for (vector<string>::iterator i = b1Info.begin(); i != b1Info.end(); i++) {
-    info = (info == "") ? *i : info + "," + *i;
+    info = (info == "") ? *i : info + ";" + *i;
     existingInfo[*i] = 0;
   }
   for (vector<string>::iterator i = b2Info.begin(); i != b2Info.end(); i++) {
-    if (existingInfo.count(*i) == 0) {info = (info == "") ? *i : info + "," + *i;}
+    if (existingInfo.count(*i) == 0) {info = (info == "") ? *i : info + ";" + *i;}
   }
   bedMap[start].info = info;
 }
