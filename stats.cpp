@@ -450,10 +450,10 @@ void statistics::printAfs(ostream* output) {
     *output << setw(12) << afsIter->second.novelTransversions;
     *output << setw(12) << afsIter->second.knownTransitions;
     *output << setw(12) << afsIter->second.knownTransversions;
-    *output << setw(12) << setprecision(6) << dbsnp;
-    *output << setw(8) << setprecision(6) << tstv;
-    *output << setw(8) << setprecision(6) << novelTstv;
-    *output << setw(8) << setprecision(6) << knownTstv;
+    *output << setw(12) << setprecision(3) << dbsnp;
+    *output << setw(8) << setprecision(3) << tstv;
+    *output << setw(8) << setprecision(3) << novelTstv;
+    *output << setw(8) << setprecision(3) << knownTstv;
     *output << endl;
   }
   *output << endl;

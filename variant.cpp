@@ -96,6 +96,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
     // MNPs, insertions and deletions.
     } else {
       for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
+
         // Clear the genotype string.  Otherwise, this will be kept in memory
         // for each of the alt alleles.
         variant.genotypeString = "";
@@ -125,6 +126,7 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
     variant.isBiallelicSnp = true;
+    variant.altString = alt;
     variantMap[position].biSnps.push_back(variant);
     variantMap[position].hasBiallelicSnp = true;
 
@@ -145,18 +147,21 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
     // MNP.
     if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
       variant.isMnp = true;
+      variant.altString = alt;
       variantMap[position].mnps.push_back(variant);
       variantMap[position].hasMnp = true;
 
     // Insertion.
     } else if ( alt.size() > ref.size() ) {
       variant.isInsertion = true;
+      variant.altString = alt;
       variantMap[position].indels.push_back(variant);
       variantMap[position].hasIndel = true;
 
     // Deletion.
     } else if ( ref.size() > alt.size() ) {
       variant.isDeletion = true;
+      variant.altString = alt;
       variantMap[position].indels.push_back(variant);
       variantMap[position].hasIndel = true;
 
