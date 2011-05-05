@@ -109,7 +109,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
 // There are times when all variants for the reference sequence in the
 // variant map, when all of the variants are to be processed and
 // possibly written to file.
-void variant::clearReferenceSequence(vcf& v, string& cRef, bool write, ostream* output) {
+void variant::clearReferenceSequence(vcf& v, string cRef, bool write, ostream* output) {
   while (variantMap.size() != 0) {
     if (write) {writeVariants(output);}
     variantMap.erase(vmIter);

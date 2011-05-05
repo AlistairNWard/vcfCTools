@@ -211,8 +211,10 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
           lastBedInterval = false;
 
           // Build the new bed structure.
-          b.success = bs.buildBedStructure(b);
-          if (bs.bedMap.size() != 0) {bs.bmIter = bs.bedMap.begin();}
+          if (b.success) {
+            b.success = bs.buildBedStructure(b);
+            if (bs.bedMap.size() != 0) {bs.bmIter = bs.bedMap.begin();}
+          }
         }
 
       // Variant lies within the bed interval.
