@@ -32,6 +32,7 @@ class variantInfo {
     ~variantInfo(void);
     void processInfoFields(string&);
     void getInfo(string, string&, int);
+    vector<string> buildAltInfo(string&, int, int);
 
   public:
     string tag;

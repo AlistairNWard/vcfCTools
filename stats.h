@@ -153,14 +153,15 @@ class statistics {
     ~statistics(void);
     void generateStatistics(variant&, vcf&, int, bool, vector<string>&, bool);
     void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
+    void countByFilter();
     void printSnpStatistics(ostream*);
+    void printHeader(ostream*, string);
     void printSnpAnnotations(ostream*);
     void printAcs(ostream*);
     void printAfs(ostream*);
     void printMnpStatistics(ostream*);
     void printIndelStatistics(ostream*);
-    void countByFilter();
-    void printVariantStruct(ostream*, string&, variantStruct&);
+    void printVariantStruct(ostream*, string, variantStruct&);
     void printSnpAnnotationStruct(ostream*, string&, variantStruct&, string&);
     void printMnpFilter(string&, ostream*);
 

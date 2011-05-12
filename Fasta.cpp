@@ -261,7 +261,9 @@ string FastaReference::sequenceNameStartingWith(string seqnameStart) {
 }
 
 string FastaReference::getSubSequence(string seqname, int start, int length) {
+    //cout << "HELLO " << start << " " << length << " " << seqname << endl;
     FastaIndexEntry entry = index->entry(seqname);
+    //cout << entry << " " << entry.line_blen << endl;
     if (start < 0 || length < 1) {
         cerr << "Error: cannot construct subsequence with negative offset or length < 1" << endl;
         exit(1);

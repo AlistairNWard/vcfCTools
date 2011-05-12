@@ -5,11 +5,11 @@
 // ------------------------------------------------------
 // Last modified: 18 February 2011
 // ------------------------------------------------------
-// Auxillary tools for vcf.
+// Tools to extract information from a fasta reference.
 // ******************************************************
 
-#ifndef VCF_AUX_H
-#define VCF_AUX_H
+#ifndef FASTA_REFERENCE_H
+#define FASTA_REFERENCE_H
 
 #include <cstdio>
 #include <iostream>
@@ -28,8 +28,7 @@
 
 using namespace std;
 
-unsigned int alignAlternate(string, int, string&, string&, string&, string&, string);
+void defineFastaReference(string);
 void getFlankingReference(string, int, string, string, unsigned int, string&, string&, string);
-void smithWaterman(string, int, string, string, string&, string&);
 
 #endif

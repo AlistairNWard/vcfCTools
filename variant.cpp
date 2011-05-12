@@ -95,11 +95,26 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
 
     // MNPs, insertions and deletions.
     } else {
+
+      // Define an info object and look for info entries that are
+      // comma separated lists.  If they exist, only send the entry
+      // relevant to this particular alternate.
+      variantInfo info;
+      info.processInfoFields(variant.info);
+      vector<string> altInfo = info.buildAltInfo(variant.referenceSequence, position, alt.size());
+      unsigned int altInfoNumber = 0;
+
       for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
 
         // Clear the genotype string.  Otherwise, this will be kept in memory
         // for each of the alt alleles.
         variant.genotypeString = "";
+
+        // Replace the info string with that applicable to this variant.
+        variant.info = altInfo[altInfoNumber];
+        altInfoNumber++;
+
+        // Determine the variant type.
         determineVariantClass(position, variant.ref, *iter, variant);
       }
     }
@@ -122,7 +137,8 @@ void variant::clearReferenceSequence(vcf& v, string cRef, bool write, ostream* o
 }
 
 // Determine the variant class from the ref and alt alleles.
-void variant::determineVariantClass(int position, string& ref, string& alt, variantDescription& variant) {
+void variant::determineVariantClass(int position, string ref, string alt, variantDescription& variant) {
+
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
     variant.isBiallelicSnp = true;
@@ -135,13 +151,16 @@ void variant::determineVariantClass(int position, string& ref, string& alt, vari
     // Multi-base variants have the alt allele aligned to the ref allele
     // to unambiguously determine the variant type and the start
     // position.
-    bool alignAlleles = false;
+    bool alignAlleles = true;
     if (alignAlleles) {
       int pos = position;
-      string alRef, alAlt;
+      string alRef = "", alAlt = "";
       string refFa = "/d2/data/references/build_37/human_reference_v37.fa";
       int start = alignAlternate(variant.referenceSequence, pos, ref, alt, alRef, alAlt, refFa); // vcf_aux.cpp
-      if (pos != start) {cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;}
+      if (pos != start) {
+        cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;
+        position = start;
+      }
     }
 
     // MNP.
@@ -374,9 +393,11 @@ void variant::writeVariants(ostream* output) {
   // SNPs.
   if (processSnps) {
     for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+      buildRecord(vmIter->first, *variantIter);
       *output << variantIter->record << endl;
     }
     for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+      buildRecord(vmIter->first, *variantIter);
       *output << variantIter->record << endl;
     }
   }
@@ -384,6 +405,7 @@ void variant::writeVariants(ostream* output) {
   // MNPs.
   if (processMnps) {
     for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+      buildRecord(vmIter->first, *variantIter);
       *output << variantIter->record << endl;
     }
   }
@@ -391,6 +413,7 @@ void variant::writeVariants(ostream* output) {
   // Indels.
   if (processIndels) {
     for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+      buildRecord(vmIter->first, *variantIter);
       *output << variantIter->record << endl;
     }
   }

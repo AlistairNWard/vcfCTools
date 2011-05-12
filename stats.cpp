@@ -206,45 +206,6 @@ void statistics::getAnnotations(vector<string>& annotationFlags, variantInfo& in
   }
 }
 
-// Print out the statistics to the output file.
-void statistics::printSnpStatistics(ostream* output) {
-  *output << setw(22) << "";
-  *output << setw(60) << "--------------------------# SNPs--------------------------";
-  *output << setw(18) << "";
-  *output << setw(24) << "------ts/tv ratio-----";
-  *output << endl;
-  *output << setw(22) << "filter";
-  *output << setw(12) << "total";
-  *output << setw(12) << "novel ts";
-  *output << setw(12) << "novel tv";
-  *output << setw(12) << "known ts";
-  *output << setw(12) << "known tv";
-  *output << setw(18) << setprecision(6) << "% dbsnp (% diff)";
-  *output << setw(8) << setprecision(6) << "total";
-  *output << setw(8) << setprecision(6) << "novel";
-  *output << setw(8) << setprecision(6) << "known";
-  *output << setw(8) << "multi";
-  *output << endl;
-
-// Print the total number of variants over all reference sequences.
-  for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
-    if (iter->first != "all" && iter->first != "PASS") {
-      string filter = iter->first;
-      printVariantStruct(output, filter, (*iter).second);
-    }
-  }
-  *output << setw(22) << "";
-  *output << "---------------------------------------------------------------------------------------------------------";
-  *output << endl;
-  string filter = "PASS";
-  printVariantStruct(output, filter, totalVariants["total"]["PASS"]);
-  filter = "Total";
-  printVariantStruct(output, filter, totalVariants["total"]["all"]);
-  *output << setw(22) << "";
-  *output << "---------------------------------------------------------------------------------------------------------";
-  *output << endl;
-}
-
 // The structure containing the numbers of the different variant types is
 // currently organised by reference sequence and by filter.  Some of the
 // filters, however, are combinations of multiple filters (e.g. Q10,DP100
@@ -280,8 +241,68 @@ void statistics::countByFilter() {
   }
 }
 
+// Print out the statistics to the output file.
+void statistics::printSnpStatistics(ostream* output) {
+
+// Print the total number of variants over all reference sequences.
+
+  bool writtenHeader = false;
+  for (map<string, map< string, variantStruct> >::iterator iter = totalVariants.begin(); iter != totalVariants.end(); iter++) {
+    for (map<string, variantStruct>::iterator vIter = iter->second.begin(); vIter != iter->second.end(); vIter++) {
+      if (vIter->first == "PASS") {
+        if (!writtenHeader) {
+          *output << "Statistics on SNPs that pass filters (marked as PASS)." << endl;
+          *output << endl;
+          printHeader(output, string("reference sequence"));
+          writtenHeader = true;
+        }
+        printVariantStruct(output, iter->first, vIter->second);
+      }
+    }
+  }
+ 
+  *output << endl;
+  *output << "Total statistics." << endl;
+  *output << endl;
+  printHeader(output, string("filter"));
+  for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
+    if (iter->first != "all" && iter->first != "PASS") {printVariantStruct(output, string(iter->first), iter->second);}
+  }
+  *output << setw(22) << "";
+  *output << "---------------------------------------------------------------------------------------------------------";
+  *output << endl;
+  string filter = "PASS";
+  printVariantStruct(output, filter, totalVariants["total"]["PASS"]);
+  filter = "Total";
+  printVariantStruct(output, filter, totalVariants["total"]["all"]);
+  *output << setw(22) << "";
+  *output << "---------------------------------------------------------------------------------------------------------";
+  *output << endl;
+}
+
+// Print out a header line.
+void statistics::printHeader(ostream* output, string text) {
+  *output << setw(22) << "";
+  *output << setw(60) << "--------------------------# SNPs--------------------------";
+  *output << setw(18) << "";
+  *output << setw(24) << "------ts/tv ratio-----";
+  *output << endl;
+  *output << setw(22) << text;
+  *output << setw(12) << "total";
+  *output << setw(12) << "novel ts";
+  *output << setw(12) << "novel tv";
+  *output << setw(12) << "known ts";
+  *output << setw(12) << "known tv";
+  *output << setw(18) << setprecision(6) << "% dbsnp (% diff)";
+  *output << setw(8) << setprecision(6) << "total";
+  *output << setw(8) << setprecision(6) << "novel";
+  *output << setw(8) << setprecision(6) << "known";
+  *output << setw(8) << "multi";
+  *output << endl;
+}
+
 // Print the contents of the structure variantStruct to screen in a standard format.
-void statistics::printVariantStruct(ostream* output, string& filter, variantStruct& var) {
+void statistics::printVariantStruct(ostream* output, string filter, variantStruct& var) {
   int novel         = var.novelTransitions + var.novelTransversions;
   int known         = var.knownTransitions + var.knownTransversions;
   int diffKnown     = var.diffKnownTransitions + var.diffKnownTransversions;
@@ -467,8 +488,8 @@ void statistics::printMnpStatistics(ostream* output) {
   *output << endl;
 
   // First print out the total number of found MNPs (regardless of the filter).
-  filterTag = "all";
-  printMnpFilter(filterTag, output);
+  //filterTag = "all";
+  //printMnpFilter(filterTag, output);
 
   // Now print out the total number of "PASS" MNPs.
   filterTag = "PASS";

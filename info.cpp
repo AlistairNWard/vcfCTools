@@ -76,3 +76,49 @@ void variantInfo::getInfo(string tag, string& ref, int position) {
     exit(1);
   }
 }
+
+// Construct the info fields for each alternate.  This may require splitting comma separated
+// info entries.
+vector<string> variantInfo::buildAltInfo(string& ref, int position, int numberAlts) {
+  vector<string> altInfoStrings;
+  altInfoStrings.resize(numberAlts);
+  vector<string>::iterator altIter;
+  string entry;
+
+  for (map<string, string>::iterator iter = infoTags.begin(); iter != infoTags.end(); iter++) {
+    values.clear();
+    getInfo(iter->first, ref, position);
+
+    // If the info field has a single entry (or is a flag), add this values to each alternate
+    // info string.
+    if (values.size() == 1) {
+      if (values[0] == "true") {entry = iter->first;}
+      else {entry = iter->first + "=" + values[0];}
+
+      // Add to each info string.
+      for (altIter = altInfoStrings.begin(); altIter != altInfoStrings.end(); altIter++) {
+        *altIter = (*altIter == "") ? *altIter + entry : *altIter + ";" + entry;
+      }
+
+    // If there is a comma separated set of values and the same number of entries as there
+    // are alternates, include successive values in each string.
+    } else if (values.size() == numberAlts) {
+      unsigned int entryNumber = 0;
+      for (altIter = altInfoStrings.begin(); altIter != altInfoStrings.end(); altIter++) {
+        entry = iter->first + "=" + values[entryNumber];
+        *altIter = (*altIter == "") ? *altIter + entry : *altIter + ";" + entry;
+        entryNumber++;
+      }
+
+    // There are multiple entries in the info field, but the number of entries does not
+    // correspond to the number of alternate alleles.  Terminate the program with an 
+    // error.
+    } else {
+      cerr << "ERROR: Incorrect number of fields in the " << iter->first << " info field. ";
+      cerr << " (" << ref << ":" << position << ")" << endl;
+      exit(1);
+    }
+  }
+
+  return altInfoStrings;
+}

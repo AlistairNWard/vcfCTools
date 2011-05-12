@@ -247,7 +247,16 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Close the vcf file and return.
     v.closeVcf();
+
+// Output some brief statistics on the targets.
+    cout << "Number: " << b.numberTargets << endl;
+    cout << "Total target length: " << b.targetLength << endl;
+    cout << "Average target length: " << b.targetLength / b.numberTargets << endl;
+    
+// Close the bed object.
     b.closeBed();
+
+// Intersection of two vcf files.
   } else {
     vcf v1; // Create a vcf object.
     variant var1; // Create a variant object.

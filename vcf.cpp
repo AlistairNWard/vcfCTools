@@ -30,6 +30,7 @@ vcf::vcf(void) {
   numberDataSets = 0;
   dbsnpVcf = false;
   comparedReferenceSequence = false;
+  fasta = "/d2/data/references/build_37/human_reference_v37.fa";
 }
 
 // Destructor.
@@ -263,14 +264,14 @@ bool vcf::getRecord(string& currentReferenceSequence) {
 
   // If genotypes have been removed, only store the non-genotype part of the
   // record.
-  if (removeGenotypes) {
-    variantRecord.record = "";
-    for (unsigned int i = 0; i < 7; i++) {
-      variantRecord.record.append(recordFields[i]);
-      variantRecord.record.append("	");
-    }
-    variantRecord.record.append(recordFields[7]);
-  } else {variantRecord.record = record;}
+//  if (removeGenotypes) {
+//    variantRecord.record = "";
+//    for (unsigned int i = 0; i < 7; i++) {
+//      variantRecord.record.append(recordFields[i]);
+//      variantRecord.record.append("	");
+//    }
+//    variantRecord.record.append(recordFields[7]);
+//  } else {variantRecord.record = record;}
 
   // Check that genotypes exist.
   if (recordFields.size() < 9) {hasGenotypes = false;}

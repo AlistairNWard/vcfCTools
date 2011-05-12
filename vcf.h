@@ -204,6 +204,9 @@ class vcf {
     vector<string> genotypes;
     bool phasedGenotype;
     map<string, string> genotypeTags;
+
+    // Reference sequence information.
+    string fasta;
 };
 
 } // namespace vcfCTools
