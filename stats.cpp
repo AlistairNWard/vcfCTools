@@ -25,6 +25,10 @@ statistics::statistics(void) {
 
 // Initialise the arrays.
   variants.clear();
+
+// Initialise sample level statistics.
+  processSampleSnps = false;
+  sampleSnps.clear();
 }
 
 // Destructor.
@@ -47,7 +51,7 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
       iterationNumber++;
       info.processInfoFields(var.variantIter->info);
 
-      if (generateAfs) {
+      if (generateAfs || processSampleSnps) {
         info.getInfo(string("AC"), var.variantIter->referenceSequence, var.vmIter->first);
         ac = atoi(info.values[0].c_str());
         info.getInfo(string("AF"), var.variantIter->referenceSequence, var.vmIter->first);
@@ -80,6 +84,10 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
         // Transition:   A <-> G or C <-> T.
         if (alleles == "ag" || alleles == "ct") {
           isTransition = true;
+
+          // Sample level stats.
+          if (processSampleSnps) {updateSampleSnps(var, v, ac);}
+
           if (inDbsnp) {
             variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransitions++;
             if (info.infoTags.count("dbSNPX") != 0) {variants[var.variantIter->referenceSequence][var.variantIter->filters].diffKnownTransitions++;}
@@ -101,6 +109,10 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
           // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
         } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
           isTransversion = true;
+
+          // Sample level stats.
+          if (processSampleSnps) {updateSampleSnps(var, v, ac);}
+
           if (inDbsnp) {
             variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransversions++;
             if (info.infoTags.count("dbSNPX") != 0) {variants[var.variantIter->referenceSequence][var.variantIter->filters].diffKnownTransversions++;}
@@ -206,6 +218,58 @@ void statistics::getAnnotations(vector<string>& annotationFlags, variantInfo& in
   }
 }
 
+// Update the map containing sample level statistics for SNPs.
+void statistics::updateSampleSnps(variant& var, vcf& v, unsigned int ac) {
+  vector<string> genotypes = var.extractGenotypeField( string("GT") );
+  vector<string> genotypeQualities = var.extractGenotypeField( string("GQ") );
+  vector<string> genotypeDepth = var.extractGenotypeField( string("DP") );
+
+  vector<string>::iterator qIter = genotypeQualities.begin();
+  vector<string>::iterator dIter = genotypeDepth.begin();
+
+  unsigned int i = 0;
+  for (vector<string>::iterator gIter = genotypes.begin(); gIter != genotypes.end(); gIter++) {
+    double genotypeQuality = atof( (*qIter).c_str() );
+    double depth = atof( (*dIter).c_str() );
+    if (genotypeQuality >= minGenotypeQuality) {
+
+      // If the SNP is a singleton, update the singletons stat.
+      if (ac == 1) {sampleSnps[v.samples[i]].singletons++;}
+
+      // Update the total depth for the sample.
+      sampleSnps[v.samples[i]].totalDepth += depth;
+
+      // Homozygous alternate SNPs.
+      if (*gIter == "1/1") {
+        sampleSnps[v.samples[i]].homAlt++;
+        if (inDbsnp) {
+          if (isTransition) {sampleSnps[v.samples[i]].knownTransitions++;}
+          if (isTransversion) {sampleSnps[v.samples[i]].knownTransversions++;}
+        } else {
+          if (isTransition) {sampleSnps[v.samples[i]].novelTransitions++;}
+          if (isTransversion) {sampleSnps[v.samples[i]].novelTransversions++;}
+        }
+
+      // Heterozygous SNPs.
+      } else if (*gIter == "0/1" || *gIter == "1/0") {
+        sampleSnps[v.samples[i]].het++;
+        if (inDbsnp) {
+          if (isTransition) {sampleSnps[v.samples[i]].knownTransitions++;}
+          if (isTransversion) {sampleSnps[v.samples[i]].knownTransversions++;}
+        } else {
+          if (isTransition) {sampleSnps[v.samples[i]].novelTransitions++;}
+          if (isTransversion) {sampleSnps[v.samples[i]].novelTransversions++;}
+        }
+      } else {
+        sampleSnps[v.samples[i]].homRef++;
+      }
+      i++;
+      qIter++;
+      dIter++;
+    }
+  }
+}
+
 // The structure containing the numbers of the different variant types is
 // currently organised by reference sequence and by filter.  Some of the
 // filters, however, are combinations of multiple filters (e.g. Q10,DP100
@@ -253,7 +317,8 @@ void statistics::printSnpStatistics(ostream* output) {
         if (!writtenHeader) {
           *output << "Statistics on SNPs that pass filters (marked as PASS)." << endl;
           *output << endl;
-          printHeader(output, string("reference sequence"));
+          printHeader(output, string("reference sequence"), true, true);
+          *output << endl;
           writtenHeader = true;
         }
         printVariantStruct(output, iter->first, vIter->second);
@@ -264,7 +329,8 @@ void statistics::printSnpStatistics(ostream* output) {
   *output << endl;
   *output << "Total statistics." << endl;
   *output << endl;
-  printHeader(output, string("filter"));
+  printHeader(output, string("filter"), true, true);
+  *output << endl;
   for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
     if (iter->first != "all" && iter->first != "PASS") {printVariantStruct(output, string(iter->first), iter->second);}
   }
@@ -281,10 +347,11 @@ void statistics::printSnpStatistics(ostream* output) {
 }
 
 // Print out a header line.
-void statistics::printHeader(ostream* output, string text) {
+void statistics::printHeader(ostream* output, string text, bool dbsnpDiff, bool multi) {
   *output << setw(22) << "";
   *output << setw(60) << "--------------------------# SNPs--------------------------";
-  *output << setw(18) << "";
+  if (dbsnpDiff) {*output << setw(18) << "";}
+  else {*output << setw(12) << "";}
   *output << setw(24) << "------ts/tv ratio-----";
   *output << endl;
   *output << setw(22) << text;
@@ -293,12 +360,12 @@ void statistics::printHeader(ostream* output, string text) {
   *output << setw(12) << "novel tv";
   *output << setw(12) << "known ts";
   *output << setw(12) << "known tv";
-  *output << setw(18) << setprecision(6) << "% dbsnp (% diff)";
+  if (dbsnpDiff) {*output << setw(18) << setprecision(6) << "% dbsnp (% diff)";}
+  else {*output << setw(12) << "% dbsnp";}
   *output << setw(8) << setprecision(6) << "total";
   *output << setw(8) << setprecision(6) << "novel";
   *output << setw(8) << setprecision(6) << "known";
-  *output << setw(8) << "multi";
-  *output << endl;
+  if (multi) {*output << setw(8) << "multi";}
 }
 
 // Print the contents of the structure variantStruct to screen in a standard format.
@@ -553,5 +620,46 @@ void statistics::printIndelStatistics(ostream* output) {
   *output << "Total insertions: " << totalInsertions << endl;
   *output << "Total deletions:  " << totalDeletions << endl;
   *output << "Ratio:            " << setprecision(3) << ratio;
+  *output << endl;
+}
+
+// Print out the sample level SNP statistics.
+void statistics::printSampleSnps(vcf& v, ostream* output) {
+  *output << "SNP statistics by sample:" << endl;
+  *output << endl;
+  printHeader(output, string("sample"), false, false);
+  *output << setw(12) << "Hets";
+  *output << setw(12) << "Hom Alt";
+  *output << setw(12) << "Singletons";
+  *output << setw(12) << "Depth";
+  *output << endl;
+  for (vector<string>::iterator sample = v.samples.begin(); sample != v.samples.end(); sample++) {
+    int novel         = sampleSnps[*sample].novelTransitions + sampleSnps[*sample].novelTransversions;
+    int known         = sampleSnps[*sample].knownTransitions + sampleSnps[*sample].knownTransversions;
+    int transitions   = sampleSnps[*sample].novelTransitions + sampleSnps[*sample].knownTransitions;
+    int transversions = sampleSnps[*sample].novelTransversions + sampleSnps[*sample].knownTransversions;
+    int totalSnp      = novel + known;
+    double depth      = (totalSnp == 0) ? 0. : sampleSnps[*sample].totalDepth / totalSnp;
+
+    double dbsnp     = (totalSnp == 0) ? 0. : (100. * double(known) / double(totalSnp));
+    double tstv      = (transversions == 0) ? 0. : (double(transitions) / double(transversions));
+    double noveltstv = (sampleSnps[*sample].novelTransversions == 0) ? 0. : (double(sampleSnps[*sample].novelTransitions) / double(sampleSnps[*sample].novelTransversions));
+    double knowntstv = (sampleSnps[*sample].knownTransversions == 0) ? 0. : (double(sampleSnps[*sample].knownTransitions) / double(sampleSnps[*sample].knownTransversions));    
+    *output << setw(22) << *sample;
+    *output << setw(12) << setprecision(10) << totalSnp;
+    *output << setw(12) << sampleSnps[*sample].novelTransitions,
+    *output << setw(12) << sampleSnps[*sample].novelTransversions;
+    *output << setw(12) << sampleSnps[*sample].knownTransitions;
+    *output << setw(12) << sampleSnps[*sample].knownTransversions;
+    *output << setw(9) << setprecision(3) << dbsnp;
+    *output << setw(8) << setprecision(3) << tstv;
+    *output << setw(8) << setprecision(3) << noveltstv;
+    *output << setw(8) << setprecision(3) << knowntstv;
+    *output << setw(12) << sampleSnps[*sample].het;
+    *output << setw(12) << sampleSnps[*sample].homAlt;
+    *output << setw(12) << sampleSnps[*sample].singletons;
+    *output << setw(12) << depth;
+    *output << endl;
+  }
   *output << endl;
 }

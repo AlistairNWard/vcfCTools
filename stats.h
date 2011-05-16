@@ -41,6 +41,18 @@ struct snpTypes {
   unsigned int knownTransversions;
 };
 
+struct sampleSnpStats {
+  unsigned int novelTransitions;
+  unsigned int novelTransversions;
+  unsigned int knownTransitions;
+  unsigned int knownTransversions;
+  unsigned int singletons;
+  unsigned int homRef;
+  unsigned int homAlt;
+  unsigned int het;
+  unsigned int totalDepth;
+};
+
 struct variantStruct {
   unsigned int novelTransitions;
   unsigned int knownTransitions;
@@ -153,9 +165,10 @@ class statistics {
     ~statistics(void);
     void generateStatistics(variant&, vcf&, int, bool, vector<string>&, bool);
     void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
+    void updateSampleSnps(variant&, vcf&, unsigned int);
     void countByFilter();
     void printSnpStatistics(ostream*);
-    void printHeader(ostream*, string);
+    void printHeader(ostream*, string, bool, bool);
     void printSnpAnnotations(ostream*);
     void printAcs(ostream*);
     void printAfs(ostream*);
@@ -164,6 +177,7 @@ class statistics {
     void printVariantStruct(ostream*, string, variantStruct&);
     void printSnpAnnotationStruct(ostream*, string&, variantStruct&, string&);
     void printMnpFilter(string&, ostream*);
+    void printSampleSnps(vcf&, ostream*);
 
   public:
     bool isTransition;
@@ -184,6 +198,11 @@ class statistics {
     map<string, map<string, unsigned int> > distributions;
     map<int, unsigned int> snpDistribution;
     map<string, unsigned int> annotationNames;
+
+    // Sample level statistics.
+    bool processSampleSnps;
+    double minGenotypeQuality;
+    map<string, sampleSnpStats> sampleSnps;
 };
 
 } // namespace vcfCTools

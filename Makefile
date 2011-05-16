@@ -16,6 +16,7 @@ HEADERS = bed.h \
           tool_stats.h \
 	  tool_validate.h \
           tools.h \
+          trim_alleles.h \
           variant.h \
           vcf.h \
           vcf_aux.h \
@@ -37,6 +38,7 @@ SOURCES = bed.cpp \
           tool_stats.cpp \
           tool_validate.cpp \
           tools.cpp \
+          trim_alleles.cpp \
           variant.cpp \
           vcf.cpp \
           vcf_aux.cpp
@@ -50,6 +52,7 @@ BINS = $(BIN_SOURCES:.cpp=)
 all: $(OBJECTS) $(BINS)
 
 CXX = g++ -lm
+#CXX = g++ -g -lm
 CXXFLAGS = -O3
 
 $(OBJECTS): $(SOURCES) $(HEADERS)

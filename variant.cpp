@@ -106,10 +106,6 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
 
       for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter++) {
 
-        // Clear the genotype string.  Otherwise, this will be kept in memory
-        // for each of the alt alleles.
-        variant.genotypeString = "";
-
         // Replace the info string with that applicable to this variant.
         variant.info = altInfo[altInfoNumber];
         altInfoNumber++;
@@ -150,15 +146,27 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
 
     // Multi-base variants have the alt allele aligned to the ref allele
     // to unambiguously determine the variant type and the start
-    // position.
-    bool alignAlleles = true;
-    if (alignAlleles) {
+    // position.  This can be done with a Smith-Waterman alignment
+    // between the ref and alt, or just trimming the ref and alt until
+    // just matching sequence is left.
+    bool doSmithWaterman = false;
+    bool doTrimAlleles = true;
+    string alRef = ref;
+    string alAlt = "";
+    string originalRef = ref;
+
+    if (doSmithWaterman) {
       int pos = position;
-      string alRef = "", alAlt = "";
       string refFa = "/d2/data/references/build_37/human_reference_v37.fa";
       int start = alignAlternate(variant.referenceSequence, pos, ref, alt, alRef, alAlt, refFa); // vcf_aux.cpp
       if (pos != start) {
         cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;
+        position = start;
+      }
+    } else if (doTrimAlleles) {
+      unsigned int start = trimAlleles(variant.referenceSequence, position, ref, alt, alRef, alAlt); // trim_alleles.cpp
+      if (start != position) {
+        cerr << "WARNING: Modified variant position from  " << position << " to " << start << endl;
         position = start;
       }
     }
@@ -166,21 +174,24 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
     // MNP.
     if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
       variant.isMnp = true;
-      variant.altString = alt;
+      variant.ref = alRef;
+      variant.altString = alAlt;
       variantMap[position].mnps.push_back(variant);
       variantMap[position].hasMnp = true;
 
     // Insertion.
     } else if ( alt.size() > ref.size() ) {
       variant.isInsertion = true;
-      variant.altString = alt;
+      variant.ref = alRef;
+      variant.altString = alAlt;
       variantMap[position].indels.push_back(variant);
       variantMap[position].hasIndel = true;
 
     // Deletion.
     } else if ( ref.size() > alt.size() ) {
       variant.isDeletion = true;
-      variant.altString = alt;
+      variant.ref = alRef;
+      variant.altString = alAlt;
       variantMap[position].indels.push_back(variant);
       variantMap[position].hasIndel = true;
 
@@ -191,6 +202,10 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
       cerr << "Ref: " << ref << endl << "Alt: " << alt << endl;
       exit(1);
     }
+
+    // Set the reference allele back to its original form as there may be
+    // more alt alleles associated with this ref.
+    variant.ref = originalRef;
   }
 }
 
@@ -386,6 +401,27 @@ void variant::annotateRecordBed(bedRecord& b) {
       buildRecord(vmIter->first, *variantIter); // tools.cpp
     }
   }
+}
+
+// Extract the genotypes from each sample.
+vector<string> variant::extractGenotypeField(string field) {
+  unsigned int i;
+  vector<string> values;
+
+  vector<string> format = split(variantIter->genotypeFormatString, ':');
+  for (i = 0; i < format.size(); i++) {
+    if (format[i] == field) {break;}
+  }
+
+  // Parse the genotype of each sample;
+  vector<string> genotypeString = split(variantIter->genotypeString, "\t");
+  for (vector<string>::iterator gIter = genotypeString.begin(); gIter != genotypeString.end(); gIter++) {
+    vector<string> genotypeFields = split(*gIter, ':');
+    if ( genotypeFields.size() < format.size() ) {values.push_back("0");}
+    else {values.push_back(genotypeFields[i]);}
+  } 
+
+  return values;
 }
 
 // Write out variants to the output.  Only process the requested variant types.

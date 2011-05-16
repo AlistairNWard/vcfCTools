@@ -22,6 +22,7 @@
 
 #include "bed.h"
 #include "info.h"
+#include "trim_alleles.h"
 #include "vcf.h"
 
 using namespace std;
@@ -56,6 +57,7 @@ class variant {
     void determineVariantClass(int, string, string, variantDescription&);
     void annotateRecordVcf(variantsAtLocus&, bool);
     void annotateRecordBed(bedRecord&);
+    vector<string> extractGenotypeField(string);
     void writeVariants(ostream*);
 
   public:

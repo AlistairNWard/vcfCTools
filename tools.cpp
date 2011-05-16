@@ -196,5 +196,12 @@ void buildRecord(int position, variantDescription& v) {
              v.altString + "	" +
              sQuality.str() + "	" +
              v.filters + "	" + 
-             v.info + "	";
+             v.info;
+
+  // If genotypes exist, add them to ther record.
+  if (v.genotypeString != "") {
+    v.record += "	" + 
+                v.genotypeFormatString + "	" +
+                v.genotypeString;
+  }
 }

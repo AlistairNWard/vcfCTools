@@ -44,6 +44,7 @@ class statsTool : public AbstractTool {
     string currentReferenceSequence;
     string annotationFlagsString;
     vector<string> annotationFlags;
+    string genotypeQualityString;
 
     // Boolean flags.
     bool generateAfs;
@@ -51,6 +52,7 @@ class statsTool : public AbstractTool {
     bool processSnps;
     bool processMnps;
     bool processIndels;
+    bool sampleSnps;
 };
 
 } // namespace vcfCTools

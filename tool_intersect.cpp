@@ -63,6 +63,9 @@ int intersectTool::Help(void) {
   cout << endl;
   cout << "  a: Write out records from the first file." << endl;
   cout << "  b: Write out records from the second file." << endl;
+  cout << "  c: Only write out variants if they share ref and alt alleles (info from first file)." << endl;
+  cout << "  d: Only write out variants if they share ref and alt alleles (info from second file)." << endl;
+  cout << "  u: Write out all records from both files." << endl;
   cout << "  q: Write out records with the highest variant quality." << endl;
   cout << endl;
   exit(0);
@@ -194,11 +197,17 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
   } else {
     if (writeFrom == "a") {cerr << "Writing out records from file: " << vcfFiles[0] << endl;}
     else if (writeFrom == "b") {cerr << "Writing out records from file: " << vcfFiles[1] << endl;}
+    else if (writeFrom == "c" && findUnion || findCommon) {cerr << "Writing out records from file: " << vcfFiles[0] << endl;}
+    else if (writeFrom == "d" && findUnion || findCommon) {cerr << "Writing out records from file: " << vcfFiles[1] << endl;}
+    else if (writeFrom == "u" && findUnion || findCommon) {cerr << "Writing out all records." << endl;}
     else if ( (findCommon || findUnion) && writeFrom == "q") {cerr << "Writing out records with the highest quality value." << endl;}
     else {
       cerr << "The file from which the records are to be written needs to be selected." << endl;
       cerr << "    a - write records from the first inputted file." << endl;
       cerr << "    b - write records from the second inputted file." << endl;
+      cout << "    c - write out variants if they share ref and alt alleles (info from first file)." << endl;
+      cerr << "    d - write out variants if they share ref and alt alleles (info from second file)." << endl;
+      cerr << "    u - write out all records from both files." << endl;
       if (findCommon) {cerr << "    q - write records with the highest variant quality." << endl;}
       exit(1);
     }

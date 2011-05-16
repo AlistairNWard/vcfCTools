@@ -21,6 +21,7 @@ statsTool::statsTool(void)
   useAnnotations = false;
   annotationFlagsString = "";
   currentReferenceSequence = "";
+  sampleSnps = false;
 }
 
 // Destructor.
@@ -42,6 +43,8 @@ int statsTool::Help(void) {
   cout << "     generate statistics as a function of the AFS." << endl;
   cout << "  -n, --annotation" << endl;
   cout << "     include statistics on listed annotations (comma separated list or 'all')." << endl;
+  cout << "  -s, --sample-snps" << endl;
+  cout << "     include SNP statistics on all individual samples (requires genotypes to be present)." << endl;
   cout << "  -1, --snps" << endl;
   cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
@@ -67,6 +70,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"out", required_argument, 0, 'o'},
     {"allele-frequency-spectrum", no_argument, 0, 'a'},
     {"annotations", required_argument, 0, 'n'},
+    {"sample-snps", required_argument, 0, 's'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
@@ -76,7 +80,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:an:124", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:an:s:124", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -106,6 +110,12 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
       case 'n':
         useAnnotations = true;
         annotationFlagsString = optarg;
+        break;
+
+      // Generate SNP statistics for all samples.
+      case 's':
+        sampleSnps = true;
+        genotypeQualityString = optarg;
         break;
 
       // Analyse SNPs.
@@ -163,6 +173,22 @@ int statsTool::Run(int argc, char* argv[]) {
   output = openOutputFile(outputFile);
   v.parseHeader();
 
+// If statistics are being generated on a per-sample basis, check that 
+// genotypes exist.
+  if (sampleSnps) {
+    stats.minGenotypeQuality = atof(genotypeQualityString.c_str());
+    if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
+      cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double." << endl;
+      exit(1);
+    }
+    if (!v.hasGenotypes) {
+      cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
+      exit(1);
+    } else {
+      stats.processSampleSnps = true;
+    }
+  }
+
 // If statistics on annotations are required, generate a list of flags to get
 // statistics on.  Provide a warning if the flags do not appear in the header.
   if (useAnnotations) {
@@ -214,6 +240,7 @@ int statsTool::Run(int argc, char* argv[]) {
   }
   if (stats.hasMnp) {stats.printMnpStatistics(output);}
   if (stats.hasIndel) {stats.printIndelStatistics(output);}
+  if (sampleSnps) {stats.printSampleSnps(v, output);}
 
 // Close the vcf file and return.
   v.closeVcf();
