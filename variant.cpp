@@ -44,7 +44,7 @@ bool variant::buildVariantStructure(vcf& v) {
   count = 0;
   string tempReferenceSequence = v.variantRecord.referenceSequence;
   while (v.success && count < recordsInMemory && v.variantRecord.referenceSequence == tempReferenceSequence) {
-    addVariantToStructure(v.position, v.variantRecord);
+    addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
     v.success = v.getRecord(tempReferenceSequence); 
     count++;
   }
@@ -53,7 +53,7 @@ bool variant::buildVariantStructure(vcf& v) {
 }
 
 // Add a variant from the vcf file into thr variant structure.
-void variant::addVariantToStructure(int position, variantDescription& variant) {
+void variant::addVariantToStructure(int position, variantDescription& variant, bool isDbsnp) {
   variant.isBiallelicSnp = false;
   variant.isTriallelicSnp = false;
   variant.isQuadallelicSnp = false;
@@ -77,7 +77,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
 
   // Single alternate allele.
   if (found == string::npos) {
-    determineVariantClass(position, variant.ref, variant.altString, variant);
+    determineVariantClass(position, variant.ref, variant.altString, variant, isDbsnp);
   } else {
     vector<string> alt = split(variant.altString, ",");
 
@@ -111,7 +111,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
         altInfoNumber++;
 
         // Determine the variant type.
-        determineVariantClass(position, variant.ref, *iter, variant);
+        determineVariantClass(position, variant.ref, *iter, variant, isDbsnp);
       }
     }
   }
@@ -125,7 +125,7 @@ void variant::clearReferenceSequence(vcf& v, string cRef, bool write, ostream* o
     if (write) {writeVariants(output);}
     variantMap.erase(vmIter);
     if (v.variantRecord.referenceSequence == cRef && v.success) {
-      addVariantToStructure(v.position, v.variantRecord);
+      addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
       v.success = v.getRecord(cRef);
     }
     if (variantMap.size() != 0) {vmIter = variantMap.begin();}
@@ -133,7 +133,7 @@ void variant::clearReferenceSequence(vcf& v, string cRef, bool write, ostream* o
 }
 
 // Determine the variant class from the ref and alt alleles.
-void variant::determineVariantClass(int position, string ref, string alt, variantDescription& variant) {
+void variant::determineVariantClass(int position, string ref, string alt, variantDescription& variant, bool isDbsnp) {
 
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
@@ -152,9 +152,10 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
     bool doSmithWaterman = false;
     bool doTrimAlleles = true;
     string alRef = ref;
-    string alAlt = "";
+    string alAlt = alt;
     string originalRef = ref;
 
+    //if (doSmithWaterman && !isDbsnp) {
     if (doSmithWaterman) {
       int pos = position;
       string refFa = "/d2/data/references/build_37/human_reference_v37.fa";
@@ -163,6 +164,7 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
         cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;
         position = start;
       }
+    //} else if (doTrimAlleles && !isDbsnp) {
     } else if (doTrimAlleles) {
       unsigned int start = trimAlleles(variant.referenceSequence, position, ref, alt, alRef, alAlt); // trim_alleles.cpp
       if (start != position) {

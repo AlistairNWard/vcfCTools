@@ -52,9 +52,9 @@ class variant {
     ~variant(void);
     void determineVariantsToProcess(bool, bool, bool);
     bool buildVariantStructure(vcf&);
-    void addVariantToStructure(int, variantDescription&);
+    void addVariantToStructure(int, variantDescription&, bool);
     void clearReferenceSequence(vcf&, string, bool, ostream*);
-    void determineVariantClass(int, string, string, variantDescription&);
+    void determineVariantClass(int, string, string, variantDescription&, bool);
     void annotateRecordVcf(variantsAtLocus&, bool);
     void annotateRecordBed(bedRecord&);
     vector<string> extractGenotypeField(string);

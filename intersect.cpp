@@ -56,14 +56,14 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
           // the file into the structure if it is from the same reference sequence.
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
-            var1.addVariantToStructure(v1.position, v1.variantRecord);
+            var1.addVariantToStructure(v1.position, v1.variantRecord, v1.dbsnpVcf);
             v1.success = v1.getRecord(currentReferenceSequence);
           }
           if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
 
           var2.variantMap.erase(var2.vmIter);
           if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
-            var2.addVariantToStructure(v2.position, v2.variantRecord);
+            var2.addVariantToStructure(v2.position, v2.variantRecord, v2.dbsnpVcf);
             v2.success = v2.getRecord(currentReferenceSequence);
           }
           if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
@@ -75,7 +75,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
           if (write2) {var2.writeVariants(output);}
           var2.variantMap.erase(var2.vmIter);
           if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
-            var2.addVariantToStructure(v2.position, v2.variantRecord);
+            var2.addVariantToStructure(v2.position, v2.variantRecord, v2.dbsnpVcf);
             v2.success = v2.getRecord(currentReferenceSequence);
           }
           if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
@@ -86,7 +86,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
           if (write1) {var1.writeVariants(output);}
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
-            var1.addVariantToStructure(v1.position, v1.variantRecord);
+            var1.addVariantToStructure(v1.position, v1.variantRecord, v1.dbsnpVcf);
             v1.success = v1.getRecord(currentReferenceSequence);
           }
           if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
@@ -166,7 +166,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
         if (findUnique || annotate) {var.writeVariants(output);}
         var.variantMap.erase(var.vmIter);
         if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
-          var.addVariantToStructure(v.position, v.variantRecord);
+          var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
           v.success = v.getRecord(currentReferenceSequence);
         }
         if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
@@ -223,7 +223,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
         if (!findUnique) {var.writeVariants(output);}
         var.variantMap.erase(var.vmIter);
         if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
-          var.addVariantToStructure(v.position, v.variantRecord);
+          var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
           v.success = v.getRecord(currentReferenceSequence);
         }
         if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}

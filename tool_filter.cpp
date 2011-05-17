@@ -505,7 +505,7 @@ int filterTool::Run(int argc, char* argv[]) {
     // keep adding variants to the structre.
     while (var.variantMap.size() != 0) {
       if (v.update && v.success) {
-        var.addVariantToStructure(v.position, v.variantRecord);
+        var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
         v.success = v.getRecord(currentReferenceSequence);
       }
       var.vmIter = var.variantMap.begin();
