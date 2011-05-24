@@ -233,15 +233,13 @@ void statistics::updateSampleSnps(variant& var, vcf& v, unsigned int ac) {
     double depth = atof( (*dIter).c_str() );
     if (genotypeQuality >= minGenotypeQuality) {
 
-      // If the SNP is a singleton, update the singletons stat.
-      if (ac == 1) {sampleSnps[v.samples[i]].singletons++;}
-
       // Update the total depth for the sample.
       sampleSnps[v.samples[i]].totalDepth += depth;
 
       // Homozygous alternate SNPs.
       if (*gIter == "1/1") {
         sampleSnps[v.samples[i]].homAlt++;
+        sampleSnps[v.samples[i]].totalAltDepth += depth;
         if (inDbsnp) {
           if (isTransition) {sampleSnps[v.samples[i]].knownTransitions++;}
           if (isTransversion) {sampleSnps[v.samples[i]].knownTransversions++;}
@@ -250,9 +248,13 @@ void statistics::updateSampleSnps(variant& var, vcf& v, unsigned int ac) {
           if (isTransversion) {sampleSnps[v.samples[i]].novelTransversions++;}
         }
 
+        // If the SNP is a singleton, update the singletons stat.
+        if (ac == 1) {sampleSnps[v.samples[i]].singletons++;}
+
       // Heterozygous SNPs.
       } else if (*gIter == "0/1" || *gIter == "1/0") {
         sampleSnps[v.samples[i]].het++;
+        sampleSnps[v.samples[i]].totalAltDepth += depth;
         if (inDbsnp) {
           if (isTransition) {sampleSnps[v.samples[i]].knownTransitions++;}
           if (isTransversion) {sampleSnps[v.samples[i]].knownTransversions++;}
@@ -260,6 +262,9 @@ void statistics::updateSampleSnps(variant& var, vcf& v, unsigned int ac) {
           if (isTransition) {sampleSnps[v.samples[i]].novelTransitions++;}
           if (isTransversion) {sampleSnps[v.samples[i]].novelTransversions++;}
         }
+
+        // If the SNP is a singleton, update the singletons stat.
+        if (ac == 1) {sampleSnps[v.samples[i]].singletons++;}
       } else {
         sampleSnps[v.samples[i]].homRef++;
       }
@@ -625,6 +630,10 @@ void statistics::printIndelStatistics(ostream* output) {
 
 // Print out the sample level SNP statistics.
 void statistics::printSampleSnps(vcf& v, ostream* output) {
+  unsigned int totalTransitions = totalVariants["total"]["all"].novelTransitions + totalVariants["total"]["all"].knownTransitions;
+  unsigned int totalTransversions = totalVariants["total"]["all"].novelTransversions + totalVariants["total"]["all"].knownTransversions;
+  unsigned int totalSnps = totalTransitions + totalTransversions;
+
   *output << "SNP statistics by sample:" << endl;
   *output << endl;
   printHeader(output, string("sample"), false, false);
@@ -632,6 +641,7 @@ void statistics::printSampleSnps(vcf& v, ostream* output) {
   *output << setw(12) << "Hom Alt";
   *output << setw(12) << "Singletons";
   *output << setw(12) << "Depth";
+  *output << setw(12) << "Alt depth";
   *output << endl;
   for (vector<string>::iterator sample = v.samples.begin(); sample != v.samples.end(); sample++) {
     int novel         = sampleSnps[*sample].novelTransitions + sampleSnps[*sample].novelTransversions;
@@ -639,26 +649,28 @@ void statistics::printSampleSnps(vcf& v, ostream* output) {
     int transitions   = sampleSnps[*sample].novelTransitions + sampleSnps[*sample].knownTransitions;
     int transversions = sampleSnps[*sample].novelTransversions + sampleSnps[*sample].knownTransversions;
     int totalSnp      = novel + known;
-    double depth      = (totalSnp == 0) ? 0. : sampleSnps[*sample].totalDepth / totalSnp;
+    double depth      = (totalSnp == 0) ? 0. : double(sampleSnps[*sample].totalDepth) / double(totalSnps);
+    double altDepth   = (totalSnp == 0) ? 0. : double(sampleSnps[*sample].totalAltDepth) / double(totalSnp);
 
-    double dbsnp     = (totalSnp == 0) ? 0. : (100. * double(known) / double(totalSnp));
-    double tstv      = (transversions == 0) ? 0. : (double(transitions) / double(transversions));
-    double noveltstv = (sampleSnps[*sample].novelTransversions == 0) ? 0. : (double(sampleSnps[*sample].novelTransitions) / double(sampleSnps[*sample].novelTransversions));
-    double knowntstv = (sampleSnps[*sample].knownTransversions == 0) ? 0. : (double(sampleSnps[*sample].knownTransitions) / double(sampleSnps[*sample].knownTransversions));    
+    double dbsnp      = (totalSnp == 0) ? 0. : (100. * double(known) / double(totalSnp));
+    double tstv       = (transversions == 0) ? 0. : (double(transitions) / double(transversions));
+    double noveltstv  = (sampleSnps[*sample].novelTransversions == 0) ? 0. : (double(sampleSnps[*sample].novelTransitions) / double(sampleSnps[*sample].novelTransversions));
+    double knowntstv  = (sampleSnps[*sample].knownTransversions == 0) ? 0. : (double(sampleSnps[*sample].knownTransitions) / double(sampleSnps[*sample].knownTransversions));    
     *output << setw(22) << *sample;
     *output << setw(12) << setprecision(10) << totalSnp;
     *output << setw(12) << sampleSnps[*sample].novelTransitions,
     *output << setw(12) << sampleSnps[*sample].novelTransversions;
     *output << setw(12) << sampleSnps[*sample].knownTransitions;
     *output << setw(12) << sampleSnps[*sample].knownTransversions;
-    *output << setw(9) << setprecision(3) << dbsnp;
+    *output << setw(12) << setprecision(3) << dbsnp;
     *output << setw(8) << setprecision(3) << tstv;
     *output << setw(8) << setprecision(3) << noveltstv;
     *output << setw(8) << setprecision(3) << knowntstv;
     *output << setw(12) << sampleSnps[*sample].het;
     *output << setw(12) << sampleSnps[*sample].homAlt;
     *output << setw(12) << sampleSnps[*sample].singletons;
-    *output << setw(12) << depth;
+    *output << setw(12) << setprecision(3) << depth;
+    *output << setw(12) << setprecision(3) << altDepth;
     *output << endl;
   }
   *output << endl;

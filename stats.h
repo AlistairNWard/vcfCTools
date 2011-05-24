@@ -51,6 +51,7 @@ struct sampleSnpStats {
   unsigned int homAlt;
   unsigned int het;
   unsigned int totalDepth;
+  unsigned int totalAltDepth;
 };
 
 struct variantStruct {

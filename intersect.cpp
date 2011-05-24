@@ -47,6 +47,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
 
         // Variants at the same locus.
         if (var1.vmIter->first == var2.vmIter->first) {
+          //var1.compareVariants(var2, findUnion, findUnique, annotate, writeFrom, output);
           if (!findUnique) {
             if (annotate) {var1.annotateRecordVcf(var2.vmIter->second, v2.dbsnpVcf);}
             var1.writeVariants(output);

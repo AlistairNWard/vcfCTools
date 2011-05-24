@@ -426,6 +426,29 @@ vector<string> variant::extractGenotypeField(string field) {
   return values;
 }
 
+// From the intersection routine, two variants are found at the same position.
+// It is possible that different variants are to be compared with each other
+// (e.g. SNPs with indels) and this requires looking ahead in the variant
+// structures and some of the variants have variable length.  The following 
+// routines deal with the comparisons and then write out the required variants
+// (annotated if necessary).
+//
+// If the variants compared are at the same position.
+//void variant::compareVariantsSamePosition(variant& var) {
+//}
+
+// If the variants compared are at different positions.  In this case, the 
+// variant being carried across as an argument has a coordinate smaller than
+// the variant object used to call the routine.
+//void variant::compareVariantsLargerPosition(variant& var) {
+//}
+
+// If the variants compared are at different positions.  In this case, the 
+// variant being carried across as an argument has a coordinate larger than
+// the variant object used to call the routine.
+//void variant::compareVariantsSmallerPosition(variant& var) {
+//}
+
 // Write out variants to the output.  Only process the requested variant types.
 void variant::writeVariants(ostream* output) {
   // SNPs.

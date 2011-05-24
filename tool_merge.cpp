@@ -9,6 +9,7 @@
 // ******************************************************
 
 #include "tool_merge.h"
+#include "tools.h"
 
 using namespace std;
 using namespace vcfCTools;
@@ -183,9 +184,11 @@ int mergeTool::Run(int argc, char* argv[]) {
         // Write out SNPs.
         if (var.processSnps) {
           for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
+            buildRecord(var.vmIter->first, *var.variantIter);
             *output << var.variantIter->record << endl;
           }
           for (var.variantIter = var.vmIter->second.multiSnps.begin(); var.variantIter != var.vmIter->second.multiSnps.end(); var.variantIter++) {
+            buildRecord(var.vmIter->first, *var.variantIter);
             *output << var.variantIter->record << endl;
           }
         }
@@ -193,6 +196,7 @@ int mergeTool::Run(int argc, char* argv[]) {
         // MNPs
         if (var.processMnps) {
           for (var.variantIter = var.vmIter->second.mnps.begin(); var.variantIter != var.vmIter->second.mnps.end(); var.variantIter++) {
+            buildRecord(var.vmIter->first, *var.variantIter);
             *output << var.variantIter->record << endl;
           }
         }
@@ -200,6 +204,7 @@ int mergeTool::Run(int argc, char* argv[]) {
         // Indels.
         if (var.processIndels) {
           for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
+            buildRecord(var.vmIter->first, *var.variantIter);
             *output << var.variantIter->record << endl;
           }
         }
