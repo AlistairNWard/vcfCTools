@@ -15,7 +15,6 @@ unsigned int trimAlleles(string& referenceSequence, unsigned int position, strin
   unsigned int start = position;
   string fRef;
   string fAlt;
-  //bool isMnp = false;
 
   // Start at the end and work backwards.
   string::reverse_iterator rRefIter = alRef.rbegin();

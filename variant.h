@@ -29,6 +29,16 @@ using namespace std;
 
 namespace vcfCTools {
 
+// Create astructure to hold all of the flags required to determine the intersection
+// operations to be performed.
+struct intFlags {
+  bool sitesOnly;
+  bool annotate;
+  bool findCommon;
+  bool findUnion;
+  bool findUnique;
+};
+
 // At each locus, many different variants can exist.  The
 // variantsAtLocus structure holds all of the variants
 // present at this locus.
@@ -53,12 +63,15 @@ class variant {
     void determineVariantsToProcess(bool, bool, bool);
     bool buildVariantStructure(vcf&);
     void addVariantToStructure(int, variantDescription&, bool);
-    void clearReferenceSequence(vcf&, string, bool, ostream*);
+    void clearReferenceSequence(vcf&, variant&, intFlags, string, bool, ostream*);
     void determineVariantClass(int, string, string, variantDescription&, bool);
     void annotateRecordVcf(variantsAtLocus&, bool);
     void annotateRecordBed(bedRecord&);
+    void compareVariantsSameLocus(variant&, intFlags, string, ostream*);
+    void compareVariantsDifferentLocus(variant&, intFlags, bool, ostream*);
     vector<string> extractGenotypeField(string);
-    void writeVariants(ostream*);
+    void writeVariants(int, variantsAtLocus&, ostream*);
+    //void writeVariants(ostream*);
 
   public:
     unsigned int recordsInMemory;

@@ -14,8 +14,24 @@
 using namespace std;
 using namespace vcfCTools;
 
+// Constructor.
+intersect::intersect(void) {}
+
+// Destructor.
+intersect::~intersect(void) {}
+
+// Set the Boolean flags required to determine the intersection operation to
+// perform
+void intersect::setBooleanFlags(bool findCommon, bool findUnion, bool findUnique, bool sitesOnly, bool annotate) {
+  flags.findCommon = findCommon;
+  flags.findUnion  = findUnion;
+  flags.findUnique = findUnique;
+  flags.sitesOnly  = sitesOnly;
+  flags.annotate   = annotate;
+}
+
 // Intersect two vcf files.  Intersect by variant position only.
-void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion, bool findUnique, bool annotate, string writeFrom, ostream* output) {
+void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, ostream* output) {
 
   // The following Boolean flags are used when adding variants to the map.  They
   // determine whether or not to write out records that are unique to one of the
@@ -23,8 +39,8 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
   // ensures that every record from the vcf file is written out regardless of
   // whether it intersects with the other vcf file.  In the case that the two
   // files intersect, the additional annotation routine will be called.
-  bool write1 = ( (findUnique && writeFrom == "a") || findUnion || annotate) ? true : false;
-  bool write2 = ( (findUnique && writeFrom == "b") || findUnion) ? true : false;
+  bool write1 = ( (flags.findUnique && writeFrom == "a") || flags.findUnion || flags.annotate) ? true : false;
+  bool write2 = ( (flags.findUnique && writeFrom == "b") || flags.findUnion) ? true : false;
 
   // Build the variant structures for each vcf file.
   v1.success = var1.buildVariantStructure(v1);
@@ -47,11 +63,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
 
         // Variants at the same locus.
         if (var1.vmIter->first == var2.vmIter->first) {
-          //var1.compareVariants(var2, findUnion, findUnique, annotate, writeFrom, output);
-          if (!findUnique) {
-            if (annotate) {var1.annotateRecordVcf(var2.vmIter->second, v2.dbsnpVcf);}
-            var1.writeVariants(output);
-          }
+          var1.compareVariantsSameLocus(var2, flags, writeFrom, output);
 
           // Clear the compared variants from the structure and add the next one from 
           // the file into the structure if it is from the same reference sequence.
@@ -73,7 +85,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
         // second vcf file.  Parse through the second file until the position is greater
         // than or equal to that in the second file.
         } else if (var1.vmIter->first > var2.vmIter->first) {
-          if (write2) {var2.writeVariants(output);}
+          var2.compareVariantsDifferentLocus(var1, flags, write2, output);
           var2.variantMap.erase(var2.vmIter);
           if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
             var2.addVariantToStructure(v2.position, v2.variantRecord, v2.dbsnpVcf);
@@ -84,7 +96,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
         // Variant from the first vcf file is at a smaller coordinate than that in the
         // second vcf file.
         } else if (var1.vmIter->first < var2.vmIter->first) {
-          if (write1) {var1.writeVariants(output);}
+          var1.compareVariantsDifferentLocus(var2, flags, write1, output);
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
             var1.addVariantToStructure(v1.position, v1.variantRecord, v1.dbsnpVcf);
@@ -97,8 +109,8 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
       // Having finished comparing, there may still be variants left from one of the two files.
       // Check that the two variant structures are empty and if not, finish processing the
       // remaining variants for this reference sequence.
-      if (var1.variantMap.size() != 0) {var1.clearReferenceSequence(v1, currentReferenceSequence, write1, output);}
-      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, currentReferenceSequence, write2, output);}
+      if (var1.variantMap.size() != 0) {var1.clearReferenceSequence(v1, var2, flags, currentReferenceSequence, write1, output);}
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, var1, flags, currentReferenceSequence, write2, output);}
 
       // Now both variant maps are exhausted, so rebuild the maps with the variants from the
       // next reference sequence in the file.
@@ -112,7 +124,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
     // second vcf file until the next reference sequence is found.  If finding the union
     // of the variants unique to the second vcf file, write them out.
     } else {
-      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, var2.vmIter->second.referenceSequence, write2, output);}
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, var1, flags, var2.vmIter->second.referenceSequence, write2, output);}
       var2.buildVariantStructure(v2);
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }
@@ -128,7 +140,7 @@ void intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, bool findUnion
 // two files are sorted by genomic coordinates and the reference
 // sequences are in the same order.  Do not group together variants
 // in common reference sequence.
-void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUnique, bool annotate, ostream* output) {
+void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUnique, bool annotate, ostream* output) {
   map<int, bedRecord>::iterator bmNext;
   bool lastBedInterval = false;
 
@@ -164,7 +176,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
 
       // Variant is prior to the bed interval.
       if (var.vmIter->first < bs.bmIter->first) {
-        if (findUnique || annotate) {var.writeVariants(output);}
+        //if (findUnique || annotate) {var.writeVariants(output);}
         var.variantMap.erase(var.vmIter);
         if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
           var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
@@ -204,7 +216,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
           // reference sequence to the next reference sequence in the vcf file.
           if (var.variantMap.size() != 0) {
             bool write = (findUnique || annotate) ? true : false;
-            var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
+            //var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
           }
           v.success = var.buildVariantStructure(v);
           if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}
@@ -221,7 +233,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
       // Variant lies within the bed interval.
       } else {
         if (annotate) {var.annotateRecordBed(bs.bmIter->second);}
-        if (!findUnique) {var.writeVariants(output);}
+        //if (!findUnique) {var.writeVariants(output);}
         var.variantMap.erase(var.vmIter);
         if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
           var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
@@ -238,7 +250,7 @@ void intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, bool findUn
       // reference sequence to the next reference sequence in the vcf file.
       if (var.variantMap.size() != 0) {
         bool write = (findUnique || annotate) ? true : false;
-        var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
+        //var.clearReferenceSequence(v, var.vmIter->second.referenceSequence, write, output);
       }
       v.success = var.buildVariantStructure(v);
       if (var.variantMap.size() != 0) {var.vmIter = var.variantMap.begin();}

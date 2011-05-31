@@ -19,10 +19,11 @@ intersectTool::intersectTool(void)
   : AbstractTool()
 {
   recordsInMemory = 100;
-  passFilters = false;
-  findCommon = false;
-  findUnion  = false;
-  findUnique = false;
+  passFilters     = false;
+  findCommon      = false;
+  findUnion       = false;
+  findUnique      = false;
+  sitesOnly       = false;
   currentReferenceSequence = "";
 }
 
@@ -49,6 +50,8 @@ int intersectTool::Help(void) {
   cout << "	output variants present in either file." << endl;
   cout << "  -q, --unique" << endl;
   cout << "	output variants unique to one of the files." << endl;
+  cout << "  -s, --sites-only" << endl;
+  cout << "	only compare files based on sites.  Do not evaluate the alleles." << endl;
   cout << "  -p, --pass-filters" << endl;
   cout << "	Only variants that pass filters are considered." << endl;
   cout << "  -1, --snps" << endl;
@@ -93,6 +96,7 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
     {"common", required_argument, 0, 'c'},
     {"union", required_argument, 0, 'u'},
     {"unique", required_argument, 0, 'q'},
+    {"sites-only", no_argument, 0, 's'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
@@ -102,7 +106,7 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:pc:u:q:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:pc:u:q:s123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -141,6 +145,12 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       case 'q':
         findUnique = true;
         writeFrom = optarg;
+        break;
+
+      // Only compare variants based on the position.  Do not
+      // interrogate the alleles.
+      case 's':
+        sitesOnly = true;
         break;
 
       // Only consider variants if they pass filters.
@@ -221,9 +231,16 @@ int intersectTool::Run(int argc, char* argv[]) {
   int getOptions = intersectTool::parseCommandLine(argc, argv);
   output = openOutputFile(outputFile);
 
+  intersect ints; // Define an intersection object.
+  ints.setBooleanFlags(findCommon, findUnion, findUnique, sitesOnly, false);  // Set the flags required for performing intersections.
+  ints.writeFrom = writeFrom;
+
 // If intersection is between a vcf file and a bed file, create a vcf and a bed object
 // and intersect.
   if (bedFile != "") {
+    cerr << "DISABLED UNTIL clearReferenceSequence and variant structure comparisons" << endl;
+    cerr << "have been updated to handle bed files." << endl;
+    exit(0);
     vcf v; // Create a vcf object.
     variant var; // Create a variant object.
     var.determineVariantsToProcess(processSnps, processMnps, processIndels);
@@ -243,12 +260,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     writeHeader(output, v, false, taskDescription);
 
 // Intersect the files.
-    //if (groupVariants) {
-      //intersectVariantGroupsBed(v, b, output);
-      //intersectVariantGroupsBed(v, b);
-    //} else {
-      intersectVcfBed(v, var, b, bs, findUnique, false, output);
-    //}
+    ints.intersectVcfBed(v, var, b, bs, findUnique, false, output);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.
@@ -294,7 +306,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     }
 
 // Intersect the two vcf files.
-    intersectVcf(v1, var1, v2, var2, findUnion, findUnique, false, writeFrom, output);
+    ints.intersectVcf(v1, var1, v2, var2, output);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.

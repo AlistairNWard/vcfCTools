@@ -46,17 +46,18 @@ class intersectTool : public AbstractTool {
     ostream* output;
 
     unsigned int recordsInMemory;
+    string currentReferenceSequence;
+    string writeFrom;
+
+    // Boolean flags.
     bool passFilters;
     bool findCommon;
     bool findUnion;
     bool findUnique;
-    string writeFrom;
-    string currentReferenceSequence;
-
-    // Boolean flags.
     bool processSnps;
     bool processMnps;
     bool processIndels;
+    bool sitesOnly;
 };
 
 } // namespace vcfCTools

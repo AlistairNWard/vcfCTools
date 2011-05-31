@@ -18,6 +18,9 @@ using namespace vcfCTools;
 //Constructor.
 variant::variant(void) {
   recordsInMemory = 1000;
+  processSnps     = false;
+  processMnps     = false;
+  processIndels   = false;
 };
 
 // Destructor.
@@ -120,9 +123,9 @@ void variant::addVariantToStructure(int position, variantDescription& variant, b
 // There are times when all variants for the reference sequence in the
 // variant map, when all of the variants are to be processed and
 // possibly written to file.
-void variant::clearReferenceSequence(vcf& v, string cRef, bool write, ostream* output) {
+void variant::clearReferenceSequence(vcf& v, variant& var, intFlags flags, string cRef, bool write, ostream* output) {
   while (variantMap.size() != 0) {
-    if (write) {writeVariants(output);}
+    compareVariantsDifferentLocus(var, flags, write, output);
     variantMap.erase(vmIter);
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
@@ -434,48 +437,154 @@ vector<string> variant::extractGenotypeField(string field) {
 // (annotated if necessary).
 //
 // If the variants compared are at the same position.
-//void variant::compareVariantsSamePosition(variant& var) {
-//}
+void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writeFrom, ostream* output) {
+
+  // Define a new structure to hold the variants selected for output.  For example,
+  // if only identical variants are required, all variants will be checked to see
+  // if there are identical variants and if so, these will be pushed to the new
+  // structure.  This will then be flushed to the output stream.
+  variantsAtLocus outputVariants;
+  outputVariants.referenceSequence = referenceSequence;
+
+  // To determine if a particular variant has an exact match, the flag
+  // hasMatch is used.  The variant structure from the second file will
+  // be looped over a number of times, so an array of the same size as
+  // variant array size is created in the section dealing with each 
+  // variant class.
+  bool hasMatch;
+
+  // Compare SNPs.
+  if (processSnps) {
+  }
+
+  // Compare MNPs.
+  if (processMnps) {
+  }
+
+  // Compare indels.
+  if (processIndels && vmIter->second.indels.size() != 0 && var.vmIter->second.indels.size() != 0) {
+
+    // Create the array keeping track of whether an exact match for the
+    // variants in the second file has been found.
+    bool hasMatchVar[var.vmIter->second.indels.size()];
+    unsigned int counter;
+    for (unsigned int i = 0; i < var.vmIter->second.indels.size(); i++) {hasMatchVar[i] = false;}
+
+    // Check for identical variants.
+    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+      hasMatch = false;
+      counter  = 0;
+      for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
+        if (variantIter->ref == var.variantIter->ref && variantIter->altString == var.variantIter->altString) {
+          hasMatch             = true;
+          hasMatchVar[counter] = true;
+          if (writeFrom == "a" && !flags.findUnique) {
+            buildRecord(vmIter->first, *variantIter);
+            outputVariants.indels.push_back(*variantIter);
+          }
+          else if (writeFrom == "b" && !flags.findUnique) {
+            buildRecord(vmIter->first, *var.variantIter);
+            outputVariants.indels.push_back(*var.variantIter);
+          }
+        }
+        counter++;
+      }
+
+      // If there were no exact matches to this variant and the union or
+      // variants unique to the first file was requested, add these
+      // variants to the output structure.
+      if (!hasMatch && (flags.findUnion || (flags.findUnique && writeFrom == "a"))) {
+        buildRecord(vmIter->first, *variantIter);
+        outputVariants.indels.push_back(*variantIter);
+      }
+    }
+
+    // Perform the same task for variants from the second file.
+    counter = 0;
+    for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
+      if (!hasMatchVar[counter] && (flags.findUnion || (flags.findUnique && writeFrom == "b"))) {
+        buildRecord(vmIter->first, *var.variantIter);
+        outputVariants.indels.push_back(*var.variantIter);
+      }
+      counter++;
+    }
+  }
+
+  // Now that the variants that are to be written out at this locus have
+  // been determined, annotate them if necessary and then output them to
+  // the output stream.
+  if (flags.annotate) {} //annotateVcf();}
+  writeVariants(vmIter->first, outputVariants, output);
+}
 
 // If the variants compared are at different positions.  In this case, the 
 // variant being carried across as an argument has a coordinate smaller than
 // the variant object used to call the routine.
-//void variant::compareVariantsLargerPosition(variant& var) {
-//}
+void variant::compareVariantsDifferentLocus(variant& var, intFlags flags, bool write, ostream* output) {
 
-// If the variants compared are at different positions.  In this case, the 
-// variant being carried across as an argument has a coordinate larger than
-// the variant object used to call the routine.
-//void variant::compareVariantsSmallerPosition(variant& var) {
-//}
+  // Define a new structure to hold the variants selected for output.  For example,
+  // if only identical variants are required, all variants will be checked to see
+  // if there are identical variants and if so, these will be pushed to the new
+  // structure.  This will then be flushed to the output stream.
+  variantsAtLocus outputVariants;
+  outputVariants.referenceSequence = referenceSequence;
+
+  // SNPs.
+  if (processSnps) {}
+
+  // MNPs.
+  if (processMnps) {}
+
+  // Indels.
+  if (processIndels) {
+
+    // Output the indels unique to this file.
+    if ((flags.findUnique && write) || flags.findUnion) {
+      for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+        buildRecord(vmIter->first, *variantIter);
+        outputVariants.indels.push_back(*variantIter);
+      }
+    }
+  }
+
+  if (flags.annotate) {}
+  writeVariants(vmIter->first, outputVariants, output);
+}
 
 // Write out variants to the output.  Only process the requested variant types.
-void variant::writeVariants(ostream* output) {
+void variant::writeVariants(int position, variantsAtLocus& var, ostream* output) {
+  vector<variantDescription>::iterator iter;
+
   // SNPs.
   if (processSnps) {
-    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-      buildRecord(vmIter->first, *variantIter);
-      *output << variantIter->record << endl;
-    }
-    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
-      buildRecord(vmIter->first, *variantIter);
-      *output << variantIter->record << endl;
-    }
+//    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+//      buildRecord(vmIter->first, *variantIter);
+//      *output << variantIter->record << endl;
+//    }
+//    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+//      buildRecord(vmIter->first, *variantIter);
+//      *output << variantIter->record << endl;
+//    }
   }
  
   // MNPs.
   if (processMnps) {
-    for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
-      buildRecord(vmIter->first, *variantIter);
-      *output << variantIter->record << endl;
-    }
+//    for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+//      buildRecord(vmIter->first, *variantIter);
+//      *output << variantIter->record << endl;
+//    }
   }
  
   // Indels.
   if (processIndels) {
-    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-      buildRecord(vmIter->first, *variantIter);
-      *output << variantIter->record << endl;
+//    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+//      buildRecord(vmIter->first, *variantIter);
+//      *output << variantIter->record << endl;
+//    }
+//  }
+    for (iter = var.indels.begin(); iter != var.indels.end(); iter++) {
+      buildRecord(position, *iter);
+      *output << iter->record << endl;
     }
   }
 }

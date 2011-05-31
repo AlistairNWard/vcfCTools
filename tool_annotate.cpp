@@ -184,6 +184,10 @@ int annotateTool::Run(int argc, char* argv[]) {
   variant var; // Define variant object.
   var.determineVariantsToProcess(processSnps, processMnps, processIndels);
 
+  intersect ints; // Define an intersection object.
+  ints.setBooleanFlags(false, false, false, true, true);  // Set the flags required for performing intersections.
+  ints.writeFrom = "a";
+
   // Open the vcf file and parse the header.
   v.openVcf(vcfFile);
   v.parseHeader();
@@ -233,8 +237,8 @@ int annotateTool::Run(int argc, char* argv[]) {
   writeHeader(output, v, false, taskDescription); // tools.cpp
 
 // Annotate the vcf file.
-  if (annotateDbsnp || annotateVcf) {intersectVcf(v, var, annVcf, annVar, false, false, true, string("a"), output);}
-  else if (annotateBed) {intersectVcfBed(v, var, b, bs, false, true, output);}
+  if (annotateDbsnp || annotateVcf) {ints.intersectVcf(v, var, annVcf, annVar, output);}
+  else if (annotateBed) {ints.intersectVcfBed(v, var, b, bs, false, true, output);}
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.

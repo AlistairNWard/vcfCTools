@@ -25,9 +25,23 @@
 #include "vcfCTools_tool.h"
 
 using namespace std;
-using namespace vcfCTools;
+//using namespace vcfCTools;
 
-void intersectVcf(vcf&, variant&, vcf&, variant&, bool, bool, bool, string, ostream*);
-void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, bool, bool, ostream*);
+namespace vcfCTools {
+
+class intersect {
+  public:
+    intersect(void);
+    ~intersect(void);
+    void setBooleanFlags(bool, bool, bool, bool, bool);
+    void intersectVcf(vcf&, variant&, vcf&, variant&, ostream*);
+    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, bool, bool, ostream*);
+
+  public:
+    intFlags flags;
+    string writeFrom;
+};
+
+} // namespace vcfCTools
 
 #endif
