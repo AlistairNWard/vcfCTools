@@ -28,6 +28,7 @@ statistics::statistics(void) {
 
 // Initialise sample level statistics.
   processSampleSnps = false;
+  generateDetailed  = false;
   sampleSnps.clear();
 }
 
@@ -35,7 +36,7 @@ statistics::statistics(void) {
 statistics::~statistics(void) {}
 
 // Parse the variants at this locus and generate statistics.
-void statistics::generateStatistics(variant& var, vcf& v, int position, bool useAnnotations, vector<string>& annFlags, bool generateAfs) {
+void statistics::generateStatistics(variant& var, vcf& v, int position, bool useAnnotations, vector<string>& annFlags, bool generateAfs, ostream* output) {
   unsigned int ac;
   double af;
   variantInfo info;
@@ -66,11 +67,10 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
       // alternates come up, treat it as a quad-allelic.
       if (var.vmIter->second.biSnps.size() > 1) {
         if (iterationNumber == 1) {variants[var.variantIter->referenceSequence][var.variantIter->filters].multiAllelic++;}
-      }
   
       // If this is the only biallelic SNP at this locus, determine if it is a transition or a transversion
       // and update the statistics accordingly.
-      else {
+      } else {
         isTransition   = false;
         isTransversion = false;
   
@@ -85,8 +85,9 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
         if (alleles == "ag" || alleles == "ct") {
           isTransition = true;
 
-          // Sample level stats.
+          // Sample level and detailed stats.
           if (processSampleSnps) {updateSampleSnps(var, v, ac);}
+          if (generateDetailed) {updateDetailedSnps(var, v, ac, output);}
 
           if (inDbsnp) {
             variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransitions++;
@@ -112,6 +113,7 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
 
           // Sample level stats.
           if (processSampleSnps) {updateSampleSnps(var, v, ac);}
+          if (generateDetailed) {updateDetailedSnps(var, v, ac, output);}
 
           if (inDbsnp) {
             variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransversions++;
@@ -195,6 +197,34 @@ void statistics::generateStatistics(variant& var, vcf& v, int position, bool use
   }
 }
 
+// Print the header for detailed statistics.
+void statistics::printDetailedHeader(ostream* output) {
+  *output << "Detailed statistics for each variant position:" << endl;
+  *output << setw(24) << "";
+  *output << setw(48) << "    ----------Homozygous reference------------";
+  *output << setw(48) << "    ---------------Heterozygous---------------";
+  *output << setw(48) << "    --------Homozygous non-reference----------";
+  *output << setw(12) << "No genotype";
+  *output << endl;
+  *output << setw(12) << "Ref. seq.";
+  *output << setw(12) << "Position";
+  *output << setw(12) << "Number";
+  *output << setw(12) << "Mean depth";
+  *output << setw(12) << "Min depth";
+  *output << setw(12) << "Max depth";
+  *output << setw(12) << "Number";
+  *output << setw(12) << "Mean depth";
+  *output << setw(12) << "Min depth";
+  *output << setw(12) << "Max depth";
+  *output << setw(12) << "Number";
+  *output << setw(12) << "Mean depth";
+  *output << setw(12) << "Min depth";
+  *output << setw(12) << "Max depth";
+  *output << setw(12) << "Number";
+  *output << setw(12) << "SNP type";
+  *output << endl;
+}
+
 // Search for annotations in the info string.  This will either involve searching
 // for flags from a given vector or searching for all flags in the info field.
 void statistics::getAnnotations(vector<string>& annotationFlags, variantInfo& info, map<string, unsigned int>& annotation) {
@@ -273,6 +303,93 @@ void statistics::updateSampleSnps(variant& var, vcf& v, unsigned int ac) {
       dIter++;
     }
   }
+}
+
+// Update the map containing detailed statistics for SNPs.
+void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostream* output) {
+  vector<string> genotypes = var.extractGenotypeField( string("GT") );
+  vector<string> genotypeQualities = var.extractGenotypeField( string("GQ") );
+  vector<string> genotypeDepth = var.extractGenotypeField( string("DP") );
+
+  vector<string>::iterator qIter = genotypeQualities.begin();
+  vector<string>::iterator dIter = genotypeDepth.begin();
+
+  unsigned int unknown     = 0;
+  unsigned int minHomAlt   = 0;
+  unsigned int maxHomAlt   = 0;
+  unsigned int homAlt      = 0;
+  unsigned int homAltDepth = 0;
+  unsigned int minHet      = 0;
+  unsigned int maxHet      = 0;
+  unsigned int het         = 0;
+  unsigned int hetDepth    = 0;
+  unsigned int minHomRef   = 0;
+  unsigned int maxHomRef   = 0;
+  unsigned int homRef      = 0;
+  unsigned int homRefDepth = 0;
+
+  unsigned int i = 0;
+  for (vector<string>::iterator gIter = genotypes.begin(); gIter != genotypes.end(); gIter++) {
+    double genotypeQuality = atof( (*qIter).c_str() );
+    double depth = atof( (*dIter).c_str() );
+    if (genotypeQuality >= minDetailedGenotypeQuality) {
+
+      // Homozygous alternate SNPs.
+      if (*gIter == "1/1") {
+        homAlt++;
+        homAltDepth += depth;
+        if (depth < minHomAlt || minHomAlt == 0) {minHomAlt = depth;}
+        if (depth > maxHomAlt) {maxHomAlt = depth;}
+
+        // If the SNP is a singleton, update the singletons stat.
+//        if (ac == 1) {sampleSnps[v.samples[i]].singletons++;}
+
+      // Heterozygous SNPs.
+      } else if (*gIter == "0/1" || *gIter == "1/0") {
+        het++;
+        hetDepth += depth;
+        if (depth < minHet || minHet == 0) {minHet = depth;}
+        if (depth > maxHet) {maxHet = depth;}
+
+      // Homozygous reference.
+      } else if (*gIter == "0/0") {
+        homRef++;
+        homRefDepth += depth;
+        if (depth < minHomRef || minHomRef == 0) {minHomRef = depth;}
+        if (depth > maxHomRef) {maxHomRef = depth;}
+
+      // Uncalled genotypes.
+      } else {
+        unknown++;
+      }
+
+      i++;
+      qIter++;
+      dIter++;
+    }
+  }
+
+  double aveHetDepth    = (het == 0) ? 0. : double(hetDepth) / double(het);
+  double aveHomRefDepth = (homRef == 0) ? 0. : double(homRefDepth) / double(homRef);
+  double aveHomAltDepth = (homAlt == 0) ? 0. : double(homAltDepth) / double(homAlt);
+  *output << setw(12) << var.variantIter->referenceSequence;
+  *output << setw(12) << var.vmIter->first;
+  *output << setw(12) << homRef;
+  *output << setw(12) << aveHomRefDepth;
+  *output << setw(12) << minHomRef;
+  *output << setw(12) << maxHomRef;
+  *output << setw(12) << het;
+  *output << setw(12) << aveHetDepth;
+  *output << setw(12) << minHet;
+  *output << setw(12) << maxHet;
+  *output << setw(12) << homAlt;
+  *output << setw(12) << aveHomAltDepth;
+  *output << setw(12) << minHomAlt;
+  *output << setw(12) << maxHomAlt;
+  *output << setw(12) << unknown;
+  if (isTransition) {*output << setw(12) << "TS";}
+  else if (isTransversion) {*output << setw(12) << "TV";}
+  *output << endl;
 }
 
 // The structure containing the numbers of the different variant types is

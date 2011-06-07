@@ -17,11 +17,12 @@ using namespace vcfCTools;
 statsTool::statsTool(void)
   : AbstractTool()
 {
-  generateAfs = false;
-  useAnnotations = false;
-  annotationFlagsString = "";
+  generateAfs              = false;
+  generateDetailed         = false;
+  useAnnotations           = false;
+  annotationFlagsString    = "";
   currentReferenceSequence = "";
-  sampleSnps = false;
+  sampleSnps               = false;
 }
 
 // Destructor.
@@ -41,10 +42,12 @@ int statsTool::Help(void) {
   cout << "     output vcf file." << endl;
   cout << "  -a, --allele-frequency-spectrum" << endl;
   cout << "     generate statistics as a function of the AFS." << endl;
+  cout << "  -d, --detailed" << endl;
+  cout << "     generate detailed statistics for each SNP considering samples with genotype quality greater than value specified.." << endl;
   cout << "  -n, --annotation" << endl;
   cout << "     include statistics on listed annotations (comma separated list or 'all')." << endl;
   cout << "  -s, --sample-snps" << endl;
-  cout << "     include SNP statistics on all individual samples (requires genotypes to be present)." << endl;
+  cout << "     include SNP statistics on all individual samples (requires genotypes to be present and s cut-off genotype quality to be specified)." << endl;
   cout << "  -1, --snps" << endl;
   cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
@@ -70,6 +73,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"out", required_argument, 0, 'o'},
     {"allele-frequency-spectrum", no_argument, 0, 'a'},
     {"annotations", required_argument, 0, 'n'},
+    {"detailed", required_argument, 0, 'd'},
     {"sample-snps", required_argument, 0, 's'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
@@ -80,7 +84,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:an:s:124", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:ad:n:s:124", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -103,6 +107,12 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
       // Generate the allele frequency spectrum.
       case 'a':
         generateAfs = true;
+        break;
+
+      // Generate detailed SNP statistics.
+      case 'd':
+        generateDetailed = true;
+        detailedGenotypeQualityString = optarg;
         break;
 
       // Determine whether to output stats on annotations and
@@ -173,19 +183,26 @@ int statsTool::Run(int argc, char* argv[]) {
   output = openOutputFile(outputFile);
   v.parseHeader();
 
-// If statistics are being generated on a per-sample basis, check that 
-// genotypes exist.
-  if (sampleSnps) {
-    stats.minGenotypeQuality = atof(genotypeQualityString.c_str());
+// If statistics are being generated on a per-sample basis (or detailed
+// statistics are being generate, check that genotypes exist.
+  if (sampleSnps || generateDetailed) {
+    if (sampleSnps) {stats.minGenotypeQuality = atof(genotypeQualityString.c_str());}
+    if (generateDetailed) {stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());}
     if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
       cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double." << endl;
+      exit(1);
+    }
+    if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
+        detailedGenotypeQualityString != "0.0") ) {
+      cerr << "ERROR: genotype quality for --detailed (-d) must be a double." << endl;
       exit(1);
     }
     if (!v.hasGenotypes) {
       cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
       exit(1);
     } else {
-      stats.processSampleSnps = true;
+      if (sampleSnps) {stats.processSampleSnps = true;}
+      if (generateDetailed) {stats.generateDetailed  = true;}
     }
   }
 
@@ -202,6 +219,9 @@ int statsTool::Run(int argc, char* argv[]) {
       }
     }
   }
+
+// Print the header for detailed statistics if necessary.
+  if (generateDetailed) {stats.printDetailedHeader(output);}
 
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
@@ -222,7 +242,7 @@ int statsTool::Run(int argc, char* argv[]) {
         v.success = v.getRecord(currentReferenceSequence);
       }
       var.vmIter = var.variantMap.begin();
-      stats.generateStatistics(var, v, var.vmIter->first, useAnnotations, annotationFlags, generateAfs);
+      stats.generateStatistics(var, v, var.vmIter->first, useAnnotations, annotationFlags, generateAfs, output);
       var.variantMap.erase(var.vmIter);
     } 
   }

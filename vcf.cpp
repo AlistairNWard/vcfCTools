@@ -119,7 +119,7 @@ bool vcf::headerInfo(string& headerLine, unsigned int headerLineType) {
 // The number field can take the value ".", if the number of values is variable.  If
 // the alternate alleles field is a comma separated list, this could force other
 // fields to allow a comma separated list also.
-    if (number == ".") {infoTag.number = 0;}
+    if (number == ".") {infoTag.number = -1;}
     else {
       if (isdigit(number[0])) {
         infoTag.number  = atoi(number.c_str());
@@ -261,17 +261,6 @@ bool vcf::getRecord(string& currentReferenceSequence) {
   variantRecord.quality           = atof(recordFields[5].c_str());
   variantRecord.filters           = recordFields[6];
   variantRecord.info              = recordFields[7];
-
-  // If genotypes have been removed, only store the non-genotype part of the
-  // record.
-//  if (removeGenotypes) {
-//    variantRecord.record = "";
-//    for (unsigned int i = 0; i < 7; i++) {
-//      variantRecord.record.append(recordFields[i]);
-//      variantRecord.record.append("	");
-//    }
-//    variantRecord.record.append(recordFields[7]);
-//  } else {variantRecord.record = record;}
 
   // Check that genotypes exist.
   if (recordFields.size() < 9) {hasGenotypes = false;}

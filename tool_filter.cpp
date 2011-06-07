@@ -419,6 +419,7 @@ int filterTool::Run(int argc, char* argv[]) {
 
 // Read in the header information.
   v.parseHeader();
+  var.headerInfoFields = v.headerInfoFields;
   string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}
 

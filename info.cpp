@@ -100,6 +100,16 @@ vector<string> variantInfo::buildAltInfo(string& ref, int position, int numberAl
         *altIter = (*altIter == "") ? *altIter + entry : *altIter + ";" + entry;
       }
 
+    // If there is a comma seperated list and the number of entries is equal to the number
+    // stated in the header line, include all these entries in the new variant string.
+    } else if (values.size() == header[iter->first].number) {
+      entry = iter->first + "=" + infoTags[iter->first];
+
+      // Add to each info string.
+      for (altIter = altInfoStrings.begin(); altIter != altInfoStrings.end(); altIter++) {
+        *altIter = (*altIter == "") ? entry : *altIter + ";" + entry;
+      }
+
     // If there is a comma separated set of values and the same number of entries as there
     // are alternates, include successive values in each string.
     } else if (values.size() == numberAlts) {
@@ -108,6 +118,15 @@ vector<string> variantInfo::buildAltInfo(string& ref, int position, int numberAl
         entry = iter->first + "=" + values[entryNumber];
         *altIter = (*altIter == "") ? *altIter + entry : *altIter + ";" + entry;
         entryNumber++;
+      }
+
+    // If one of the above are true and the number of entries is variable (i.e. in the INFO
+    // description in the header is '.'), include the whole entry for each variant record.
+    } else if (header[iter->first].number == -1) {
+
+      // Add to each info string.
+      for (altIter = altInfoStrings.begin(); altIter != altInfoStrings.end(); altIter++) {
+        *altIter = (*altIter == "") ? *altIter + entry : *altIter + ";" + entry;
       }
 
     // There are multiple entries in the info field, but the number of entries does not

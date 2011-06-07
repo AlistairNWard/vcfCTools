@@ -103,6 +103,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant, b
       // comma separated lists.  If they exist, only send the entry
       // relevant to this particular alternate.
       variantInfo info;
+      info.header = headerInfoFields;
       info.processInfoFields(variant.info);
       vector<string> altInfo = info.buildAltInfo(variant.referenceSequence, position, alt.size());
       unsigned int altInfoNumber = 0;
