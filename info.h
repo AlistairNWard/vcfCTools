@@ -40,6 +40,7 @@ class variantInfo {
     string type;
     vector<string> values;
     map<string, string> infoTags;
+    map<string, headerInfoStruct> header;
 };
 
 } // namespace vcfCTools

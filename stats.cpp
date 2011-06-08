@@ -204,7 +204,7 @@ void statistics::printDetailedHeader(ostream* output) {
   *output << setw(48) << "    ----------Homozygous reference------------";
   *output << setw(48) << "    ---------------Heterozygous---------------";
   *output << setw(48) << "    --------Homozygous non-reference----------";
-  *output << setw(12) << "No genotype";
+  *output << setw(12) << " -No genotype-";
   *output << endl;
   *output << setw(12) << "Ref. seq.";
   *output << setw(12) << "Position";
@@ -221,7 +221,9 @@ void statistics::printDetailedHeader(ostream* output) {
   *output << setw(12) << "Min depth";
   *output << setw(12) << "Max depth";
   *output << setw(12) << "Number";
-  *output << setw(12) << "SNP type";
+  *output << setw(20) << "SNP type";
+  *output << setw(20) << "Het samples";
+  *output << setw(20) << "Hom alt samples";
   *output << endl;
 }
 
@@ -313,6 +315,10 @@ void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostre
 
   vector<string>::iterator qIter = genotypeQualities.begin();
   vector<string>::iterator dIter = genotypeDepth.begin();
+  vector<string>::iterator sIter = v.samples.begin();
+
+  string hetSamples    = "";
+  string homAltSamples = "";
 
   unsigned int unknown     = 0;
   unsigned int minHomAlt   = 0;
@@ -328,7 +334,6 @@ void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostre
   unsigned int homRef      = 0;
   unsigned int homRefDepth = 0;
 
-  unsigned int i = 0;
   for (vector<string>::iterator gIter = genotypes.begin(); gIter != genotypes.end(); gIter++) {
     double genotypeQuality = atof( (*qIter).c_str() );
     double depth = atof( (*dIter).c_str() );
@@ -340,9 +345,7 @@ void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostre
         homAltDepth += depth;
         if (depth < minHomAlt || minHomAlt == 0) {minHomAlt = depth;}
         if (depth > maxHomAlt) {maxHomAlt = depth;}
-
-        // If the SNP is a singleton, update the singletons stat.
-//        if (ac == 1) {sampleSnps[v.samples[i]].singletons++;}
+        homAltSamples = (homAltSamples == "") ? *sIter : homAltSamples + "," + *sIter;
 
       // Heterozygous SNPs.
       } else if (*gIter == "0/1" || *gIter == "1/0") {
@@ -350,6 +353,7 @@ void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostre
         hetDepth += depth;
         if (depth < minHet || minHet == 0) {minHet = depth;}
         if (depth > maxHet) {maxHet = depth;}
+        hetSamples = (hetSamples == "") ? *sIter : hetSamples + "," + *sIter;
 
       // Homozygous reference.
       } else if (*gIter == "0/0") {
@@ -362,11 +366,10 @@ void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostre
       } else {
         unknown++;
       }
-
-      i++;
-      qIter++;
-      dIter++;
     }
+    qIter++; // Iterate the genotype quality.
+    dIter++; // Iterate the genotype depth.
+    sIter++; // Iterate the sample name.
   }
 
   double aveHetDepth    = (het == 0) ? 0. : double(hetDepth) / double(het);
@@ -387,8 +390,16 @@ void statistics::updateDetailedSnps(variant& var, vcf& v, unsigned int ac, ostre
   *output << setw(12) << minHomAlt;
   *output << setw(12) << maxHomAlt;
   *output << setw(12) << unknown;
-  if (isTransition) {*output << setw(12) << "TS";}
-  else if (isTransversion) {*output << setw(12) << "TV";}
+  if (isTransition) {*output << setw(20) << "transition";}
+  else if (isTransversion) {*output << setw(20) << "transversion";}
+  else {*output << setw(20) << "other";}
+  
+  // Output the lists of het and hom alt samples.  If there are none, set
+  // the string to "no-hets" or "no-hom-alts".
+  if (hetSamples == "") {hetSamples = "no-hets";}
+  if (homAltSamples == "") {homAltSamples = "no-hom-alts";}
+  *output << "  " << hetSamples << "  ";
+  *output << "  " << homAltSamples << "  ";
   *output << endl;
 }
 

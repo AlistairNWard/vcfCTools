@@ -79,6 +79,7 @@ class variant {
     map<int, variantsAtLocus> variantMap;
     map<int, variantsAtLocus>::iterator vmIter;
     vector<variantDescription>::iterator variantIter;
+    map<string, headerInfoStruct> headerInfoFields;
 
     // Boolean flags.
     bool processSnps;

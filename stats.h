@@ -164,9 +164,11 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(variant&, vcf&, int, bool, vector<string>&, bool);
+    void generateStatistics(variant&, vcf&, int, bool, vector<string>&, bool, ostream*);
+    void printDetailedHeader(ostream*);
     void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
     void updateSampleSnps(variant&, vcf&, unsigned int);
+    void updateDetailedSnps(variant&, vcf&, unsigned int, ostream*);
     void countByFilter();
     void printSnpStatistics(ostream*);
     void printHeader(ostream*, string, bool, bool);
@@ -201,6 +203,8 @@ class statistics {
     map<string, unsigned int> annotationNames;
 
     // Sample level statistics.
+    bool generateDetailed;
+    double minDetailedGenotypeQuality;
     bool processSampleSnps;
     double minGenotypeQuality;
     map<string, sampleSnpStats> sampleSnps;

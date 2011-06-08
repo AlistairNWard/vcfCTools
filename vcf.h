@@ -27,7 +27,7 @@ using namespace std;
 namespace vcfCTools {
 
 struct headerInfoStruct {
-  unsigned int number;
+  int number;
   string type;
   string description;
   bool success;

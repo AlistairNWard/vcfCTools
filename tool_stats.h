@@ -44,10 +44,12 @@ class statsTool : public AbstractTool {
     string currentReferenceSequence;
     string annotationFlagsString;
     vector<string> annotationFlags;
+    string detailedGenotypeQualityString;
     string genotypeQualityString;
 
     // Boolean flags.
     bool generateAfs;
+    bool generateDetailed;
     bool useAnnotations;
     bool processSnps;
     bool processMnps;
