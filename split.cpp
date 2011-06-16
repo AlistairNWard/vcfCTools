@@ -36,13 +36,20 @@ std::vector<std::string> &split(const std::string &s, char delim, std::vector<st
     std::stringstream ss(s);
     std::string item;
     int counter = 1;
-    while(std::getline(ss, item, delim) && counter < n) {
+    bool flag = false;
+
+    while(counter < n) {
+      flag = std::getline(ss, item, delim).eof();
       elems.push_back(item);
       counter++;
+      if (flag) {break;}
     }
-    elems.push_back(item);
-    std::getline(ss, item);
-    elems.push_back(item);
+    if (!flag) {
+      flag = std::getline(ss, item).eof();
+      elems.push_back(item);
+    }
+    for (int i = 0; i < elems.size(); i++) {std::cout << i << " " << elems[i] << std::endl;}
+    exit(0);
 
     return elems;
 }

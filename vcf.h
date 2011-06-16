@@ -84,6 +84,7 @@ struct variantDescription {
   double quality;
   string filters;
   string info;
+  bool hasGenotypes;
   string genotypeFormatString;
   string genotypeString;
   

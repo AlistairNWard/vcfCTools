@@ -248,7 +248,7 @@ bool vcf::getRecord(string& currentReferenceSequence) {
 // Break the record up into its individual parts.  Leave the genotype fields
 // as a string for now.  If the genotypes require parsing, this can be broken
 // up when it is needed.
-  vector<string> recordFields = split(record, '\t', 9);
+  vector<string> recordFields = split(record, '\t', 10);
 
 // Resolve the information for this variant and add to a temporary structure.
 // This will be added to the map of variants when all information has been
@@ -263,8 +263,10 @@ bool vcf::getRecord(string& currentReferenceSequence) {
   variantRecord.info              = recordFields[7];
 
   // Check that genotypes exist.
-  if (recordFields.size() < 9) {hasGenotypes = false;}
-  else {
+  if (recordFields.size() < 9) {
+    hasGenotypes = false;
+    variantRecord.hasGenotypes = false;
+  } else {
     variantRecord.genotypeFormatString = recordFields[8];
     variantRecord.genotypeString = recordFields[9];
   }
