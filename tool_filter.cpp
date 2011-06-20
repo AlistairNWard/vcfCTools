@@ -20,19 +20,20 @@ using namespace vcfCTools;
 filterTool::filterTool(void)
   : AbstractTool()
 {
-  markPass = false;
-  cleardbSnp = false;
-  filterFail = false;
-  filterQuality = false;
-  findHets = false;
-  keepRecords = false;
-  removeGenotypes = false;
-  removeInfo = false;
-  stripRecords = false;
-  conditionalFilter = false;
-  filterString = "";
+  splitMnps                = false;
+  markPass                 = false;
+  cleardbSnp               = false;
+  filterFail               = false;
+  filterQuality            = false;
+  findHets                 = false;
+  keepRecords              = false;
+  removeGenotypes          = false;
+  removeInfo               = false;
+  stripRecords             = false;
+  conditionalFilter        = false;
+  filterString             = "";
   currentReferenceSequence = "";
-  useSampleList = false;
+  useSampleList            = false;
 }
 
 // Destructor.
@@ -64,6 +65,8 @@ int filterTool::Help(void) {
   cout << "	filter out all variants that are not marked as 'PASS'." << endl;
   cout << "  -m, --mark-as-pass" << endl;
   cout << "	mark all records as 'PASS'." << endl;
+  cout << "  -p, --split-mnps" << endl;
+  cout << "	split MNPs into SNPs." << endl;
   cout << "  -q, --quality" << endl;
   cout << "	filter on variant quality." << endl;
   cout << "  -r, --remove-genotypes" << endl;
@@ -100,6 +103,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"help", no_argument, 0, 'h'},
       {"in", required_argument, 0, 'i'},
       {"out", required_argument, 0, 'o'},
+      {"split-mnps", no_argument, 0, 'p'},
       {"clear-dbsnp", no_argument, 0, 'c'},
       {"delete-info", required_argument, 0, 'd'},
       {"filter-string", required_argument, 0, 'f'},
@@ -119,7 +123,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:cd:f:k:elq:mrs:t:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:cd:f:k:elpq:mrs:t:123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -164,6 +168,12 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       // Filter out reads that are not marked as 'PASS'
       case 'l':
         filterFail = true;
+        break;
+
+      // When processing MNPs, split them up into
+      // multiple SNPs.
+      case 'p':
+        splitMnps = true;
         break;
 
       // Filter on SNP quality.
@@ -219,7 +229,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1] << endl;
+        cerr << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -274,6 +284,89 @@ void filterTool::filter(vcf& v, variant& var) {
 
   // SNPs.
   if (var.processSnps) {
+
+    // Set the reference allele as that from the first SNP in the list.  Each subsequent
+    // SNP will have the reference allele checked against this to ensure consistency.
+    // Also, an array containing all alternates is created and identical SNPs are filtered
+    // out.
+    //
+    // This checking is currently only performed for biallelic SNPs.
+    if (var.vmIter->second.biSnps.size() > 0) {
+      string masterRef = var.vmIter->second.biSnps[0].ref;
+      map<string, int> altAlleles;
+      bool duplicateAlts = false;
+  
+      for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
+        if (var.variantIter->ref != masterRef) {
+          cerr << "Different SNPs at the same locus have different alt alleles" << endl;
+          cerr << "Please check the contents of the vcf file" << endl;
+          cerr << var.variantIter->referenceSequence << ":" << var.vmIter->first;
+          cerr << ".  Present reference alleles: " << masterRef << " and " << var.variantIter->ref << endl;
+          exit(1);
+        }
+  
+        // Keep count of the number of occurences of each alternate allele.
+        altAlleles[var.variantIter->altString]++;
+        if (altAlleles[var.variantIter->altString] > 1) {duplicateAlts = true;}
+      }
+  
+      // If any alternate allele was observed more than once, some of the SNPs need to be
+      // removed as they are duplicated.
+      if (duplicateAlts) {
+        variantInfo info;
+  
+        for (map<string, int>::iterator iter = altAlleles.begin(); iter != altAlleles.end(); iter++) {
+  
+          // Find the number of alts for each alternate allele.  If this is greater than 1,
+          // loop through the SNPs and throw out all but 1 of these SNPs.  As an initial
+          // check, see if any of the duplicated SNPs occurred as a result of decomposing
+          // MNPs.  These should be removed first.  In the absence of this flag, the first
+          // record will be retained, all others discarded.
+          if (iter->second > 1) {
+            var.variantIter = var.vmIter->second.biSnps.begin();
+            while (var.variantIter != var.vmIter->second.biSnps.end()) {
+              if (var.variantIter->altString == iter->first) {
+                info.processInfoFields(var.variantIter->info);
+                if (info.infoTags.count("FROM_MNP") != 0) {
+                  var.variantIter = var.vmIter->second.biSnps.erase(var.variantIter);
+                  altAlleles[iter->first]--;
+                  cerr << "WARNING: Removed duplicated SNP at " << var.vmIter->second.referenceSequence << ":" << var.vmIter->first << endl;
+                } else {
+                  ++var.variantIter;
+                }
+              } else {
+                ++var.variantIter;
+              }
+            }
+          }
+        }
+  
+        // Check if there are still duplicated SNPs.  If so, keep only the first instance
+        // of each.
+        for (map<string, int>::iterator iter = altAlleles.begin(); iter != altAlleles.end(); iter++) {
+          int count = 0;
+          if (iter->second > 1) {
+            var.variantIter = var.vmIter->second.biSnps.begin();
+            while (var.variantIter != var.vmIter->second.biSnps.end()) {
+              if (var.variantIter->altString == iter->first) {
+                if (count != 0) {
+                  var.variantIter = var.vmIter->second.biSnps.erase(var.variantIter);
+                  altAlleles[iter->first]--;
+                  cerr << "WARNING: Removed duplicated SNP at " << var.vmIter->second.referenceSequence << ":" << var.vmIter->first << endl;
+                } else {
+                  ++var.variantIter;
+                }
+                count++;
+              } else {
+                ++var.variantIter;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Perform filtering on the SNPs.
     for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
       performFilter(v, var.vmIter->first, *var.variantIter);
     }
@@ -413,7 +506,7 @@ int filterTool::Run(int argc, char* argv[]) {
 
   vcf v; // Define vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, splitMnps);
   v.openVcf(vcfFile); // Open the vcf file.
   output = openOutputFile(outputFile);
 
@@ -422,6 +515,12 @@ int filterTool::Run(int argc, char* argv[]) {
   var.headerInfoFields = v.headerInfoFields;
   string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}
+
+// If MNPs are to be broken up, add a line to the header explaining this.
+  if (splitMnps) {
+    string text = "Indicates that this SNP was generated from the decomposition of an MNP.\">";
+    v.headerInfoLine["FROM_MNP"] = "##INFO=<ID=FROM_MNP,Number=0,Type=Flag,Description=" + text;
+  }
 
 // If find hets is specified, check that genotypes exist.
   if (findHets && !v.hasGenotypes) {
@@ -503,7 +602,7 @@ int filterTool::Run(int argc, char* argv[]) {
 
     // Loop over the variant structure until it is empty.  While v.update is true,
     // i.e. when the reference sequence is still the current reference sequence,
-    // keep adding variants to the structre.
+    // keep adding variants to the structure.
     while (var.variantMap.size() != 0) {
       if (v.update && v.success) {
         var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);

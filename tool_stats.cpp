@@ -145,7 +145,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 2] << endl;
+        cerr << "Unknown option: " << argv[optind - 2] << endl;
         exit(1);
  
       // default
@@ -176,7 +176,7 @@ int statsTool::Run(int argc, char* argv[]) {
 
   vcf v; // Create a vcf object.
   variant var; // Create a variant structure to hold the variants.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
   statistics stats; // Create a statistics object.
 
   v.openVcf(vcfFile);

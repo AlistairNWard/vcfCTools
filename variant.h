@@ -60,7 +60,7 @@ class variant {
   public:
     variant(void);
     ~variant(void);
-    void determineVariantsToProcess(bool, bool, bool);
+    void determineVariantsToProcess(bool, bool, bool, bool);
     bool buildVariantStructure(vcf&);
     void addVariantToStructure(int, variantDescription&, bool);
     void clearReferenceSequence(vcf&, variant&, intFlags, string, bool, ostream*);
@@ -71,7 +71,6 @@ class variant {
     void compareVariantsDifferentLocus(variant&, intFlags, bool, ostream*);
     vector<string> extractGenotypeField(string);
     void writeVariants(int, variantsAtLocus&, ostream*);
-    //void writeVariants(ostream*);
 
   public:
     unsigned int recordsInMemory;
@@ -85,6 +84,7 @@ class variant {
     bool processSnps;
     bool processMnps;
     bool processIndels;
+    bool splitMnps;
 };
 
 } // namespace vcfCTools

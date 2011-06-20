@@ -48,8 +48,6 @@ std::vector<std::string> &split(const std::string &s, char delim, std::vector<st
       flag = std::getline(ss, item).eof();
       elems.push_back(item);
     }
-    for (int i = 0; i < elems.size(); i++) {std::cout << i << " " << elems[i] << std::endl;}
-    exit(0);
 
     return elems;
 }

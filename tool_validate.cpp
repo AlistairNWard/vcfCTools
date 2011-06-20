@@ -105,7 +105,7 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1] << endl;
+        cerr << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default

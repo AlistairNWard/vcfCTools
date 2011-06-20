@@ -21,13 +21,14 @@ variant::variant(void) {
   processSnps     = false;
   processMnps     = false;
   processIndels   = false;
+  splitMnps       = false;
 };
 
 // Destructor.
 variant::~variant(void) {};
 
 // Determine which variants to process.
-void variant::determineVariantsToProcess(bool snps, bool mnps, bool indels) {
+void variant::determineVariantsToProcess(bool snps, bool mnps, bool indels, bool iSplitMnps) {
   if (snps) {processSnps = true;}
   if (mnps) {processMnps = true;}
   if (indels) {processIndels = true;}
@@ -36,6 +37,9 @@ void variant::determineVariantsToProcess(bool snps, bool mnps, bool indels) {
     processMnps = true;
     processIndels = true;
   }
+
+  // If the MNPs are to be broken into SNPs, set the flag
+  if (iSplitMnps) {splitMnps = true;}
 }
 
 // Build up a structure containing variants.
@@ -145,7 +149,6 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
     variant.altString = alt;
     variantMap[position].biSnps.push_back(variant);
     variantMap[position].hasBiallelicSnp = true;
-
   } else {
 
     // Multi-base variants have the alt allele aligned to the ref allele
@@ -179,11 +182,37 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
 
     // MNP.
     if (ref.size() != 1 && (ref.size() - alt.size()) == 0) {
-      variant.isMnp = true;
-      variant.ref = alRef;
-      variant.altString = alAlt;
-      variantMap[position].mnps.push_back(variant);
-      variantMap[position].hasMnp = true;
+      if (splitMnps) {
+        string::iterator altIter = alt.begin();
+        int variantPosition = position;
+
+        // Append the flag "FROM_MNP" to the info field so it is clear that this
+        // entry was generated from a called MNP.
+        if (variant.info == "") {variant.info = "SNP;FROM_MNP";}
+        else {variant.info += ";SNP;FROM_MNP";}
+
+        for (string::iterator refIter = ref.begin(); refIter != ref.end(); refIter++) {
+
+          // Add this part of the MNP to the map as a SNP.
+          variant.isBiallelicSnp = true;
+          variant.ref = *refIter;
+          variant.altString = *altIter;
+
+          // Add the variant to the map.
+          variantMap[variantPosition].biSnps.push_back(variant);
+          variantMap[variantPosition].hasBiallelicSnp = true;
+
+          // Update the alt allele and the coordinate of the variant.
+          variantPosition++;
+          altIter++;
+        }
+      } else {
+        variant.isMnp = true;
+        variant.ref = alRef;
+        variant.altString = alAlt;
+        variantMap[position].mnps.push_back(variant);
+        variantMap[position].hasMnp = true;
+      }
 
     // Insertion.
     } else if ( alt.size() > ref.size() ) {
@@ -439,6 +468,7 @@ vector<string> variant::extractGenotypeField(string field) {
 //
 // If the variants compared are at the same position.
 void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writeFrom, ostream* output) {
+  unsigned int counter;
 
   // Define a new structure to hold the variants selected for output.  For example,
   // if only identical variants are required, all variants will be checked to see
@@ -455,7 +485,17 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writ
   bool hasMatch;
 
   // Compare SNPs.
-  if (processSnps) {
+  if (processSnps && vmIter->second.biSnps.size() != 0 && var.vmIter->second.biSnps.size()) {
+
+    // Parse the SNPs from the first file and see of the there are identical
+    // SNPs in the second file.
+    //for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+    //  hasMatch = false;
+    //  counter = 0;
+    //  for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
+    //    if (variantIter->ref == var.variantIter->ref && variantIter->altString == var.variantIter->altString) {
+    //      hasMatch = true;
+    //}
   }
 
   // Compare MNPs.
@@ -468,7 +508,6 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writ
     // Create the array keeping track of whether an exact match for the
     // variants in the second file has been found.
     bool hasMatchVar[var.vmIter->second.indels.size()];
-    unsigned int counter;
     for (unsigned int i = 0; i < var.vmIter->second.indels.size(); i++) {hasMatchVar[i] = false;}
 
     // Check for identical variants.
@@ -578,11 +617,6 @@ void variant::writeVariants(int position, variantsAtLocus& var, ostream* output)
  
   // Indels.
   if (processIndels) {
-//    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-//      buildRecord(vmIter->first, *variantIter);
-//      *output << variantIter->record << endl;
-//    }
-//  }
     for (iter = var.indels.begin(); iter != var.indels.end(); iter++) {
       buildRecord(position, *iter);
       *output << iter->record << endl;

@@ -61,6 +61,7 @@ class filterTool : public AbstractTool {
     string samplesListFile;
 
     // Boolean flags.
+    bool splitMnps;
     bool processSnps;
     bool processMnps;
     bool processIndels;

@@ -142,7 +142,7 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1] << endl;
+        cerr << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -182,7 +182,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
   vcf v; // Define vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
 
   intersect ints; // Define an intersection object.
   ints.setBooleanFlags(false, false, false, true, true);  // Set the flags required for performing intersections.
@@ -196,7 +196,7 @@ int annotateTool::Run(int argc, char* argv[]) {
   // annotation.  To annotate from multiple files, piping should be used.
   vcf annVcf; // Define a vcf object.
   variant annVar; // Define a variant object
-  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels);
+  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
 
   if (annotateDbsnp || annotateVcf) {
 

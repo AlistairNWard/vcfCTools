@@ -50,6 +50,7 @@ class intersectTool : public AbstractTool {
     string writeFrom;
 
     // Boolean flags.
+    bool allowMismatch;
     bool passFilters;
     bool findCommon;
     bool findUnion;

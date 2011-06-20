@@ -19,6 +19,7 @@ intersectTool::intersectTool(void)
   : AbstractTool()
 {
   recordsInMemory = 100;
+  allowMismatch  = false;
   passFilters     = false;
   findCommon      = false;
   findUnion       = false;
@@ -46,10 +47,12 @@ int intersectTool::Help(void) {
   cout << "	output vcf file." << endl;
   cout << "  -c, --common" << endl;
   cout << "	output variants present in both files." << endl;
-  cout << "  -u, --union" << endl;
-  cout << "	output variants present in either file." << endl;
+  cout << "  -m, --mismatch" << endl;
+  cout << "     variants of the same type at the same locus are considered a match." << endl;
   cout << "  -q, --unique" << endl;
   cout << "	output variants unique to one of the files." << endl;
+  cout << "  -u, --union" << endl;
+  cout << "	output variants present in either file." << endl;
   cout << "  -s, --sites-only" << endl;
   cout << "	only compare files based on sites.  Do not evaluate the alleles." << endl;
   cout << "  -p, --pass-filters" << endl;
@@ -66,8 +69,6 @@ int intersectTool::Help(void) {
   cout << endl;
   cout << "  a: Write out records from the first file." << endl;
   cout << "  b: Write out records from the second file." << endl;
-  cout << "  c: Only write out variants if they share ref and alt alleles (info from first file)." << endl;
-  cout << "  d: Only write out variants if they share ref and alt alleles (info from second file)." << endl;
   cout << "  u: Write out all records from both files." << endl;
   cout << "  q: Write out records with the highest variant quality." << endl;
   cout << endl;
@@ -90,12 +91,13 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"help", no_argument, 0, 'h'},
     {"bed", required_argument, 0, 'b'},
+    {"common", required_argument, 0, 'c'},
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
+    {"mismatch", no_argument, 0, 'm'},
     {"pass-filters", no_argument, 0, 'p'},
-    {"common", required_argument, 0, 'c'},
-    {"union", required_argument, 0, 'u'},
     {"unique", required_argument, 0, 'q'},
+    {"union", required_argument, 0, 'u'},
     {"sites-only", no_argument, 0, 's'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
@@ -106,7 +108,7 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:pc:u:q:s123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:mpc:u:q:s123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -147,6 +149,11 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
         writeFrom = optarg;
         break;
 
+      // Determine if comparing for exact matches or not.
+      case 'm':
+        allowMismatch = true;
+        break;
+
       // Only compare variants based on the position.  Do not
       // interrogate the alleles.
       case 's':
@@ -175,7 +182,7 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1] << endl;
+        cerr << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -207,16 +214,12 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
   } else {
     if (writeFrom == "a") {cerr << "Writing out records from file: " << vcfFiles[0] << endl;}
     else if (writeFrom == "b") {cerr << "Writing out records from file: " << vcfFiles[1] << endl;}
-    else if (writeFrom == "c" && findUnion || findCommon) {cerr << "Writing out records from file: " << vcfFiles[0] << endl;}
-    else if (writeFrom == "d" && findUnion || findCommon) {cerr << "Writing out records from file: " << vcfFiles[1] << endl;}
     else if (writeFrom == "u" && findUnion || findCommon) {cerr << "Writing out all records." << endl;}
     else if ( (findCommon || findUnion) && writeFrom == "q") {cerr << "Writing out records with the highest quality value." << endl;}
     else {
       cerr << "The file from which the records are to be written needs to be selected." << endl;
       cerr << "    a - write records from the first inputted file." << endl;
       cerr << "    b - write records from the second inputted file." << endl;
-      cout << "    c - write out variants if they share ref and alt alleles (info from first file)." << endl;
-      cerr << "    d - write out variants if they share ref and alt alleles (info from second file)." << endl;
       cerr << "    u - write out all records from both files." << endl;
       if (findCommon) {cerr << "    q - write records with the highest variant quality." << endl;}
       exit(1);
@@ -243,7 +246,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     exit(0);
     vcf v; // Create a vcf object.
     variant var; // Create a variant object.
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
 
     bed b; // Create a bed object.
     bedStructure bs; // Create a bed structure.
@@ -270,9 +273,9 @@ int intersectTool::Run(int argc, char* argv[]) {
     v.closeVcf();
 
 // Output some brief statistics on the targets.
-    cout << "Number: " << b.numberTargets << endl;
-    cout << "Total target length: " << b.targetLength << endl;
-    cout << "Average target length: " << b.targetLength / b.numberTargets << endl;
+    cerr << "Number: " << b.numberTargets << endl;
+    cerr << "Total target length: " << b.targetLength << endl;
+    cerr << "Average target length: " << b.targetLength / b.numberTargets << endl;
     
 // Close the bed object.
     b.closeBed();
@@ -281,11 +284,11 @@ int intersectTool::Run(int argc, char* argv[]) {
   } else {
     vcf v1; // Create a vcf object.
     variant var1; // Create a variant object.
-    var1.determineVariantsToProcess(processSnps, processMnps, processIndels);
+    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
 
     vcf v2; // Create a vcf object.
     variant var2;
-    var2.determineVariantsToProcess(processSnps, processMnps, processIndels);
+    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
     
 // Open the vcf files.
     v1.openVcf(vcfFiles[0]);

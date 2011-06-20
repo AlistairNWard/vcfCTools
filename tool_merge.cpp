@@ -107,7 +107,7 @@ int mergeTool::parseCommandLine(int argc, char* argv[]) {
 
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 1] << endl;
+        cerr << "Unknown option: " << argv[optind - 1] << endl;
         exit(1);
  
       // default
@@ -148,7 +148,7 @@ int mergeTool::Run(int argc, char* argv[]) {
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
     vcf v; // Create a vcf object.
     variant var; // Create variant object.
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
     v.openVcf(vcfFiles[index]);
     v.parseHeader();
 

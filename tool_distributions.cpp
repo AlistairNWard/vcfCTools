@@ -134,7 +134,7 @@ int distributionsTool::parseCommandLine(int argc, char* argv[]) {
       
       //
       case '?':
-        cout << "Unknown option: " << argv[optind - 2] << endl;
+        cerr << "Unknown option: " << argv[optind - 2] << endl;
         exit(1);
  
       // default
@@ -304,7 +304,7 @@ int distributionsTool::Run(int argc, char* argv[]) {
 
   vcf v; // Create a vcf object.
   variant var; // Create a variant object;
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
 
   v.openVcf(vcfFile);
   output = openOutputFile(outputFile);

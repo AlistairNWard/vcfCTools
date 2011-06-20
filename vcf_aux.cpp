@@ -95,7 +95,7 @@ void getFlankingReference(string referenceSequence, int position, string ref, st
   // Add flanking sequence to the ref and alt allele in order to perform a Smith
   // Waterman alignemnt.
   if (ref.length() > 100) {
-    cout << "reference sequence in excess of 100bp.  Not yet handled." << endl;
+    cerr << "reference sequence in excess of 100bp.  Not yet handled." << endl;
     exit(1);
   } else {
     if (flankLength == 0) {
