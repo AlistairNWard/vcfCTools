@@ -604,7 +604,7 @@ int filterTool::Run(int argc, char* argv[]) {
     // i.e. when the reference sequence is still the current reference sequence,
     // keep adding variants to the structure.
     while (var.variantMap.size() != 0) {
-      if (v.update && v.success) {
+      if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
         var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
         v.success = v.getRecord(currentReferenceSequence);
       }

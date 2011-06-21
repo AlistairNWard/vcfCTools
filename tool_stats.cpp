@@ -237,7 +237,7 @@ int statsTool::Run(int argc, char* argv[]) {
     // keep adding variants to the structre.
     //while (v.variants.size() != 0) {
     while (var.variantMap.size() != 0) {
-      if (v.update && v.success) {
+      if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
         var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
         v.success = v.getRecord(currentReferenceSequence);
       }

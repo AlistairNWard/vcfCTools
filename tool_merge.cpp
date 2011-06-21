@@ -175,7 +175,7 @@ int mergeTool::Run(int argc, char* argv[]) {
       // i.e. when the reference sequence is still the current reference sequence,
       // keep adding variants to the structre.
       while (var.variantMap.size() != 0) {
-        if (v.update && v.success) {
+        if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
           var.addVariantToStructure(v.position, v.variantRecord, false);
           v.success = v.getRecord(currentReferenceSequence);
         }
