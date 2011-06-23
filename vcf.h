@@ -138,7 +138,6 @@ class vcf {
     bool parseVcf(string&, unsigned int, bool, ostream*, bool);
     bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
     string getDbsnpInfo();
-    string buildRecord(int, variantDescription&);
     void writeRecord(ostream*);
 
   public:

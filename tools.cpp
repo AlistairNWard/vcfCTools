@@ -199,8 +199,7 @@ void buildRecord(int position, variantDescription& v) {
              v.info;
 
   // If genotypes exist, add them to the record.
-  //if (v.genotypeString != "") {
-  if (v.hasGenotypes) {
+  if (v.genotypeString != "") {
     v.record += "	" + 
                 v.genotypeFormatString + "	" +
                 v.genotypeString;

@@ -482,28 +482,6 @@ bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsign
   return success;
 }
 
-// Reconstruct a vcf record.
-string vcf::buildRecord(int position, variantDescription& d) {
-  ostringstream sPosition, sQuality;
-  sPosition << position;
-  sQuality << d.quality;
-
-  string build = d.referenceSequence + "\t" + \
-                 sPosition.str() + "\t" + \
-                 d.rsid + "\t" + \
-                 d.ref + "\t" + \
-                 d.altString + "\t" + \
-                 sQuality.str() + "\t" + \
-                 d.filters + "\t" + \
-                 d.info;
-
-  if (hasGenotypes && !removeGenotypes) {
-    build += "\t" + d.genotypeFormatString + "\t" + d.genotypeString;
-  }
-
-  return build;
-}
-
 // Write a variant to the output stream.  Depending on the number of
 // variants at this locus, different options for writing out are
 // available.

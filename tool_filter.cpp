@@ -495,8 +495,8 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
   if (cleardbSnp) {varIter.rsid = ".";}
 
   if (writeRecord) {
-    string record = v.buildRecord(position, varIter);
-    *output << record << endl;
+    buildRecord(position, varIter);
+    *output << varIter.record << endl;
   }
 }
 
