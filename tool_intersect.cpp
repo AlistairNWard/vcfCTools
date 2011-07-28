@@ -241,9 +241,6 @@ int intersectTool::Run(int argc, char* argv[]) {
 // If intersection is between a vcf file and a bed file, create a vcf and a bed object
 // and intersect.
   if (bedFile != "") {
-    cerr << "DISABLED UNTIL clearReferenceSequence and variant structure comparisons" << endl;
-    cerr << "have been updated to handle bed files." << endl;
-    exit(0);
     vcf v; // Create a vcf object.
     variant var; // Create a variant object.
     var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
@@ -263,7 +260,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     writeHeader(output, v, false, taskDescription);
 
 // Intersect the files.
-    ints.intersectVcfBed(v, var, b, bs, findUnique, false, output);
+    ints.intersectVcfBed(v, var, b, bs, output);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.
@@ -282,6 +279,10 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Intersection of two vcf files.
   } else {
+    cerr << "DISABLED" << endl;
+    cerr << "INTERSECTION ROUTINE REQUIRES UPGRADES" << endl;
+    exit(0);
+
     vcf v1; // Create a vcf object.
     variant var1; // Create a variant object.
     var1.determineVariantsToProcess(processSnps, processMnps, processIndels, false);

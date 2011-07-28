@@ -35,7 +35,7 @@ class intersect {
     ~intersect(void);
     void setBooleanFlags(bool, bool, bool, bool, bool);
     void intersectVcf(vcf&, variant&, vcf&, variant&, ostream*);
-    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, bool, bool, ostream*);
+    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, ostream*);
 
   public:
     intFlags flags;

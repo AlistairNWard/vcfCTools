@@ -238,7 +238,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
 // Annotate the vcf file.
   if (annotateDbsnp || annotateVcf) {ints.intersectVcf(v, var, annVcf, annVar, output);}
-  else if (annotateBed) {ints.intersectVcfBed(v, var, b, bs, false, true, output);}
+  else if (annotateBed) {ints.intersectVcfBed(v, var, b, bs, output);}
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.

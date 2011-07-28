@@ -494,6 +494,12 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
   // If the dbSNP informaion is to be removed, set the rsid value to '.',
   if (cleardbSnp) {varIter.rsid = ".";}
 
+  // If genotypes are to be removed, set the genotype strings to be blank.
+  if (removeGenotypes) {
+    varIter.genotypeFormatString = "";
+    varIter.genotypeString       = "";
+  }
+
   if (writeRecord) {
     buildRecord(position, varIter);
     *output << varIter.record << endl;
@@ -510,26 +516,26 @@ int filterTool::Run(int argc, char* argv[]) {
   v.openVcf(vcfFile); // Open the vcf file.
   output = openOutputFile(outputFile);
 
-// Read in the header information.
+  // Read in the header information.
   v.parseHeader();
   var.headerInfoFields = v.headerInfoFields;
   string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}
 
-// If MNPs are to be broken up, add a line to the header explaining this.
+  // If MNPs are to be broken up, add a line to the header explaining this.
   if (splitMnps) {
     string text = "Indicates that this SNP was generated from the decomposition of an MNP.\">";
     v.headerInfoLine["FROM_MNP"] = "##INFO=<ID=FROM_MNP,Number=0,Type=Flag,Description=" + text;
   }
 
-// If find hets is specified, check that genotypes exist.
+  // If find hets is specified, check that genotypes exist.
   if (findHets && !v.hasGenotypes) {
     cerr << "Input files does not contain genotype information." << endl;
     cerr << "Cannot identify sample genotypes." << endl;
     exit(1);
   }
 
-// Add an information line to the header describing the HET info.
+  // Add an information line to the header describing the HET info.
   if (findHets) {v.headerInfoLine["HET"] = "##INFO=<ID=HET,Number=.,Type=String,Description=\"List of samples heterozygous at this locus.\">";}
 
   // If variants that are found in the list of provided samples are to be outputted,
@@ -541,20 +547,20 @@ int filterTool::Run(int argc, char* argv[]) {
     sl.getSamples(v);
   }
 
-// If the genotypes are to be removed, set the removeGenotypes value to 
-// true for the vcf object.
+  // If the genotypes are to be removed, set the removeGenotypes value to 
+  // true for the vcf object.
   if (removeGenotypes) {v.removeGenotypes = true;}
 
-// If records are to be stripped out of the vcf file, check the inputted
-// IDs and populate the list of IDs to be stripped.
+  // If records are to be stripped out of the vcf file, check the inputted
+  // IDs and populate the list of IDs to be stripped.
   if (stripRecords) {stripInfoList = checkInfoFields(v, stripInfo);}
 
-// If records are to be kept based on the contents of the info fields,
-// check the inputted IDs and populate the list of IDs to be kept.
+  // If records are to be kept based on the contents of the info fields,
+  // check the inputted IDs and populate the list of IDs to be kept.
   if (keepRecords) {keepInfoList = checkInfoFields(v, keepInfoFields);}
 
-// If info fields are to be deleted, check the inputted IDs exist in the
-// header and populate the list of IDs to be kept.
+  // If info fields are to be deleted, check the inputted IDs exist in the
+  // header and populate the list of IDs to be kept.
   if (removeInfo) {removeInfoList = checkInfoFields(v, removeInfoString);}
 
   // If dbSNP info is to be cleared, add the dbSNP tags to the remove info

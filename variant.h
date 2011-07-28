@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "bed.h"
+#include "bedStructure.h"
 #include "info.h"
 #include "trim_alleles.h"
 #include "vcf.h"
@@ -64,6 +65,7 @@ class variant {
     bool buildVariantStructure(vcf&);
     void addVariantToStructure(int, variantDescription&, bool);
     void clearReferenceSequence(vcf&, variant&, intFlags, string, bool, ostream*);
+    void clearReferenceSequence(vcf&, bedStructure&, intFlags, string, bool, ostream*);
     void determineVariantClass(int, string, string, variantDescription&, bool);
     void annotateRecordVcf(variantsAtLocus&, bool);
     void annotateRecordBed(bedRecord&);

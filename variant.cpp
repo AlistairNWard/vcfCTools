@@ -59,7 +59,7 @@ bool variant::buildVariantStructure(vcf& v) {
   return v.success;
 }
 
-// Add a variant from the vcf file into thr variant structure.
+// Add a variant from the vcf file into the variant structure.
 void variant::addVariantToStructure(int position, variantDescription& variant, bool isDbsnp) {
   variant.isBiallelicSnp = false;
   variant.isTriallelicSnp = false;
@@ -125,12 +125,28 @@ void variant::addVariantToStructure(int position, variantDescription& variant, b
   }
 }
 
-// There are times when all variants for the reference sequence in the
-// variant map, when all of the variants are to be processed and
-// possibly written to file.
+// If two vcf files are being compared and all variants from one of
+// the files (for the current reference sequence) have been loaded
+// into the data structures, finish parsing the second vcf file and
+// flush out all variants for this reference sequence.
 void variant::clearReferenceSequence(vcf& v, variant& var, intFlags flags, string cRef, bool write, ostream* output) {
   while (variantMap.size() != 0) {
     compareVariantsDifferentLocus(var, flags, write, output);
+    variantMap.erase(vmIter);
+    if (v.variantRecord.referenceSequence == cRef && v.success) {
+      addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
+      v.success = v.getRecord(cRef);
+    }
+    if (variantMap.size() != 0) {vmIter = variantMap.begin();}
+  }
+}
+
+// If a vcf file is being intersected with a bed file and all of the
+// bed intervals have been processed, flush out the remaining variants
+// in the data structure for this reference sequence.
+void variant::clearReferenceSequence(vcf& v, bedStructure& bs, intFlags flags, string cRef, bool write, ostream* output) {
+  while (variantMap.size() != 0) {
+    if (flags.annotate) {annotateRecordBed(bs.bmIter->second);}
     variantMap.erase(vmIter);
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
@@ -168,14 +184,16 @@ void variant::determineVariantClass(int position, string ref, string alt, varian
       string refFa = "/d2/data/references/build_37/human_reference_v37.fa";
       int start = alignAlternate(variant.referenceSequence, pos, ref, alt, alRef, alAlt, refFa); // vcf_aux.cpp
       if (pos != start) {
-        cerr << "WARNING: Modified variant position from  " << pos << " to " << start << endl;
+        cerr << "WARNING: Modified variant position from " << variant.referenceSequence;
+        cerr << ":" << pos << " to " << variant.referenceSequence << ":" << start << endl;
         position = start;
       }
     //} else if (doTrimAlleles && !isDbsnp) {
     } else if (doTrimAlleles) {
       unsigned int start = trimAlleles(variant.referenceSequence, position, ref, alt, alRef, alAlt); // trim_alleles.cpp
       if (start != position) {
-        cerr << "WARNING: Modified variant position from  " << position << " to " << start << endl;
+        cerr << "WARNING: Modified variant position from " << variant.referenceSequence;
+        cerr << ":" << position << " to " << variant.referenceSequence << ":" << start << endl;
         position = start;
       }
     }
@@ -484,18 +502,58 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writ
   // variant class.
   bool hasMatch;
 
-  // Compare SNPs.
-  if (processSnps && vmIter->second.biSnps.size() != 0 && var.vmIter->second.biSnps.size()) {
+  // Compare biallelic SNPs.
+  if (processSnps && vmIter->second.biSnps.size() != 0 && var.vmIter->second.biSnps.size() != 0) {
 
-    // Parse the SNPs from the first file and see of the there are identical
-    // SNPs in the second file.
-    //for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-    //  hasMatch = false;
-    //  counter = 0;
-    //  for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
-    //    if (variantIter->ref == var.variantIter->ref && variantIter->altString == var.variantIter->altString) {
-    //      hasMatch = true;
-    //}
+    // Set the reference allele.  All SNPs at this location must have the same reference.
+    string refAllele = vmIter->second.biSnps[0].ref;
+
+    // Create the array keeping track of whether an exact match for the
+    // variants in the second file has been found.
+    bool hasMatchVar[var.vmIter->second.biSnps.size()];
+    for (unsigned int i = 0; i < var.vmIter->second.biSnps.size(); i++) {hasMatchVar[i] = false;}
+
+    // Put all the alt alleles from the first file into a vector.
+    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+      hasMatch = false;
+      counter  = 0;
+      if (variantIter->ref != refAllele) {
+        cerr << "SNPs at same location have different ref alleles: " << vmIter->second.referenceSequence << ":";
+        cerr << vmIter->first << endl;
+        exit(1);
+      }
+
+      // Loop through the SNPs in the second file and compare the alternate
+      // alleles.
+      for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
+        if (var.variantIter->ref != refAllele) {
+          cerr << "SNPs at same location have different ref alleles: " << var.vmIter->second.referenceSequence << ":";
+          cerr << var.vmIter->first << endl;
+          exit(1);
+        }
+
+        // Check for a match.
+        if (variantIter->altString == var.variantIter->altString) {
+          hasMatch             = true;
+          hasMatchVar[counter] = true;
+          if (writeFrom == "a" && !flags.findUnique) {
+            buildRecord(vmIter->first, *variantIter);
+            outputVariants.biSnps.push_back(*variantIter);
+          } else if (writeFrom == "b" && !flags.findUnique) {
+            buildRecord(var.vmIter->first, *var.variantIter);
+            outputVariants.biSnps.push_back(*var.variantIter);
+          }
+        }
+      }
+
+      // If there were no exact matches to this variant and the union or
+      // variants unique to the first file was requested, add these
+      // variants to the output structure.
+      if (!hasMatch && (flags.findUnion || (flags.findUnique && writeFrom == "a"))) {
+        buildRecord(vmIter->first, *variantIter);
+        outputVariants.biSnps.push_back(*variantIter);
+      }
+    }
   }
 
   // Compare MNPs.
@@ -521,8 +579,7 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writ
           if (writeFrom == "a" && !flags.findUnique) {
             buildRecord(vmIter->first, *variantIter);
             outputVariants.indels.push_back(*variantIter);
-          }
-          else if (writeFrom == "b" && !flags.findUnique) {
+          } else if (writeFrom == "b" && !flags.findUnique) {
             buildRecord(vmIter->first, *var.variantIter);
             outputVariants.indels.push_back(*var.variantIter);
           }
@@ -597,14 +654,14 @@ void variant::writeVariants(int position, variantsAtLocus& var, ostream* output)
 
   // SNPs.
   if (processSnps) {
-//    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-//      buildRecord(vmIter->first, *variantIter);
-//      *output << variantIter->record << endl;
-//    }
-//    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
-//      buildRecord(vmIter->first, *variantIter);
-//      *output << variantIter->record << endl;
-//    }
+    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+      buildRecord(vmIter->first, *variantIter);
+      *output << variantIter->record << endl;
+    }
+    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+      buildRecord(vmIter->first, *variantIter);
+      *output << variantIter->record << endl;
+    }
   }
  
   // MNPs.

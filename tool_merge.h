@@ -8,8 +8,8 @@
 // Template for tool creation
 // ******************************************************
 
-#ifndef TOOL_TEMPLATE_H
-#define TOOL_TEMPLATE_H
+#ifndef TOOL_MERGE_H
+#define TOOL_MERGE_H
 
 #include "tools.h"
 #include "variant.h"
