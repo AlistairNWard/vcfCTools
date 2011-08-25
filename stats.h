@@ -12,6 +12,7 @@
 #define STATS_H
 
 #include "info.h"
+#include "output.h"
 #include "stats.h"
 #include "variant.h"
 
@@ -164,23 +165,23 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(variant&, vcf&, int, bool, vector<string>&, bool, ostream*);
-    void printDetailedHeader(ostream*);
+    void generateStatistics(variant&, bool, vector<string>&, bool, output&);
+    void printDetailedHeader(output&);
     void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
     void updateSampleSnps(variant&, vcf&, unsigned int);
-    void updateDetailedSnps(variant&, vcf&, unsigned int, ostream*);
+    void updateDetailedSnps(variant&, vcf&, unsigned int, output&);
     void countByFilter();
-    void printSnpStatistics(ostream*);
-    void printHeader(ostream*, string, bool, bool);
-    void printSnpAnnotations(ostream*);
-    void printAcs(ostream*);
-    void printAfs(ostream*);
-    void printMnpStatistics(ostream*);
-    void printIndelStatistics(ostream*);
-    void printVariantStruct(ostream*, string, variantStruct&);
-    void printSnpAnnotationStruct(ostream*, string&, variantStruct&, string&);
-    void printMnpFilter(string&, ostream*);
-    void printSampleSnps(vcf&, ostream*);
+    void printSnpStatistics(output&);
+    void printHeader(output&, string, bool, bool);
+    void printSnpAnnotations(output&);
+    void printAcs(output&);
+    void printAfs(output&);
+    void printMnpStatistics(output&);
+    void printIndelStatistics(output&);
+    void printVariantStruct(output&, string, variantStruct&);
+    void printSnpAnnotationStruct(output&, string&, variantStruct&, string&);
+    void printMnpFilter(string&, output&);
+    void printSampleSnps(vcf&, output&);
 
   public:
     bool isTransition;
@@ -188,8 +189,10 @@ class statistics {
     bool inDbsnp;
     bool inHapmap;
     bool hasSnp;
+    bool hasMultiSnp;
     bool hasMnp;
-    bool hasIndel;
+    bool hasInsertion;
+    bool hasDeletion;
     bool hasAnnotations;
     string currentReferenceSequence;
     int lastSnpPosition;

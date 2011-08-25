@@ -27,12 +27,48 @@ using namespace std;
 namespace vcfCTools {
 
 struct headerInfoStruct {
-  int number;
+  string number;
   string type;
   string description;
   bool success;
 };
 
+// This structure contains a description of a particular
+// variant.  A map containing a structure for each variant
+// is created at each variant locus.  General information
+// about the locus is contained in the following vInfo
+// structure.
+struct variantDescription {
+
+  // Variant descriptions.
+  string record;
+  string referenceSequence;
+  string rsid;
+  string ref;
+  string altString;
+  double quality;
+  string filters;
+  string info;
+  bool hasGenotypes;
+  string genotypeFormatString;
+  string genotypeString;
+  
+  // Boolean flags describing variant class.
+  bool isBiallelicSnp;
+  bool isTriallelicSnp;
+  bool isQuadallelicSnp;
+  bool isMnp;
+  bool isInsertion;
+  bool isDeletion;
+
+  unsigned int variantClass; //DELETE
+};
+
+
+
+
+// Original structures and variables that may be disposable.
+// When complete, this should all be removed.
 struct information {
   string tag;
   unsigned int number;
@@ -68,37 +104,6 @@ struct variantGroup {
   }
 };
 
-// This structure contains a description of a particular
-// variant.  A map containing a structure for each variant
-// is created at each variant locus.  General information
-// about the locus is contained in the following vInfo
-// structure.
-struct variantDescription {
-
-  // Variant descriptions.
-  string record;
-  string referenceSequence;
-  string rsid;
-  string ref;
-  string altString;
-  double quality;
-  string filters;
-  string info;
-  bool hasGenotypes;
-  string genotypeFormatString;
-  string genotypeString;
-  
-  // Boolean flags describing variant class.
-  bool isBiallelicSnp;
-  bool isTriallelicSnp;
-  bool isQuadallelicSnp;
-  bool isMnp;
-  bool isInsertion;
-  bool isDeletion;
-
-  unsigned int variantClass; //DELETE
-};
-
 // This structure contains general information about the
 // variants described in the variantsDescription structure.
 struct vInfo {
@@ -114,40 +119,34 @@ struct vInfo {
   bool containsDeletion;
 };
 
+// Define the vcf class.
 class vcf {
   public:
     vcf(void);
     ~vcf(void);
   public:
+
+    // File opening and closing.
     bool openVcf(string);
     void closeVcf();
+
+    // Header parsing.
     void parseHeader();
     bool headerInfo(string&, unsigned int);
-    bool headerFiles(string&);
     bool headerAdditionalInfo(string&);
     bool headerTitles(string&);
     bool noHeader();
+
+    // Variant reading and structures.
     bool getRecord(string&);
-    void addVariantToStructure();
-    unsigned int determineVariantClass(string&, string&);
-    bool getVariantGroup(variantGroup&, string&);
-    void processInfoFields(string&);
-    information getInfo(string&);
-    void processGenotypeFields(string&);
-    information getGenotypeInfo(string&);
-    bool parseVcf(string&, unsigned int, bool, ostream*, bool);
-    bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
-    string getDbsnpInfo();
-    void writeRecord(ostream*);
+
+    // Managing genotypes.
 
   public:
     istream* input;
     ifstream file;
     string vcfFilename;
-
-// General information.
-    bool dbsnpVcf;
-
+    
 // Keep track of when a record is read successfully.
     bool success;
     bool update;
@@ -164,19 +163,53 @@ class vcf {
     map<string, headerInfoStruct> headerFormatFields;
     string headerText;
     string headerTitlesText;
+
+// General information.
+
+// variant information.
+    variantDescription variantRecord;
+    string referenceSequence;
+    int position;
+
+
+
+
+
+
+
+
+
+
+// Original information is kept below here and should be empty
+// when all updates are complete.
+  public:
+    unsigned int determineVariantClass(string&, string&);
+    bool getVariantGroup(variantGroup&, string&);
+    void processInfoFields(string&);
+    information getInfo(string&);
+    void processGenotypeFields(string&);
+    information getGenotypeInfo(string&);
+    bool parseVcf(string&, unsigned int, bool, ostream*, bool);
+    bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
+    string getDbsnpInfo();
+    void writeRecord(ostream*);
+
+  public:
+
+// General information.
+    bool dbsnpVcf;
+
+// Header information and text.
     unsigned int numberDataSets;
     map<unsigned int, string> includedDataSets;
 
 // variant information
-    variantDescription variantRecord;
-    int position;
     map<unsigned int, vector<variantDescription> > variants;
     map<unsigned int, vInfo> variantsInformation;
     map<unsigned int, vector<variantDescription> >::iterator variantsIter;
     map<string, string> infoTags;
 
     string record;
-    string referenceSequence;
     vector<string> referenceSequenceVector;
     map<string, bool> referenceSequences;
     bool comparedReferenceSequence;

@@ -5,44 +5,41 @@
 // ------------------------------------------------------
 // Last modified: 18 February 2011
 // ------------------------------------------------------
-// Perform file intersections
+// Tools for manipulating the sample genotypes.
 // ******************************************************
 
-#ifndef INTERSECT_H
-#define INTERSECT_H
+#ifndef GENOTYPE_INFO_H
+#define GENOTYPE_INFO_H
 
+#include <cstdlib>
 #include <cstdio>
 #include <iostream>
+#include <fstream>
 #include <string>
-#include <getopt.h>
 #include <stdlib.h>
+#include <map>
+#include <vector>
 
-#include "bed.h"
-#include "bedStructure.h"
-#include "output.h"
-#include "tools.h"
-#include "variant.h"
 #include "vcf.h"
-#include "vcfCTools_tool.h"
 
 using namespace std;
-//using namespace vcfCTools;
 
 namespace vcfCTools {
 
-class intersect {
+class genotypeInfo {
   public:
-    intersect(void);
-    ~intersect(void);
-    void setBooleanFlags(bool, bool, bool, bool, bool, bool);
-    void intersectVcf(vcf&, variant&, vcf&, variant&, output&);
-    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, output&);
+    genotypeInfo(string, string, map<string, headerInfoStruct>&);
+    ~genotypeInfo(void);
+    void modifyGenotypes(vector<int>&);
 
   public:
-    intFlags flags;
-    string writeFrom;
+    string genotypeFormat;
+    string genotypeString;
+    vector<string> genotypeStrings;
+    vector<string> formats;
+    map<string, headerInfoStruct> headerInfo;
 };
 
 } // namespace vcfCTools
 
-#endif
+#endif // GENOTYPE_INFO_H

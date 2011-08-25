@@ -67,7 +67,6 @@ void vcf::parseHeader() {
   while(getline(*input, headerLine)) {
     if (headerLine.substr(0, 6) == "##INFO") {success = headerInfo(headerLine, 0);}
     else if (headerLine.substr(0, 8) == "##FORMAT") {success = headerInfo(headerLine, 1);}
-    else if (headerLine.substr(0, 6) == "##FILE") {success = headerFiles(headerLine);}
     else if (headerLine.substr(0, 2) == "##") {success = headerAdditionalInfo(headerLine);}
     else if (headerLine.substr(0, 1) == "#") {
       success = headerTitles(headerLine);
@@ -106,30 +105,36 @@ bool vcf::headerInfo(string& headerLine, unsigned int headerLineType) {
   string tag = line.substr(idPosition + 3, numberPosition - idPosition - 4);
   if (idPosition == string::npos || numberPosition == string::npos || 
     typePosition == string::npos || descPosition == string::npos) {
-    infoTag.number  = 0;
+    infoTag.number  = ".";
     infoTag.type    = "unknown";
     infoTag.success = false;
   }
   else {
     string number = line.substr(numberPosition + 7, typePosition - numberPosition - 8);
     string type = line.substr(typePosition + 5, descPosition - typePosition - 6);
-    string description = line.substr(descPosition + 12, line.size() - descPosition - 11);
+    string description = line.substr(descPosition + 12, line.size() - descPosition - 13);
     infoTag.success = true;
 
-// The number field can take the value ".", if the number of values is variable.  If
-// the alternate alleles field is a comma separated list, this could force other
-// fields to allow a comma separated list also.
-    if (number == ".") {infoTag.number = -1;}
-    else {
-      if (isdigit(number[0])) {
-        infoTag.number  = atoi(number.c_str());
-      }
-      else {
-        infoTag.success = false;
-        infoTag.number  = 0;
-      }
+// The number field can take an integer value if the number of values for this is
+// fixed.  If there is an entry per alternate, this should take the value 'A', one
+// entry per genotype takes the value 'G' and if the number is unknown or variable
+// then this should be '.'.
+    if (number == "A") {
+      infoTag.number = "A";
+    } else if (number == "G") {
+      infoTag.number = "G";
+    } else if (number == ".") {
+      infoTag.number = ".";
+    } else if (isdigit(number[0])) {
+      infoTag.number = number;
+    } else {
+      infoTag.success = false;
+      infoTag.number  = ".";
+      cerr << "WARNING: Malformed info/format in header for tag: ";
+      cerr << tag << ".  Unknown value in Number field." << endl;
     }
-    infoTag.type = type;
+    infoTag.type        = type;
+    infoTag.description = description;
   }
 
   if (headerLineType == 0) {
@@ -140,42 +145,6 @@ bool vcf::headerInfo(string& headerLine, unsigned int headerLineType) {
     headerFormatFields[tag] = infoTag;
     headerFormatLine[tag] = headerLine;
   }
-
-  return true;
-}
-
-// Check to see if the records contain information from multiple different
-// sources.  If vcfPytools has been used to find the intersection or union
-// of two vcf files, the records may have been merged to keep all the
-// information available.  If this is the case, there will be a ##FILE line
-// for each set of information in the file.  The order of these files needs
-// to be maintained.
-bool vcf::headerFiles(string& headerLine) {
-  size_t found1 = headerLine.find("ID=");
-  size_t found2 = headerLine.find(",File");
-  size_t found3 = headerLine.find("\">");
-  if (found1 == string::npos ||found1 == string::npos || found1 == string::npos) {
-    cerr << "ERROR:" << endl;
-    cerr << "Unable to resolve the header lines containing merged filenames (##FILE)." << endl;
-    exit(1);
-  }
-  unsigned int fileID = atoi( (headerLine.substr(found1 + 3, found2 - found1 - 3)).c_str() );
-  if (fileID == 0) {
-    cerr << "ERROR:" << endl;
-    cerr << "Header line describing files whose entries have been merged (##FILE)," << endl;
-    cerr << "has a non-integer file ID." << endl;
-    exit(1);
-  }
-  string filename = headerLine.substr(found2 + 7, found3 - found2 - 7);
-  if (includedDataSets.count(fileID) != 0) {
-    cerr << "ERROR: file " << vcfFilename << endl;
-    cerr << "Multiple files in the ##FILE list have identical ID values." << endl;
-    exit(1);
-  }
-  includedDataSets[fileID] = vcfFilename;
-
-// Set the number of files with information in this vcf file.
-  if (fileID > numberDataSets) {numberDataSets = fileID;}
 
   return true;
 }
@@ -267,6 +236,8 @@ bool vcf::getRecord(string& currentReferenceSequence) {
     hasGenotypes = false;
     variantRecord.hasGenotypes = false;
   } else {
+    hasGenotypes = true;
+    variantRecord.hasGenotypes = true;
     variantRecord.genotypeFormatString = recordFields[8];
     variantRecord.genotypeString = recordFields[9];
   }
@@ -358,88 +329,87 @@ void vcf::processGenotypeFields(string& genotypeString) {
 
 // Get the information for a specific info tag.  Also check that it contains
 // the correct number and type of entries.
-information vcf::getInfo(string& tag) {
-  information sInfo;
-  sInfo.tag = tag;
-
-// If this routine has been called and processInfoFields has no, or there are
-// no fields in the info string, terminate the program.  Information can only
-// be retrieved if the info fields have been processed and so entering this
-// routine without having procesed the info fields will result in a failue toi
-// extract information.
-  if (infoTags.size() == 0) {
-    cerr << "Routine vcf::getInfo called while there is no information in the" << endl;
-    cerr << "info string, or the routine processInfoFields has not previously been" << endl;
-    cerr << "called.  Please ensure that information exists in the vcf file" << endl;
-    cerr << "and that processInfoFields has been called." << endl;
-    cerr << endl;
-    exit(1);
-  }
-
-// Check if the tag exists in the header information.  If so,
-// determine the number and type of entries asscoiated with this
-// tag.
-  if (headerInfoFields.count(tag) > 0) {
-    sInfo.number = headerInfoFields[tag].number;
-    sInfo.type   = headerInfoFields[tag].type;
-
-// First check that the tag exists in the information string.  Then split
-// the entry on commas.  For flag entries, do not perform the split.
-    if (infoTags.count(tag) > 0) {
-      if (sInfo.number == 0 && sInfo.type == "Flag") {sInfo.values.push_back("true");}
-      else if (sInfo.number != 0 && sInfo.type == "Flag") {
-        cerr << "Error processing info string." << endl;
-        cerr << "Header inforamtion for entry: " << tag << " lists a flag with a non-zero number of entries." << endl;
-        exit(1);
-      } else {
-        sInfo.values = split(infoTags[tag],",");
-        if (sInfo.number != 0 && sInfo.values.size() != sInfo.number) {
-          cerr << "Error processing info string." << endl;
-          cerr << "Unexpected number of entries for info field " << tag << " at " << referenceSequence << ":" << position << endl;
-          exit(1);
-        }
-      }
-
-    // Requested info tag is not in the info string
-    } else {
-      //sInfo.number = 0;
-      cerr << "Tag: " << tag << " is not present in the info string." << endl;
-      cerr << variantsIter->first << endl;
-      cerr << "Terminating program." << endl;
-      exit(1);
-    }
-  }
-  else {
-    cerr << "Error processing info string." << endl;
-    cerr << "No information in the header for info entry: " << tag << endl;
-    exit(1);
-  }
-
-  return sInfo;
-}
-
-// Get the genotype information.
-information vcf::getGenotypeInfo(string& tag) {
-  information gInfo;
-  if (headerFormatFields.count(tag) > 0) {
-    gInfo.number = headerFormatFields[tag].number;
-    gInfo.type   = headerFormatFields[tag].type;
-
-    gInfo.values = split(genotypeTags[tag], ",");
-    if (gInfo.values.size() != gInfo.number) {
-      cerr << "Error processing info string." << endl;
-      cerr << "Unexpected number of entries for genotype entry " << tag << " at " << referenceSequence << ":" << position << endl;
-      exit(1);
-    }
-  }
-  else {
-    cerr << "Error processing info string." << endl;
-    cerr << "No information in the header for genotype format entry: " << tag << endl;
-    exit(1);
-  }
-
-  return gInfo;
-}
+//information vcf::getInfo(string& tag) {
+//  information sInfo;
+//  sInfo.tag = tag;
+//
+//// If this routine has been called and processInfoFields has no, or there are
+//// no fields in the info string, terminate the program.  Information can only
+//// be retrieved if the info fields have been processed and so entering this
+//// routine without having procesed the info fields will result in a failue toi
+//// extract information.
+//  if (infoTags.size() == 0) {
+//    cerr << "Routine vcf::getInfo called while there is no information in the" << endl;
+//    cerr << "info string, or the routine processInfoFields has not previously been" << endl;
+//    cerr << "called.  Please ensure that information exists in the vcf file" << endl;
+//    cerr << "and that processInfoFields has been called." << endl;
+//    cerr << endl;
+//    exit(1);
+//  }
+//
+//// Check if the tag exists in the header information.  If so,
+//// determine the number and type of entries asscoiated with this
+//// tag.
+//  if (headerInfoFields.count(tag) > 0) {
+//    sInfo.number = headerInfoFields[tag].number;
+//    sInfo.type   = headerInfoFields[tag].type;
+//
+//// First check that the tag exists in the information string.  Then split
+//// the entry on commas.  For flag entries, do not perform the split.
+//    if (infoTags.count(tag) > 0) {
+//      if (sInfo.number == 0 && sInfo.type == "Flag") {sInfo.values.push_back("true");}
+//      else if (sInfo.number != 0 && sInfo.type == "Flag") {
+//        cerr << "Error processing info string." << endl;
+//        cerr << "Header inforamtion for entry: " << tag << " lists a flag with a non-zero number of entries." << endl;
+//        exit(1);
+//      } else {
+//        sInfo.values = split(infoTags[tag],",");
+//        if (sInfo.number != 0 && sInfo.values.size() != sInfo.number) {
+//          cerr << "Error processing info string." << endl;
+//          cerr << "Unexpected number of entries for info field " << tag << " at " << referenceSequence << ":" << position << endl;
+//          exit(1);
+//        }
+//      }
+//
+//    // Requested info tag is not in the info string
+//    } else {
+//      //sInfo.number = 0;
+//      cerr << "Tag: " << tag << " is not present in the info string." << endl;
+//      cerr << variantsIter->first << endl;
+//      cerr << "Terminating program." << endl;
+//      exit(1);
+//    }
+//  }
+//  else {
+//    cerr << "Error processing info string." << endl;
+//    cerr << "No information in the header for info entry: " << tag << endl;
+//    exit(1);
+//  }
+//
+//  return sInfo;
+//}
+//
+//// Get the genotype information.
+//information vcf::getGenotypeInfo(string& tag) {
+//  information gInfo;
+//  if (headerFormatFields.count(tag) > 0) {
+//    gInfo.number = headerFormatFields[tag].number;
+//    gInfo.type   = headerFormatFields[tag].type;
+//    gInfo.values = split(genotypeTags[tag], ",");
+//    if (gInfo.values.size() != gInfo.number) {
+//      cerr << "Error processing info string." << endl;
+//      cerr << "Unexpected number of entries for genotype entry " << tag << " at " << referenceSequence << ":" << position << endl;
+//      exit(1);
+//    }
+//  }
+//  else {
+//    cerr << "Error processing info string." << endl;
+//    cerr << "No information in the header for genotype format entry: " << tag << endl;
+//    exit(1);
+//  }
+//
+//  return gInfo;
+//}
 
 // Parse through the vcf file until the correct reference sequence is
 // encountered and the position is greater than or equal to that requested.

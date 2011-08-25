@@ -182,10 +182,10 @@ int annotateTool::Run(int argc, char* argv[]) {
 
   vcf v; // Define vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
 
   intersect ints; // Define an intersection object.
-  ints.setBooleanFlags(false, false, false, true, true);  // Set the flags required for performing intersections.
+  ints.setBooleanFlags(false, false, false, true, true, true);  // Set the flags required for performing intersections.
   ints.writeFrom = "a";
 
   // Open the vcf file and parse the header.
@@ -196,7 +196,7 @@ int annotateTool::Run(int argc, char* argv[]) {
   // annotation.  To annotate from multiple files, piping should be used.
   vcf annVcf; // Define a vcf object.
   variant annVar; // Define a variant object
-  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
 
   if (annotateDbsnp || annotateVcf) {
 

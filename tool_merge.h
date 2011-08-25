@@ -11,6 +11,7 @@
 #ifndef TOOL_MERGE_H
 #define TOOL_MERGE_H
 
+#include "output.h"
 #include "tools.h"
 #include "variant.h"
 #include "vcfCTools_tool.h"
@@ -38,7 +39,6 @@ class mergeTool : public AbstractTool {
     string commandLine;
     vector<string> vcfFiles;
     string outputFile;
-    ostream* output;
     string currentReferenceSequence;
 
     // Boolean flags.

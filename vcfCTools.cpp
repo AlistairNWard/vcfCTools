@@ -9,13 +9,13 @@
 // ******************************************************
 
 // includes
-#include "tool_annotate.h"
-#include "tool_distributions.h"
+//#include "tool_annotate.h"
+//#include "tool_distributions.h"
 #include "tool_filter.h"
 #include "tool_intersect.h"
 #include "tool_merge.h"
 #include "tool_stats.h"
-#include "tool_validate.h"
+//#include "tool_validate.h"
 #include "vcfCTools_version.h"
 
 #include <cstdio>
@@ -27,13 +27,13 @@ using namespace std;
 
 
 // vcfCTools tool list
-static const string ANNOTATE      = "annotate";
-static const string DISTRIBUTIONS = "distributions";
+//static const string ANNOTATE      = "annotate";
+//static const string DISTRIBUTIONS = "distributions";
 static const string FILTER        = "filter";
 static const string INTERSECT     = "intersect";
 static const string MERGE         = "merge";
 static const string STATS         = "stats";
-static const string VALIDATE      = "validate";
+//static const string VALIDATE      = "validate";
 
 // help and version
 static const string HELP          = "help";
@@ -55,13 +55,13 @@ static bool IsVersion(char* str) {
 
 // Determine the tool.
 AbstractTool* CreateTool(const string& arg) {
-  if (arg == ANNOTATE      ) return new annotateTool;
-  if (arg == DISTRIBUTIONS ) return new distributionsTool;
+  //if (arg == ANNOTATE      ) return new annotateTool;
+  //if (arg == DISTRIBUTIONS ) return new distributionsTool;
   if (arg == FILTER        ) return new filterTool;
   if (arg == INTERSECT     ) return new intersectTool;
   if (arg == MERGE         ) return new mergeTool;
   if (arg == STATS         ) return new statsTool;
-  if (arg == VALIDATE      ) return new validateTool;
+  //if (arg == VALIDATE      ) return new validateTool;
 
   return 0;
 }

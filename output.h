@@ -5,11 +5,11 @@
 // ------------------------------------------------------
 // Last modified: 18 February 2011
 // ------------------------------------------------------
-// Tools for manipulating the information string.
+// Define the output class with all associated operations.
 // ******************************************************
 
-#ifndef INFO_H
-#define INFO_H
+#ifndef OUTPUT_H
+#define OUTPUT_H
 
 #include <cstdlib>
 #include <cstdio>
@@ -18,36 +18,28 @@
 #include <string>
 #include <stdlib.h>
 #include <map>
-#include <vector>
-
-#include "vcf.h"
 
 using namespace std;
 
 namespace vcfCTools {
 
-struct infoStruct {
-  string tag;
-  string number;
-  string type;
-  string value;
-  unsigned int numberValues;
-};
-
-class variantInfo {
+class output {
   public:
-    variantInfo(string&, map<string, headerInfoStruct>&);
-    ~variantInfo(void);
-    void modifyInfo(vector<int>&);
-    void retrieveFields();
+    output(void);
+    ~output(void);
+  public:
+    ostream* openOutputFile(string&);
+    void flushToBuffer(int, string&);
+    void flushOutputBuffer();
 
   public:
-    string infoString;
-    map<string, headerInfoStruct> headerInfo;
-    vector<infoStruct> infoFields;
-    vector<infoStruct>::iterator infoIter;
+    ostream* outputStream;
+    string currentReferenceSequence;
+    string outputRecord;
+    map<int, string> outputBuffer;
+    map<int, string>::iterator obIter;
 };
 
 } // namespace vcfCTools
 
-#endif // INFO_H
+#endif // OUTPUT_H

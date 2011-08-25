@@ -43,13 +43,13 @@ class intersectTool : public AbstractTool {
     string bedFile;
     vector<string> vcfFiles;
     string outputFile;
-    ostream* output;
 
     unsigned int recordsInMemory;
     string currentReferenceSequence;
     string writeFrom;
 
     // Boolean flags.
+    bool distanceDistribution;
     bool allowMismatch;
     bool passFilters;
     bool findCommon;
@@ -59,6 +59,7 @@ class intersectTool : public AbstractTool {
     bool processMnps;
     bool processIndels;
     bool sitesOnly;
+    bool whollyWithin;
 };
 
 } // namespace vcfCTools

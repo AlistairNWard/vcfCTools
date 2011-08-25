@@ -15,6 +15,7 @@
 #define TOOL_FILTER_H
 
 #include "info.h"
+#include "output.h"
 #include "samples.h"
 #include "tools.h"
 #include "variant.h"
@@ -38,14 +39,13 @@ class filterTool : public AbstractTool {
     int Run(int argc, char* argv[]);
     int parseCommandLine(int argc, char* argv[]);
     vector<string> checkInfoFields(vcf&, string&);
-    void filter(vcf&, variant&);
+    void filter(variant&);
     void performFilter(vcf&, int, variantDescription&);
 
   private:
     string commandLine;
     string vcfFile;
     string outputFile;
-    ostream* output;
     double filterQualityValue;
     string removeInfoString;
     vector<string> removeInfoList;
@@ -62,6 +62,7 @@ class filterTool : public AbstractTool {
 
     // Boolean flags.
     bool splitMnps;
+    bool appliedFilters;
     bool processSnps;
     bool processMnps;
     bool processIndels;
@@ -70,8 +71,8 @@ class filterTool : public AbstractTool {
     bool markPass;
     bool filterFail;
     bool keepRecords;
-    bool removeGenotypes;
     bool removeInfo;
+    bool removeGenotypes;
     bool stripRecords;
     bool findHets;
     bool useSampleList;

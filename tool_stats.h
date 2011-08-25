@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 
+#include "output.h"
 #include "stats.h"
 #include "tools.h"
 #include "variant.h"
@@ -40,7 +41,6 @@ class statsTool : public AbstractTool {
     string commandLine;
     string vcfFile;
     string outputFile;
-    ostream* output;
     string currentReferenceSequence;
     string annotationFlagsString;
     vector<string> annotationFlags;

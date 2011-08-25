@@ -176,58 +176,61 @@ int statsTool::Run(int argc, char* argv[]) {
 
   vcf v; // Create a vcf object.
   variant var; // Create a variant structure to hold the variants.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
   statistics stats; // Create a statistics object.
 
+  // Define an output stream object and open the output file.
+  output ofile;
+  ofile.outputStream = ofile.openOutputFile(outputFile);
+
   v.openVcf(vcfFile);
-  output = openOutputFile(outputFile);
   v.parseHeader();
 
 // If statistics are being generated on a per-sample basis (or detailed
 // statistics are being generate, check that genotypes exist.
-  if (sampleSnps || generateDetailed) {
-    if (sampleSnps) {stats.minGenotypeQuality = atof(genotypeQualityString.c_str());}
-    if (generateDetailed) {stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());}
-    if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
-      cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double." << endl;
-      exit(1);
-    }
-    if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
-        detailedGenotypeQualityString != "0.0") ) {
-      cerr << "ERROR: genotype quality for --detailed (-d) must be a double." << endl;
-      exit(1);
-    }
-    if (!v.hasGenotypes) {
-      cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
-      exit(1);
-    } else {
-      if (sampleSnps) {stats.processSampleSnps = true;}
-      if (generateDetailed) {stats.generateDetailed  = true;}
-    }
-  }
+//  if (sampleSnps || generateDetailed) {
+//    if (sampleSnps) {stats.minGenotypeQuality = atof(genotypeQualityString.c_str());}
+//    if (generateDetailed) {stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());}
+//    if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
+//      cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double." << endl;
+//      exit(1);
+//    }
+//    if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
+//        detailedGenotypeQualityString != "0.0") ) {
+//      cerr << "ERROR: genotype quality for --detailed (-d) must be a double." << endl;
+//      exit(1);
+//    }
+//    if (!v.hasGenotypes) {
+//      cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
+//      exit(1);
+//    } else {
+//      if (sampleSnps) {stats.processSampleSnps = true;}
+//      if (generateDetailed) {stats.generateDetailed  = true;}
+//    }
+//  }
 
 // If statistics on annotations are required, generate a list of flags to get
 // statistics on.  Provide a warning if the flags do not appear in the header.
-  if (useAnnotations) {
-    size_t found = annotationFlagsString.find(",");
-    annotationFlags.clear();
-    if (found == string::npos) {annotationFlags.push_back(annotationFlagsString);}
-    else {annotationFlags = split(annotationFlagsString, ",");}
-    for (vector<string>::iterator iter = annotationFlags.begin(); iter != annotationFlags.end(); iter++) {
-      if (*iter != "all" && v.headerInfoFields.count(*iter) == 0) {
-        cerr << "WARNING: Info ID " << *iter << " is used for annotation stats, but does not appear in the header." << endl;
-      }
-    }
-  }
+//  if (useAnnotations) {
+//    size_t found = annotationFlagsString.find(",");
+//    annotationFlags.clear();
+//    if (found == string::npos) {annotationFlags.push_back(annotationFlagsString);}
+//    else {annotationFlags = split(annotationFlagsString, ",");}
+//    for (vector<string>::iterator iter = annotationFlags.begin(); iter != annotationFlags.end(); iter++) {
+//      if (*iter != "all" && v.headerInfoFields.count(*iter) == 0) {
+//        cerr << "WARNING: Info ID " << *iter << " is used for annotation stats, but does not appear in the header." << endl;
+//      }
+//    }
+//  }
 
 // Print the header for detailed statistics if necessary.
-  if (generateDetailed) {stats.printDetailedHeader(output);}
+//  if (generateDetailed) {stats.printDetailedHeader(output);}
 
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
   while (v.success) {
     // Build the variant structure for this reference sequence.
-    if (var.variantMap.size() == 0) {
+    if (var.originalVariantsMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;
       v.success = var.buildVariantStructure(v);
     }
@@ -236,14 +239,15 @@ int statsTool::Run(int argc, char* argv[]) {
     // i.e. when the reference sequence is still the current reference sequence,
     // keep adding variants to the structre.
     //while (v.variants.size() != 0) {
-    while (var.variantMap.size() != 0) {
+    while (var.originalVariantsMap.size() != 0) {
       if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
-        var.addVariantToStructure(v.position, v.variantRecord, v.dbsnpVcf);
+        var.addVariantToStructure(v.position, v.variantRecord);
         v.success = v.getRecord(currentReferenceSequence);
       }
-      var.vmIter = var.variantMap.begin();
-      stats.generateStatistics(var, v, var.vmIter->first, useAnnotations, annotationFlags, generateAfs, output);
-      var.variantMap.erase(var.vmIter);
+      var.ovmIter = var.originalVariantsMap.begin();
+      vector<string>::iterator iter = var.ovmIter->second.alts.begin();
+      stats.generateStatistics(var, useAnnotations, annotationFlags, generateAfs, ofile);
+      var.originalVariantsMap.erase(var.ovmIter);
     } 
   }
 
@@ -251,16 +255,16 @@ int statsTool::Run(int argc, char* argv[]) {
 // statistics.
   stats.countByFilter();
   if (stats.hasSnp) {
-    stats.printSnpStatistics(output);
-    if (stats.hasAnnotations) {stats.printSnpAnnotations(output);}
+    stats.printSnpStatistics(ofile);
+    if (stats.hasAnnotations) {stats.printSnpAnnotations(ofile);}
     if (generateAfs) {
-      stats.printAcs(output);
-      stats.printAfs(output);
+      stats.printAcs(ofile);
+      stats.printAfs(ofile);
     }
   }
-  if (stats.hasMnp) {stats.printMnpStatistics(output);}
-  if (stats.hasIndel) {stats.printIndelStatistics(output);}
-  if (sampleSnps) {stats.printSampleSnps(v, output);}
+  if (stats.hasMnp) {stats.printMnpStatistics(ofile);}
+  if (stats.hasInsertion || stats.hasDeletion) {stats.printIndelStatistics(ofile);}
+  if (sampleSnps) {stats.printSampleSnps(v, ofile);}
 
 // Close the vcf file and return.
   v.closeVcf();

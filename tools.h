@@ -30,7 +30,6 @@
 using namespace std;
 using namespace vcfCTools;
 
-ostream* openOutputFile(string&);
 unsigned int setVcfPriority(string&, vector<string>&);
 void checkReferenceSequences(vector<string>&, vector<string>&);
 void mergeHeaders(vcf&, vcf&, vcf&);

@@ -304,7 +304,7 @@ int distributionsTool::Run(int argc, char* argv[]) {
 
   vcf v; // Create a vcf object.
   variant var; // Create a variant object;
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
 
   v.openVcf(vcfFile);
   output = openOutputFile(outputFile);

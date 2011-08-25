@@ -12,14 +12,6 @@
 
 using namespace std;
 
-ostream* openOutputFile(string& outputFile) {
-  ostream* output;
-  if (outputFile == "") {output = &cout;}
-  else {output = new ofstream(outputFile.c_str());}
-
-  return output;
-}
-
 // Determine which file has priority for writing out records.
 unsigned int setVcfPriority(string& priorityFile, vector<string>& vcfFiles) {
   unsigned int priority;

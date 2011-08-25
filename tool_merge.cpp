@@ -36,12 +36,6 @@ int mergeTool::Help(void) {
   cout << "	input vcf files to merge (minimum two files)." << endl;
   cout << "  -o, --out" << endl;
   cout << "	output vcf file." << endl;
-  cout << "  -1, --snps" << endl;
-  cout << "	analyse SNPs." << endl;
-  cout << "  -2, --mnps" << endl;
-  cout << "	analyse MNPs." << endl;
-  cout << "  -3, --indels" << endl;
-  cout << "	analyse indels." << endl;
   cout << endl;
 
   return 0;
@@ -62,16 +56,13 @@ int mergeTool::parseCommandLine(int argc, char* argv[]) {
     {"help", no_argument, 0, 'h'},
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
-    {"snps", no_argument, 0, '1'},
-    {"mnps", no_argument, 0, '2'},
-    {"indels", no_argument, 0, '3'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -86,21 +77,6 @@ int mergeTool::parseCommandLine(int argc, char* argv[]) {
         outputFile = optarg;
         break;
 
-      // Analyse SNPs.
-      case '1':
-        processSnps = true;
-        break;
-
-      // Analyse MNPs.
-      case '2':
-        processMnps = true;
-        break;
-
-      // Analyse indels.
-      case '3':
-        processIndels = true;
-        break;
-      
       // Help.
       case 'h':
         return Help();
@@ -136,7 +112,9 @@ int mergeTool::parseCommandLine(int argc, char* argv[]) {
 int mergeTool::Run(int argc, char* argv[]) {
   int getOptions = mergeTool::parseCommandLine(argc, argv);
 
-  output = openOutputFile(outputFile);
+  // Define the output object and open the file.
+  output ofile;
+  ofile.outputStream = ofile.openOutputFile(outputFile);
   string taskDescription = "##vcfCtools=merge ";
   vector<string> samples;
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
@@ -148,7 +126,6 @@ int mergeTool::Run(int argc, char* argv[]) {
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
     vcf v; // Create a vcf object.
     variant var; // Create variant object.
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
     v.openVcf(vcfFiles[index]);
     v.parseHeader();
 
@@ -157,59 +134,33 @@ int mergeTool::Run(int argc, char* argv[]) {
 // Also, print out the header.
     if (index == 0) {
       samples = v.samples;
-      writeHeader(output, v, false, taskDescription); // tools.py
-    }
-    else {
+      writeHeader(ofile.outputStream, v, false, taskDescription); // tools.py
+    } else {
       if (v.samples != samples) {cerr << "WARNING: Different samples in file: " << v.vcfFilename << endl;}
     }
 
 // Print out the records.
     while (v.success) {
+
       // Build the variant structure for this reference sequence.
-      if (var.variantMap.size() == 0) {
+      if (var.originalVariantsMap.size() == 0) {
         currentReferenceSequence = v.variantRecord.referenceSequence;
         v.success = var.buildVariantStructure(v);
       }
 
-      // Loop over the variant structure until it is empty.  While v.update is true,
-      // i.e. when the reference sequence is still the current reference sequence,
-      // keep adding variants to the structre.
-      while (var.variantMap.size() != 0) {
+      // For merging, the vcf records are not interrogated and reduced to
+      // the shortest unambiguous description.  As such, loop over the
+      // originalVariants structure writing out each position in order until
+      // it is empty.  While the reference sequence remains the same, keep
+      // adding variants to the structure.
+      while (var.originalVariantsMap.size() != 0) {
         if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
-          var.addVariantToStructure(v.position, v.variantRecord, false);
+          var.addVariantToStructure(v.position, v.variantRecord);
           v.success = v.getRecord(currentReferenceSequence);
         }
-        var.vmIter = var.variantMap.begin();
-
-        // Write out SNPs.
-        if (var.processSnps) {
-          for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
-            buildRecord(var.vmIter->first, *var.variantIter);
-            *output << var.variantIter->record << endl;
-          }
-          for (var.variantIter = var.vmIter->second.multiSnps.begin(); var.variantIter != var.vmIter->second.multiSnps.end(); var.variantIter++) {
-            buildRecord(var.vmIter->first, *var.variantIter);
-            *output << var.variantIter->record << endl;
-          }
-        }
-
-        // MNPs
-        if (var.processMnps) {
-          for (var.variantIter = var.vmIter->second.mnps.begin(); var.variantIter != var.vmIter->second.mnps.end(); var.variantIter++) {
-            buildRecord(var.vmIter->first, *var.variantIter);
-            *output << var.variantIter->record << endl;
-          }
-        }
-
-        // Indels.
-        if (var.processIndels) {
-          for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
-            buildRecord(var.vmIter->first, *var.variantIter);
-            *output << var.variantIter->record << endl;
-          }
-        }
-       
-        var.variantMap.erase(var.vmIter);
+        var.ovmIter = var.originalVariantsMap.begin();
+        var.buildOutputRecord(ofile);
+        var.originalVariantsMap.erase(var.ovmIter);
       }
     }
 
@@ -217,6 +168,9 @@ int mergeTool::Run(int argc, char* argv[]) {
     v.closeVcf(); // Close the vcf file
     index++; // Increment the index to ensure header information is written out once.
   }
+
+// Flush the output buffer.
+  ofile.flushOutputBuffer();
 
   return 0;
 }

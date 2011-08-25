@@ -18,13 +18,15 @@ using namespace vcfCTools;
 intersectTool::intersectTool(void)
   : AbstractTool()
 {
-  recordsInMemory = 100;
-  allowMismatch  = false;
-  passFilters     = false;
-  findCommon      = false;
-  findUnion       = false;
-  findUnique      = false;
-  sitesOnly       = false;
+  distanceDistribution     = false;
+  recordsInMemory          = 100;
+  allowMismatch            = false;
+  passFilters              = false;
+  findCommon               = false;
+  findUnion                = false;
+  findUnique               = false;
+  sitesOnly                = false;
+  whollyWithin             = false;
   currentReferenceSequence = "";
 }
 
@@ -45,6 +47,8 @@ int intersectTool::Help(void) {
   cout << "	input bed file." << endl;
   cout << "  -o, --output" << endl;
   cout << "	output vcf file." << endl;
+  cout << "  -d, --distance" << endl;
+  cout << "	calculate the distribution of distances of each variant from the nearest bed interval." << endl;
   cout << "  -c, --common" << endl;
   cout << "	output variants present in both files." << endl;
   cout << "  -m, --mismatch" << endl;
@@ -57,6 +61,8 @@ int intersectTool::Help(void) {
   cout << "	only compare files based on sites.  Do not evaluate the alleles." << endl;
   cout << "  -p, --pass-filters" << endl;
   cout << "	Only variants that pass filters are considered." << endl;
+  cout << "  -w, --wholly-within-interval" << endl;
+  cout << "	For bed-intersections, start and end of ref/variant allele must fall within interval." << endl;
   cout << "  -1, --snps" << endl;
   cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
@@ -69,7 +75,6 @@ int intersectTool::Help(void) {
   cout << endl;
   cout << "  a: Write out records from the first file." << endl;
   cout << "  b: Write out records from the second file." << endl;
-  cout << "  u: Write out all records from both files." << endl;
   cout << "  q: Write out records with the highest variant quality." << endl;
   cout << endl;
   exit(0);
@@ -94,11 +99,13 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
     {"common", required_argument, 0, 'c'},
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
+    {"distance", no_argument, 0, 'd'},
     {"mismatch", no_argument, 0, 'm'},
     {"pass-filters", no_argument, 0, 'p'},
     {"unique", required_argument, 0, 'q'},
     {"union", required_argument, 0, 'u'},
     {"sites-only", no_argument, 0, 's'},
+    {"wholly-within-interval", no_argument, 0, 'w'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
@@ -108,13 +115,19 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:mpc:u:q:s123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:dmpc:u:q:sw123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
       // Input bed file.
       case 'b':
         bedFile = optarg;
+        break;
+
+      // Determine if the distribution of the variant distance from the
+      // nearest bed interval is required.
+      case 'd':
+        distanceDistribution = true;
         break;
 
       // Input vcf file - required input.
@@ -163,6 +176,11 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       // Only consider variants if they pass filters.
       case 'p':
         passFilters = true;
+        break;
+
+      // An allele must fall wholly within bed interval.
+      case 'w':
+        whollyWithin = true;
         break;
 
       // Analyse SNPs.
@@ -232,10 +250,13 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
 // Run the tool.
 int intersectTool::Run(int argc, char* argv[]) {
   int getOptions = intersectTool::parseCommandLine(argc, argv);
-  output = openOutputFile(outputFile);
+
+  // Define an output object and open the output file.
+  output ofile;
+  ofile.outputStream = ofile.openOutputFile(outputFile);
 
   intersect ints; // Define an intersection object.
-  ints.setBooleanFlags(findCommon, findUnion, findUnique, sitesOnly, false);  // Set the flags required for performing intersections.
+  ints.setBooleanFlags(findCommon, findUnion, findUnique, sitesOnly, false, whollyWithin);  // Set the flags required for performing intersections.
   ints.writeFrom = writeFrom;
 
 // If intersection is between a vcf file and a bed file, create a vcf and a bed object
@@ -243,7 +264,7 @@ int intersectTool::Run(int argc, char* argv[]) {
   if (bedFile != "") {
     vcf v; // Create a vcf object.
     variant var; // Create a variant object.
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
 
     bed b; // Create a bed object.
     bedStructure bs; // Create a bed structure.
@@ -253,14 +274,17 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Parse the headers.
     v.parseHeader();
+    var.headerInfoFields   = v.headerInfoFields;
+    var.headerFormatFields = v.headerFormatFields;
+
     b.parseHeader();
 
 // Write the header to the output file.
     string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
-    writeHeader(output, v, false, taskDescription);
+    writeHeader(ofile.outputStream, v, false, taskDescription);
 
 // Intersect the files.
-    ints.intersectVcfBed(v, var, b, bs, output);
+    ints.intersectVcfBed(v, var, b, bs, ofile);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.
@@ -279,17 +303,13 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Intersection of two vcf files.
   } else {
-    cerr << "DISABLED" << endl;
-    cerr << "INTERSECTION ROUTINE REQUIRES UPGRADES" << endl;
-    exit(0);
-
     vcf v1; // Create a vcf object.
     variant var1; // Create a variant object.
-    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
 
     vcf v2; // Create a vcf object.
     variant var2;
-    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, false);
+    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
     
 // Open the vcf files.
     v1.openVcf(vcfFiles[0]);
@@ -297,7 +317,13 @@ int intersectTool::Run(int argc, char* argv[]) {
 
 // Read in the header information.
     v1.parseHeader();
+    var1.headerInfoFields   = v1.headerInfoFields;
+    var1.headerFormatFields = v1.headerFormatFields;
+
     v2.parseHeader();
+    var2.headerInfoFields   = v2.headerInfoFields;
+    var2.headerFormatFields = v2.headerFormatFields;
+
     checkDataSets(v1, v2); // tools.cpp
 
 // Check that the header for the two files contain the same samples.
@@ -306,11 +332,11 @@ int intersectTool::Run(int argc, char* argv[]) {
       exit(1);
     } else {
       string taskDescription = "##vcfCTools=intersect " + vcfFiles[0] + ", " + vcfFiles[1];
-      writeHeader(output, v1, false, taskDescription); // tools.cpp
+      writeHeader(ofile.outputStream, v1, false, taskDescription); // tools.cpp
     }
 
 // Intersect the two vcf files.
-    ints.intersectVcf(v1, var1, v2, var2, output);
+    ints.intersectVcf(v1, var1, v2, var2, ofile);
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.
