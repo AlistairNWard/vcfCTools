@@ -125,9 +125,9 @@ class variant {
     void buildOutputRecord(output&);
     void annotateRecordVcf(variantsAtLocus&, bool);
     void annotateRecordBed(bedRecord&);
-    void compareVariantsSameLocus(variant&, intFlags, string, output&);
-    void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&);
-    void compareVariantsDifferentLocus(variant&, intFlags, bool, output&);
+    void compareVariantsSameLocus(variant&, intFlags);
+    void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags);
+    void filterUnique();
     vector<string> extractGenotypeField(string);
 
   public:

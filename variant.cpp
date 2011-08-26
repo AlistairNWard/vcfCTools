@@ -700,205 +700,69 @@ vector<string> variant::extractGenotypeField(string field) {
 // (annotated if necessary).
 //
 // If the variants compared are at the same position.
-void variant::compareVariantsSameLocus(variant& var, intFlags flags, string writeFrom, output& ofile) {
+void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
 
   // Compare SNPs.
-  compareAlleles(vmIter->second.snps, var.vmIter->second.snps);
+  compareAlleles(vmIter->second.snps, var.vmIter->second.snps, flags);
 
   // Compare MNPs.
-  compareAlleles(vmIter->second.mnps, var.vmIter->second.mnps);
+  compareAlleles(vmIter->second.mnps, var.vmIter->second.mnps, flags);
 
   // Compare indels.
-  compareAlleles(vmIter->second.indels, var.vmIter->second.indels);
-
-
-
-
-
-
-
-
-
-
-  //unsigned int counter;
-
-  // Define a new structure to hold the variants selected for output.  For example,
-  // if only identical variants are required, all variants will be checked to see
-  // if there are identical variants and if so, these will be pushed to the new
-  // structure.  This will then be flushed to the output stream.
-  //variantsAtLocus outputVariants;
-  //outputVariants.referenceSequence = referenceSequence;
-
-  // To determine if a particular variant has an exact match, the flag
-  // hasMatch is used.  The variant structure from the second file will
-  // be looped over a number of times, so an array of the same size as
-  // variant array size is created in the section dealing with each 
-  // variant class.
-  //bool hasMatch;
-
-  // Compare biallelic SNPs.
-//  if (processSnps && vmIter->second.biSnps.size() != 0 && var.vmIter->second.biSnps.size() != 0) {
-//
-//    // Set the reference allele.  All SNPs at this location must have the same reference.
-//    string refAllele = vmIter->second.biSnps[0].ref;
-//
-//    // Create the array keeping track of whether an exact match for the
-//    // variants in the second file has been found.
-//    bool hasMatchVar[var.vmIter->second.biSnps.size()];
-//    for (unsigned int i = 0; i < var.vmIter->second.biSnps.size(); i++) {hasMatchVar[i] = false;}
-//
-//    // Put all the alt alleles from the first file into a vector.
-//    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-//      hasMatch = false;
-//      counter  = 0;
-//      if (variantIter->ref != refAllele) {
-//        cerr << "SNPs at same location have different ref alleles: " << vmIter->second.referenceSequence << ":";
-//        cerr << vmIter->first << endl;
-//        exit(1);
-//      }
-//
-//      // Loop through the SNPs in the second file and compare the alternate
-//      // alleles.
-//      for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
-//        if (var.variantIter->ref != refAllele) {
-//          cerr << "SNPs at same location have different ref alleles: " << var.vmIter->second.referenceSequence << ":";
-//          cerr << var.vmIter->first << endl;
-//          exit(1);
-//        }
-//
-//        // Check for a match.
-//        if (variantIter->altString == var.variantIter->altString) {
-//          hasMatch             = true;
-//          hasMatchVar[counter] = true;
-//          if (writeFrom == "a" && !flags.findUnique) {
-//            buildRecord(vmIter->first, *variantIter);
-//            outputVariants.biSnps.push_back(*variantIter);
-//          } else if (writeFrom == "b" && !flags.findUnique) {
-//            buildRecord(var.vmIter->first, *var.variantIter);
-//            outputVariants.biSnps.push_back(*var.variantIter);
-//          }
-//        }
-//      }
-//
-//      // If there were no exact matches to this variant and the union or
-//      // variants unique to the first file was requested, add these
-//      // variants to the output structure.
-//      if (!hasMatch && (flags.findUnion || (flags.findUnique && writeFrom == "a"))) {
-//        buildRecord(vmIter->first, *variantIter);
-//        outputVariants.biSnps.push_back(*variantIter);
-//      }
-//    }
-//  }
-//
-//  // Compare MNPs.
-//  if (processMnps) {
-//  }
-//
-//  // Compare indels.
-//  if (processIndels && vmIter->second.indels.size() != 0 && var.vmIter->second.indels.size() != 0) {
-//
-//    // Create the array keeping track of whether an exact match for the
-//    // variants in the second file has been found.
-//    bool hasMatchVar[var.vmIter->second.indels.size()];
-//    for (unsigned int i = 0; i < var.vmIter->second.indels.size(); i++) {hasMatchVar[i] = false;}
-//
-//    // Check for identical variants.
-//    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-//      hasMatch = false;
-//      counter  = 0;
-//      for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
-//        if (variantIter->ref == var.variantIter->ref && variantIter->altString == var.variantIter->altString) {
-//          hasMatch             = true;
-//          hasMatchVar[counter] = true;
-//          if (writeFrom == "a" && !flags.findUnique) {
-//            buildRecord(vmIter->first, *variantIter);
-//            outputVariants.indels.push_back(*variantIter);
-//          } else if (writeFrom == "b" && !flags.findUnique) {
-//            buildRecord(vmIter->first, *var.variantIter);
-//            outputVariants.indels.push_back(*var.variantIter);
-//          }
-//        }
-//        counter++;
-//      }
-//
-//      // If there were no exact matches to this variant and the union or
-//      // variants unique to the first file was requested, add these
-//      // variants to the output structure.
-//      if (!hasMatch && (flags.findUnion || (flags.findUnique && writeFrom == "a"))) {
-//        buildRecord(vmIter->first, *variantIter);
-//        outputVariants.indels.push_back(*variantIter);
-//      }
-//    }
-//
-//    // Perform the same task for variants from the second file.
-//    counter = 0;
-//    for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
-//      if (!hasMatchVar[counter] && (flags.findUnion || (flags.findUnique && writeFrom == "b"))) {
-//        buildRecord(vmIter->first, *var.variantIter);
-//        outputVariants.indels.push_back(*var.variantIter);
-//      }
-//      counter++;
-//    }
-//  }
-//
-//  // Now that the variants that are to be written out at this locus have
-//  // been determined, annotate them if necessary and then output them to
-//  // the output stream.
-//  if (flags.annotate) {} //annotateVcf();}
-//  writeVariants(vmIter->first, outputVariants, output);
+  compareAlleles(vmIter->second.indels, var.vmIter->second.indels, flags);
 }
-// Compare two arrays of variant alleles of the same type (e.g. all SNPs).
 
-void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVariants>& alleles2) {
+// Compare two arrays of variant alleles of the same type (e.g. all SNPs).
+void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVariants>& alleles2, intFlags flags) {
   vector<reducedVariants>::iterator iter;
   vector<reducedVariants>::iterator compIter;
+  bool common;
 
   if (alleles1.size() != 0) {
     iter = alleles1.begin();
     for (; iter != alleles1.end(); iter++) {
-      originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;
+      common = false;
       if (alleles2.size() != 0) {
         compIter = alleles2.begin();
         for (; compIter != alleles2.end(); compIter++) {
-          if (iter->alt == compIter->alt && iter->ref == compIter->ref) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = false;}
+
+          // If the two files share the alleles, keep them only if the common
+          // alleles (or union) is required.
+          if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
+            common = true;
+            break;
+          }
         }
+      }
+
+      // Based on whether this variant is common or not, decide whether
+      // or not to filter out the allele.
+      if (common) {
+        originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? true : false;
+      } else {
+        originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? false : true;
       }
     }
   }
 }
   
-// If the variants compared are at different positions.  In this case, the 
-// variant being carried across as an argument has a coordinate smaller than
-// the variant object used to call the routine.
-void variant::compareVariantsDifferentLocus(variant& var, intFlags flags, bool write, output& ofile) {
+// For variants that are known to be unique to a single vcf file when
+// performing a comparison, set all of the variants to filtered.  This
+// is only called if common alleles are requested.
+void variant::filterUnique() {
+  vector<reducedVariants>::iterator iter;
 
-  // Define a new structure to hold the variants selected for output.  For example,
-  // if only identical variants are required, all variants will be checked to see
-  // if there are identical variants and if so, these will be pushed to the new
-  // structure.  This will then be flushed to the output stream.
-//  variantsAtLocus outputVariants;
-//  outputVariants.referenceSequence = referenceSequence;
-//
-//  // SNPs.
-//  if (processSnps) {}
-//
-//  // MNPs.
-//  if (processMnps) {}
-//
-//  // Indels.
-//  if (processIndels) {
-//
-//    // Output the indels unique to this file.
-//    if ((flags.findUnique && write) || flags.findUnion) {
-//      for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-//        buildRecord(vmIter->first, *variantIter);
-//        outputVariants.indels.push_back(*variantIter);
-//      }
-//    }
-//  }
-//
-//  if (flags.annotate) {}
-//  writeVariants(vmIter->first, outputVariants, output);
+  // SNPs
+  iter = vmIter->second.snps.begin();
+  for (; iter != vmIter->second.snps.end(); iter++) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;}
+
+  // MNPs
+  iter = vmIter->second.mnps.begin();
+  for (; iter != vmIter->second.mnps.end(); iter++) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;}
+
+  // Indels
+  iter = vmIter->second.indels.begin();
+  for (; iter != vmIter->second.indels.end(); iter++) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;}
 }
 
 // Build up the output record.  Depending on preceding actions

@@ -73,8 +73,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
 
         // Variants at the same locus.
         if (var1.vmIter->first == var2.vmIter->first) {
-          var1.compareVariantsSameLocus(var2, flags, writeFrom, ofile);
-          //var1.compareVariantsSameLocus(var2, flags, writeFrom, ofile);
+          var1.compareVariantsSameLocus(var2, flags);
 
           // Clear the compared variants from the structure and add the next one from 
           // the file into the structure if it is from the same reference sequence.
@@ -96,7 +95,17 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // second vcf file.  Parse through the second file until the position is greater
         // than or equal to that in the second file.
         } else if (var1.vmIter->first > var2.vmIter->first) {
-          //var2.compareVariantsDifferentLocus(var1, flags, write2, ofile);
+
+//**************************************************
+//**************************************************
+//**************************************************
+//**************************************************
+// UNION NEEDS TO HAVE VARIANTS FROM THE SECOND FILE.
+//**************************************************
+//**************************************************
+//**************************************************
+//**************************************************
+
           var2.variantMap.erase(var2.vmIter);
           if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
             var2.addVariantToStructure(v2.position, v2.variantRecord);
@@ -107,7 +116,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // Variant from the first vcf file is at a smaller coordinate than that in the
         // second vcf file.
         } else if (var1.vmIter->first < var2.vmIter->first) {
-          //var1.compareVariantsDifferentLocus(var2, flags, write1, ofile);
+          if (!flags.findUnique) {var1.filterUnique();}
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
             var1.addVariantToStructure(v1.position, v1.variantRecord);
@@ -125,11 +134,11 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
 
       // Now both variant maps are exhausted, so rebuild the maps with the variants from the
       // next reference sequence in the file.
-      //v1.success = var1.buildVariantStructure(v1);
-      //v2.success = var2.buildVariantStructure(v2);
+      v1.success = var1.buildVariantStructure(v1);
+      v2.success = var2.buildVariantStructure(v2);
  
-      //if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
-      //if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+      if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
+      if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
 
       // If the current position is beyond the max position in the originalVariantsMap
       // then all of the variants in this position have been compared and so it can
@@ -139,18 +148,14 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         var1.originalVariantsMap.erase(var1.ovmIter);
         if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
       }
-      //while (var2.vmIter->first > var2.ovmIter->second.maxPosition) {
-        //var2.buildOutputRecord(ofile);
-        //var2.originalVariantsMap.erase(var2.ovmIter);
-      //}
 
     // If the variant structures are from different reference sequences, parse through the
     // second vcf file until the next reference sequence is found.  If finding the union
     // of the variants unique to the second vcf file, write them out.
     } else {
-//      //if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, var1, flags, var2.vmIter->second.referenceSequence, write2, ofile);}
-//      //var2.buildVariantStructure(v2);
-//      //if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, flags, var2.vmIter->second.referenceSequence, ofile);}
+      var2.buildVariantStructure(v2);
+      if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }
   }
 
