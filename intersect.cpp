@@ -116,7 +116,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // Variant from the first vcf file is at a smaller coordinate than that in the
         // second vcf file.
         } else if (var1.vmIter->first < var2.vmIter->first) {
-          if (!flags.findUnique) {var1.filterUnique();}
+          if (!flags.findUnique && !flags.annotate) {var1.filterUnique();}
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
             var1.addVariantToStructure(v1.position, v1.variantRecord);
@@ -124,13 +124,22 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
           }
           if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
         }
+
+        // If the current position is beyond the max position in the originalVariantsMap
+        // then all of the variants in this position have been compared and so it can
+        // be sent to the output and erased.
+        while (var1.vmIter->first > var1.ovmIter->second.maxPosition && var1.originalVariantsMap.size() != 0) {
+          var1.buildOutputRecord(ofile);
+          var1.originalVariantsMap.erase(var1.ovmIter);
+          if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
+        }
       }
 
       // Having finished comparing, there may still be variants left from one of the two files.
       // Check that the two variant structures are empty and if not, finish processing the
       // remaining variants for this reference sequence.
-      if (var1.variantMap.size() != 0) {var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile);}
-      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile);}
+      if (var1.originalVariantsMap.size() != 0) {var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile, true);}
+      if (var2.originalVariantsMap.size() != 0) {var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile, false);}
 
       // Now both variant maps are exhausted, so rebuild the maps with the variants from the
       // next reference sequence in the file.
@@ -140,20 +149,11 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
       if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
 
-      // If the current position is beyond the max position in the originalVariantsMap
-      // then all of the variants in this position have been compared and so it can
-      // be sent to the output and erased.
-      while (var1.vmIter->first > var1.ovmIter->second.maxPosition && var1.originalVariantsMap.size() != 0) {
-        var1.buildOutputRecord(ofile);
-        var1.originalVariantsMap.erase(var1.ovmIter);
-        if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
-      }
-
     // If the variant structures are from different reference sequences, parse through the
     // second vcf file until the next reference sequence is found.  If finding the union
     // of the variants unique to the second vcf file, write them out.
     } else {
-      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, flags, var2.vmIter->second.referenceSequence, ofile);}
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, flags, var2.vmIter->second.referenceSequence, ofile, false);}
       var2.buildVariantStructure(v2);
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }

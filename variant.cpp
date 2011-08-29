@@ -8,9 +8,6 @@
 // vcfClass describes the vcf class and all operations.
 // ******************************************************
 
-#include "genotype_info.h"
-#include "info.h"
-#include "tools.h"
 #include "variant.h"
 
 using namespace std;
@@ -18,11 +15,12 @@ using namespace vcfCTools;
 
 //Constructor.
 variant::variant(void) {
-  recordsInMemory = 1000;
+  isDbsnp         = false;
   processSnps     = false;
   processMnps     = false;
   processIndels   = false;
   processAll      = false;
+  recordsInMemory = 1000;
   splitMnps       = false;
 };
 
@@ -82,137 +80,137 @@ bool variant::buildVariantStructure(vcf& v) {
 // Add a variant from the vcf file into the variant structure.
 void variant::addVariantToStructure(int position, variantDescription& variant) {
   int altID;
+  bool firstAtLocus   = true;
+  vector<string> alts = split(variant.altString, ",");
 
   // Initialise variant type and reducedVariants structure.
   variantType type;
   reducedVariants rVar;
 
-// Check if a record at this position has already been found in
-// the original variants structure.  If, so the genotype fields
-// need modifying to include the extra alt allele.
-//
-// THIS IS CURRENTLY NOT IMPLEMENTED.
-  if (originalVariantsMap[position].alts.size() != 0) {
-    cerr << "Multiple entries in the vcf file at locus (";
-    cerr << variant.referenceSequence << ":" << position;
-    cerr << ")" << endl;
-    cerr << "This is not currently handled." << endl;
-    cerr << "Program terminated." << endl;
-    exit(1);
-
-  // If this is the first occurence of this position in the
-  // original variants structure, intialise the position.
-  } else {
+  // Only update the originalVariantsMap if this is the first time a
+  // variant at this position is seen.
+  if (originalVariantsMap.count(position) == 0) {
     originalVariantsMap[position].referenceSequence = variant.referenceSequence;
     originalVariantsMap[position].position          = position;
     originalVariantsMap[position].rsid              = variant.rsid;
     originalVariantsMap[position].ref               = variant.ref;
-    originalVariantsMap[position].alts              = split(variant.altString, ",");
-    originalVariantsMap[position].numberAlts        = originalVariantsMap[position].alts.size();
+    originalVariantsMap[position].alts              = alts;
+    originalVariantsMap[position].numberAlts        = alts.size();
     originalVariantsMap[position].quality           = variant.quality;
     originalVariantsMap[position].filters           = variant.filters;
     originalVariantsMap[position].info              = variant.info;
     originalVariantsMap[position].hasGenotypes      = variant.hasGenotypes;
     originalVariantsMap[position].genotypeFormat    = variant.genotypeFormatString;
     originalVariantsMap[position].genotypes         = variant.genotypeString;
-
+  
     // None of the variants should be marked as filtered, so the filtered vector
     // should be set to the size of the alts vector, with false in every field.
     for (int i = 0; i < originalVariantsMap[position].alts.size(); i++) {
       originalVariantsMap[position].filtered.push_back(false);
     }
+  } else {
+    firstAtLocus = false;
+  }
 
-    // If the individual alternate alleles need to be examined to 
-    // determine their types (SNP, MNP, indel), this should be done
-    // now.
-    if (assessAlts) {
+  // If the individual alternate alleles need to be examined to 
+  // determine their types (SNP, MNP, indel), this should be done
+  // now.
+  if (assessAlts) {
 
-      // Find the length of the first and second alternate allele.
-      int altASize = originalVariantsMap[position].alts[0].size();
-      int altBSize = (originalVariantsMap[position].numberAlts > 1) ? originalVariantsMap[position].alts[1].size() : 0;
-      int altCSize = (originalVariantsMap[position].numberAlts > 2) ? originalVariantsMap[position].alts[2].size() : 0;
+    // Find the length of the first and second alternate allele.
+    int altASize = alts[0].size();
+    int altBSize = (alts.size() > 1) ? alts[1].size() : 0;
+    int altCSize = (alts.size() > 2) ? alts[2].size() : 0;
 
-      // Clear the structure defining the variant type.
-      clearType(type);
+    // Clear the structure defining the variant type.
+    clearType(type);
 
-      // Determine if there are multiple alleles.  If the variant is a triallelic SNP,
-      // leave the variant as is, otherwise, put each alternate allele in the
-      // structure seperately.
+    // Determine if there are multiple alleles.  If the variant is a triallelic SNP,
+    // leave the variant as is, otherwise, put each alternate allele in the
+    // structure seperately.
+    //
+    // Single alternate allele.
+    if (alts.size() == 0) {
+      determineVariantType(variant.referenceSequence, position, variant.ref, alts[0], type, 0, firstAtLocus);
+
+    // Tri-allelic SNP.
+    } else if (alts.size() == 2 && altASize == 1 && altBSize == 1) {
+      altID = 0;
+      type.isTriallelicSnp = true;
+
+      // Add both alleles separately to the originalVariantsMap reduced alleles structure.
+      vector<string>::iterator altIter = alts.begin();
+      for (; altIter != alts.end(); altIter++) {
+        if (firstAtLocus) {
+          originalVariantsMap[position].type.push_back(type);
+          originalVariantsMap[position].reducedRef.push_back(originalVariantsMap[position].ref);
+          originalVariantsMap[position].reducedAlts.push_back(*altIter);
+          originalVariantsMap[position].reducedPosition.push_back(position);
+          if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+        }
+        if (storeReducedAlts) {
+          rVar.originalPosition = position;
+          rVar.ref              = variant.ref;
+          rVar.alt              = *altIter;
+          rVar.altID            = altID;
+          variantMap[position].referenceSequence = variant.referenceSequence;
+          variantMap[position].snps.push_back(rVar);
+          altID++;
+        }
+      }
+
+    // Quad-allelic SNP.
+    } else if (alts.size() == 3 && altASize == 1 && altBSize == 1 && altCSize == 1) {
+      altID = 0;
+      type.isQuadallelicSnp = true;
+
+      // Add all alleles separately to the originalVariantsMap reduced alleles structure.
+      vector<string>::iterator altIter = alts.begin();
+      for (; altIter != alts.end(); altIter++) {
+        if (firstAtLocus) {
+          originalVariantsMap[position].type.push_back(type);
+          originalVariantsMap[position].reducedRef.push_back(originalVariantsMap[position].ref);
+          originalVariantsMap[position].reducedAlts.push_back(*altIter);
+          originalVariantsMap[position].reducedPosition.push_back(position);
+          if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+        }
+        if (storeReducedAlts) {
+          rVar.originalPosition = position;
+          rVar.ref              = variant.ref;
+          rVar.alt              = *altIter;
+          rVar.altID            = altID;
+          variantMap[position].referenceSequence = variant.referenceSequence;
+          variantMap[position].snps.push_back(rVar);
+          altID++;
+        }
+      }
+
+    // MNPs, insertions and deletions.
+    } else {
+  
+      // Keep track of the number of SNPs.  If the locus contains a multiallelic
+      // SNP as well as a different variant type, the following loop will identify
+      // multiple biallelic SNPs but not acknowledge that it is tri- or quad
+      // allelic.  This ensures that it is.
+      locusHasSnp     = false;
+      locusHasTriSnp  = false;
+      locusHasQuadSnp = false;
+
+      // Determine the type of each alternate alllele.
+      int count = 0;
+      for (vector<string>::iterator aa = alts.begin(); aa != alts.end(); aa++) {
+        clearType(type);
+        determineVariantType(variant.referenceSequence, position, variant.ref, *aa, type, count, firstAtLocus);
+        count++;
+      }
+
+      // If the locus contains a multi allelic SNP, modify the entries in the
+      // variantType structure to reflect this.  
       //
-      // Single alternate allele.
-      if (originalVariantsMap[position].numberAlts == 0) {
-        determineVariantType(originalVariantsMap[position].referenceSequence, position, originalVariantsMap[position].ref, 
-                             originalVariantsMap[position].alts[0], type, 0);
-
-      // Tri-allelic SNP.
-      } else if (originalVariantsMap[position].numberAlts == 2 && altASize == 1 && altBSize == 1) {
-        altID = 0;
-        type.isTriallelicSnp = true;
-
-        // Add both alleles separately to the originalVariantsMap reduced alleles structure.
-        vector<string>::iterator altIter = originalVariantsMap[position].alts.begin();
-        for (; altIter != originalVariantsMap[position].alts.end(); altIter++) {
-          originalVariantsMap[position].type.push_back(type);
-          originalVariantsMap[position].reducedRef.push_back(originalVariantsMap[position].ref);
-          originalVariantsMap[position].reducedAlts.push_back(*altIter);
-          originalVariantsMap[position].reducedPosition.push_back(position);
-          if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-          if (storeReducedAlts) {
-            rVar.originalPosition = position;
-            rVar.ref   = originalVariantsMap[position].ref;
-            rVar.alt   = *altIter;
-            rVar.altID = altID;
-            variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
-            variantMap[position].snps.push_back(rVar);
-            altID++;
-          }
-        }
-
-      // Quad-allelic SNP.
-      } else if (originalVariantsMap[position].numberAlts == 3 && altASize == 1 && altBSize == 1 && altCSize == 1) {
-        altID = 0;
-        type.isQuadallelicSnp = true;
-
-        // Add all alleles separately to the originalVariantsMap reduced alleles structure.
-        vector<string>::iterator altIter = originalVariantsMap[position].alts.begin();
-        for (; altIter != originalVariantsMap[position].alts.end(); altIter++) {
-          originalVariantsMap[position].type.push_back(type);
-          originalVariantsMap[position].reducedRef.push_back(originalVariantsMap[position].ref);
-          originalVariantsMap[position].reducedAlts.push_back(*altIter);
-          originalVariantsMap[position].reducedPosition.push_back(position);
-          if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-          if (storeReducedAlts) {
-            rVar.originalPosition = position;
-            rVar.ref   = originalVariantsMap[position].ref;
-            rVar.alt   = *altIter;
-            rVar.altID = altID;
-            variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
-            variantMap[position].snps.push_back(rVar);
-            altID++;
-          }
-        }
-
-      // MNPs, insertions and deletions.
-      } else {
-    
-        // Keep track of the number of SNPs.  If the locus contains a multiallelic
-        // SNP as well as a different variant type, the following loop will identify
-        // multiple biallelic SNPs but not acknowledge that it is tri- or quad
-        // allelic.  This ensures that it is.
-        locusHasSnp     = false;
-        locusHasTriSnp  = false;
-        locusHasQuadSnp = false;
-
-        // Determine the type of each alternate alllele.
-        int count = 0;
-        for (vector<string>::iterator aa = originalVariantsMap[position].alts.begin(); aa != originalVariantsMap[position].alts.end(); aa++) {
-          clearType(type);
-          determineVariantType(originalVariantsMap[position].referenceSequence, position, originalVariantsMap[position].ref, *aa, type, count);
-          count++;
-        }
-
-        // If the locus contains a multi allelic SNP, modify the entries in the
-        // variantType structure to reflect this.
+      // Since the originalVariantsMap currently only contains the variants
+      // from the first record at this locus, only do this step the first
+      // time this locus is observed.
+      if (firstAtLocus) {
         if (locusHasTriSnp) {
           vector<variantType>::iterator typeIter = originalVariantsMap[position].type.begin();
           for (; typeIter != originalVariantsMap[position].type.end(); typeIter++) {
@@ -249,33 +247,38 @@ void variant::clearType(variantType& type) {
 // the files (for the current reference sequence) have been loaded
 // into the data structures, finish parsing the second vcf file and
 // flush out all variants for this reference sequence.
-void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output& ofile) {
-  while (variantMap.size() != 0) {
-    if (flags.annotate) {}
+//
+// Only the originalVariantsMap is used for building output records,
+// so the variantMap can be kept clear at all times.
+void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output& ofile, bool write) {
+  while (originalVariantsMap.size() != 0) {
 
     // Since the vcf file to compare with has been exhausted, all of
     // the remaining variants will not intersect with any others and
-    // so can be omitted unless unique records are required.  Each of
-    // the variant types need to be handled individually.
-    bool filter = flags.findUnique ? false : true;
-    applyFilter(vmIter->second.snps, filter);
-    applyFilter(vmIter->second.mnps, filter);
-    applyFilter(vmIter->second.indels, filter);
-    variantMap.erase(vmIter);
+    // so can be omitted unless unique records are required.
+    if (!flags.annotate) {
+      bool filter = flags.findUnique ? false : true;
+      vector<bool>::iterator fIter = ovmIter->second.filtered.begin();
+      for (; fIter != ovmIter->second.filtered.end(); fIter++) {*fIter = filter;}
+      //applyFilter(vmIter->second.snps, filter);
+      //applyFilter(vmIter->second.mnps, filter);
+      //applyFilter(vmIter->second.indels, filter);
+    }
+
+    // Build the output record, removing unwanted alleles and modifying the
+    // genotypes if necessary and send to the output buffer.
+    if (write) {buildOutputRecord(ofile);}
+
+    // Erase the entries from the maps.
+    originalVariantsMap.erase(ovmIter);
+    if (variantMap.size() != 0) {variantMap.erase(vmIter);}
+
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord);
       v.success = v.getRecord(cRef);
     }
+    if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
     if (variantMap.size() != 0) {vmIter = variantMap.begin();}
-  }
-}
-
-// Loop through a vector of variants, and modify the filter entry for
-// the variant in the corresponding originalVariantsMap structure.
-void variant::applyFilter(vector<reducedVariants>& vec, bool filter) {
-  vector<reducedVariants>::iterator iter = vec.begin();
-  for (; iter != vec.end(); iter++) {
-    originalVariantsMap[iter->originalPosition].filtered[iter->altID] = filter;
   }
 }
 
@@ -297,19 +300,23 @@ void variant::clearReferenceSequenceBed(vcf& v, intFlags flags, string cRef, out
     // genotypes if necessary and send to the output buffer.
     buildOutputRecord(ofile);
 
-    // Update the originalVariants structure.
+    // Erase the entries from the maps.
     originalVariantsMap.erase(ovmIter);
+    if (variantMap.size() != 0) {variantMap.erase(vmIter);}
+    
+    // Update the originalVariants structure.
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord);
       v.success = v.getRecord(cRef);
     }
     if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
+    if (variantMap.size() != 0) {vmIter = variantMap.begin();}
   }
 }
 
 // Determine the variant class from the ref and alt alleles.
 //void variant::determineVariantType(int position, string ref, string alt, variantDescription& variant, bool isDbsnp) {
-void variant::determineVariantType(string refSeq, int position, string ref, string alt, variantType& type, int ID) {
+void variant::determineVariantType(string refSeq, int position, string ref, string alt, variantType& type, int ID, bool first) {
   reducedVariants rVar;
   int start;
   bool doSmithWaterman = false;
@@ -323,17 +330,19 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
     type.isBiallelicSnp = true;
-    originalVariantsMap[position].type.push_back(type);
-    originalVariantsMap[position].reducedRef.push_back(ref);
-    originalVariantsMap[position].reducedAlts.push_back(alt);
-    originalVariantsMap[position].reducedPosition.push_back(position);
-    if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+    if (first) {
+      originalVariantsMap[position].type.push_back(type);
+      originalVariantsMap[position].reducedRef.push_back(ref);
+      originalVariantsMap[position].reducedAlts.push_back(alt);
+      originalVariantsMap[position].reducedPosition.push_back(position);
+      if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+    }
     if (storeReducedAlts) {
       rVar.originalPosition = position;
       rVar.ref   = ref;
       rVar.alt   = alt;
       rVar.altID = ID;
-      variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
+      variantMap[position].referenceSequence = refSeq;
       variantMap[position].snps.push_back(rVar);
     }
   } else {
@@ -364,9 +373,9 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
 
     // Populate the structure rVar with the modified variant.
     rVar.originalPosition = position;
-    rVar.ref   = alRef;
-    rVar.alt   = alAlt;
-    rVar.altID = ID;
+    rVar.ref              = alRef;
+    rVar.alt              = alAlt;
+    rVar.altID            = ID;
 
     // SNP.
     if (alRef.size() == 1 && (alRef.size() - alAlt.size()) == 0) {
@@ -387,26 +396,30 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
       } else {
         locusHasSnp = true;
       }
-      originalVariantsMap[position].type.push_back(type);
-      originalVariantsMap[position].reducedRef.push_back(alRef);
-      originalVariantsMap[position].reducedAlts.push_back(alAlt);
-      originalVariantsMap[position].reducedPosition.push_back(start);
-      if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      if (first) {
+        originalVariantsMap[position].type.push_back(type);
+        originalVariantsMap[position].reducedRef.push_back(alRef);
+        originalVariantsMap[position].reducedAlts.push_back(alAlt);
+        originalVariantsMap[position].reducedPosition.push_back(start);
+        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      }
       if (storeReducedAlts) {
-        variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
+        variantMap[position].referenceSequence = refSeq;
         variantMap[start].snps.push_back(rVar);
       }
 
     // MNP.
     } else if (alRef.size() != 1 && (alRef.size() - alAlt.size()) == 0) {
       type.isMnp = true;
-      originalVariantsMap[position].type.push_back(type);
-      originalVariantsMap[position].reducedRef.push_back(alRef);
-      originalVariantsMap[position].reducedAlts.push_back(alAlt);
-      originalVariantsMap[position].reducedPosition.push_back(start);
-      if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      if (first) {
+        originalVariantsMap[position].type.push_back(type);
+        originalVariantsMap[position].reducedRef.push_back(alRef);
+        originalVariantsMap[position].reducedAlts.push_back(alAlt);
+        originalVariantsMap[position].reducedPosition.push_back(start);
+        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      }
       if (storeReducedAlts) {
-        variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
+        variantMap[position].referenceSequence = refSeq;
         variantMap[start].mnps.push_back(rVar);
       }
 //      if (splitMnps) {
@@ -444,26 +457,30 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
     // Insertion.
     } else if ( alAlt.size() > alRef.size() ) {
       type.isInsertion = true;
-      originalVariantsMap[position].type.push_back(type);
-      originalVariantsMap[position].reducedRef.push_back(alRef);
-      originalVariantsMap[position].reducedAlts.push_back(alAlt);
-      originalVariantsMap[position].reducedPosition.push_back(start);
-      if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      if (first) {
+        originalVariantsMap[position].type.push_back(type);
+        originalVariantsMap[position].reducedRef.push_back(alRef);
+        originalVariantsMap[position].reducedAlts.push_back(alAlt);
+        originalVariantsMap[position].reducedPosition.push_back(start);
+        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      }
       if (storeReducedAlts) {
-        variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
+        variantMap[position].referenceSequence = refSeq;
         variantMap[start].indels.push_back(rVar);
       }
 
     // Deletion.
     } else if ( alRef.size() > alAlt.size() ) {
       type.isDeletion = true;
-      originalVariantsMap[position].type.push_back(type);
-      originalVariantsMap[position].reducedRef.push_back(alRef);
-      originalVariantsMap[position].reducedAlts.push_back(alAlt);
-      originalVariantsMap[position].reducedPosition.push_back(start);
-      if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      if (first) {
+        originalVariantsMap[position].type.push_back(type);
+        originalVariantsMap[position].reducedRef.push_back(alRef);
+        originalVariantsMap[position].reducedAlts.push_back(alAlt);
+        originalVariantsMap[position].reducedPosition.push_back(start);
+        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
+      }
       if (storeReducedAlts) {
-        variantMap[position].referenceSequence = originalVariantsMap[position].referenceSequence;
+        variantMap[position].referenceSequence = refSeq;
         variantMap[start].indels.push_back(rVar);
       }
 
@@ -477,11 +494,134 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
   }
 }
 
+// Annotate the variants at this locus with the contents of the bed file.
+void variant::annotateRecordBed(bedRecord& b) {
+//  // SNPs.
+//  if (processSnps) {
+//    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
+//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+//      else {variantIter->info = b.info;}
+//      buildRecord(vmIter->first, *variantIter); // tools.cpp
+//    }
+//    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
+//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+//      else {variantIter->info = b.info;}
+//      buildRecord(vmIter->first, *variantIter); // tools.cpp
+//    }
+//  }
+// 
+//  // MNPs.
+//  if (processMnps) {
+//    for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
+//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+//      else {variantIter->info = b.info;}
+//      buildRecord(vmIter->first, *variantIter); // tools.cpp
+//    }
+//  }
+// 
+//  // Indels.
+//  if (processIndels) {
+//    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
+//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
+//      else {variantIter->info = b.info;}
+//      buildRecord(vmIter->first, *variantIter); // tools.cpp
+//    }
+//  }
+}
+
+// Extract the genotypes from each sample.
+vector<string> variant::extractGenotypeField(string field) {
+  unsigned int i;
+  vector<string> values;
+
+//  vector<string> format = split(variantIter->genotypeFormatString, ':');
+//  for (i = 0; i < format.size(); i++) {
+//    if (format[i] == field) {break;}
+//  }
+//
+//  // Parse the genotype of each sample;
+//  vector<string> genotypeString = split(variantIter->genotypeString, "\t");
+//  for (vector<string>::iterator gIter = genotypeString.begin(); gIter != genotypeString.end(); gIter++) {
+//    vector<string> genotypeFields = split(*gIter, ':');
+//    if ( genotypeFields.size() < format.size() ) {values.push_back("0");}
+//    else {values.push_back(genotypeFields[i]);}
+//  } 
+
+  return values;
+}
+
+// From the intersection routine, two variants are found at the same position.
+// It is possible that different variants are to be compared with each other
+// (e.g. SNPs with indels) and this requires looking ahead in the variant
+// structures and some of the variants have variable length.  The following 
+// routines deal with the comparisons and then write out the required variants
+// (annotated if necessary).
+//
+// If the variants compared are at the same position.
+void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
+
+  // Compare SNPs.
+  compareAlleles(vmIter->second.snps, var.vmIter->second.snps, flags, var);
+
+  // Compare MNPs.
+  compareAlleles(vmIter->second.mnps, var.vmIter->second.mnps, flags, var);
+
+  // Compare indels.
+  compareAlleles(vmIter->second.indels, var.vmIter->second.indels, flags, var);
+}
+
+// Compare two arrays of variant alleles of the same type (e.g. all SNPs).
+void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVariants>& alleles2, intFlags flags, variant& var) {
+  string rsid;
+  vector<reducedVariants>::iterator iter;
+  vector<reducedVariants>::iterator compIter;
+  bool commonType;
+  bool commonAlleles;
+
+  if (alleles1.size() != 0) {
+    iter = alleles1.begin();
+    for (; iter != alleles1.end(); iter++) {
+      commonType    = false;
+      commonAlleles = false;
+      if (alleles2.size() != 0) {
+        compIter  = alleles2.begin();
+        commonType = true;
+        for (; compIter != alleles2.end(); compIter++) {
+
+          // If the two files share the alleles, keep them only if the common
+          // alleles (or union) is required.
+          if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
+            if (flags.annotate) {rsid = var.originalVariantsMap[compIter->originalPosition].rsid;}
+            commonAlleles = true;
+            break;
+          }
+        }
+      }
+
+      // Based on whether this variant is common or not, decide whether
+      // or not to filter out the allele.
+      if (flags.annotate) {
+        annotateRecordVcf(var.isDbsnp, iter->originalPosition, rsid, commonType, commonAlleles);
+      } else {
+        if (commonAlleles) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? true : false;}
+        else {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? false : true;}
+      }
+    }
+  }
+}
+
 // Annotate the variants at this locus with the contents of the vcf file.
-void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
-  //variantInfo annInfo;
-  //variantInfo vcfInfo;
-  vector<variantDescription>::iterator iter;
+void variant::annotateRecordVcf(bool isDbsnp, int position, string& rsid, bool commonType, bool commonAlleles) {
+
+  // If the vcf file used for annotation is a dbSNP vcf file, only compare the
+  // relevant variant classes.  Also, parse the info string to check that the
+  // variant class as determined by vcfCTools agrees with that listed in the
+  // variant class (VC) info field.
+  if (isDbsnp) {
+    if (commonAlleles) {originalVariantsMap[position].rsid = rsid;}
+  } else {
+
+  }
 
 // If the vcf file used for annotation is a dbSNP vcf file, only compare the
 // relevant variant classes.  Also, parse the info string to check that the
@@ -634,116 +774,6 @@ void variant::annotateRecordVcf(variantsAtLocus& v, bool isDbsnp) {
 //      }
 //    }
 //  }
-}
-
-// Annotate the variants at this locus with the contents of the bed file.
-void variant::annotateRecordBed(bedRecord& b) {
-//  // SNPs.
-//  if (processSnps) {
-//    for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
-//      else {variantIter->info = b.info;}
-//      buildRecord(vmIter->first, *variantIter); // tools.cpp
-//    }
-//    for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
-//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
-//      else {variantIter->info = b.info;}
-//      buildRecord(vmIter->first, *variantIter); // tools.cpp
-//    }
-//  }
-// 
-//  // MNPs.
-//  if (processMnps) {
-//    for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
-//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
-//      else {variantIter->info = b.info;}
-//      buildRecord(vmIter->first, *variantIter); // tools.cpp
-//    }
-//  }
-// 
-//  // Indels.
-//  if (processIndels) {
-//    for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-//      if (variantIter->info != "" && variantIter->info != ".") {variantIter->info += ";" + b.info;}
-//      else {variantIter->info = b.info;}
-//      buildRecord(vmIter->first, *variantIter); // tools.cpp
-//    }
-//  }
-}
-
-// Extract the genotypes from each sample.
-vector<string> variant::extractGenotypeField(string field) {
-  unsigned int i;
-  vector<string> values;
-
-//  vector<string> format = split(variantIter->genotypeFormatString, ':');
-//  for (i = 0; i < format.size(); i++) {
-//    if (format[i] == field) {break;}
-//  }
-//
-//  // Parse the genotype of each sample;
-//  vector<string> genotypeString = split(variantIter->genotypeString, "\t");
-//  for (vector<string>::iterator gIter = genotypeString.begin(); gIter != genotypeString.end(); gIter++) {
-//    vector<string> genotypeFields = split(*gIter, ':');
-//    if ( genotypeFields.size() < format.size() ) {values.push_back("0");}
-//    else {values.push_back(genotypeFields[i]);}
-//  } 
-
-  return values;
-}
-
-// From the intersection routine, two variants are found at the same position.
-// It is possible that different variants are to be compared with each other
-// (e.g. SNPs with indels) and this requires looking ahead in the variant
-// structures and some of the variants have variable length.  The following 
-// routines deal with the comparisons and then write out the required variants
-// (annotated if necessary).
-//
-// If the variants compared are at the same position.
-void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
-
-  // Compare SNPs.
-  compareAlleles(vmIter->second.snps, var.vmIter->second.snps, flags);
-
-  // Compare MNPs.
-  compareAlleles(vmIter->second.mnps, var.vmIter->second.mnps, flags);
-
-  // Compare indels.
-  compareAlleles(vmIter->second.indels, var.vmIter->second.indels, flags);
-}
-
-// Compare two arrays of variant alleles of the same type (e.g. all SNPs).
-void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVariants>& alleles2, intFlags flags) {
-  vector<reducedVariants>::iterator iter;
-  vector<reducedVariants>::iterator compIter;
-  bool common;
-
-  if (alleles1.size() != 0) {
-    iter = alleles1.begin();
-    for (; iter != alleles1.end(); iter++) {
-      common = false;
-      if (alleles2.size() != 0) {
-        compIter = alleles2.begin();
-        for (; compIter != alleles2.end(); compIter++) {
-
-          // If the two files share the alleles, keep them only if the common
-          // alleles (or union) is required.
-          if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
-            common = true;
-            break;
-          }
-        }
-      }
-
-      // Based on whether this variant is common or not, decide whether
-      // or not to filter out the allele.
-      if (common) {
-        originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? true : false;
-      } else {
-        originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? false : true;
-      }
-    }
-  }
 }
   
 // For variants that are known to be unique to a single vcf file when

@@ -28,7 +28,6 @@ vcf::vcf(void) {
   hasGenotypes = true;
   processGenotypes = false;
   numberDataSets = 0;
-  dbsnpVcf = false;
   comparedReferenceSequence = false;
   fasta = "/d2/data/references/build_37/human_reference_v37.fa";
 }

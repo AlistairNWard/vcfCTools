@@ -19,7 +19,6 @@ intersectTool::intersectTool(void)
   : AbstractTool()
 {
   distanceDistribution     = false;
-  recordsInMemory          = 100;
   allowMismatch            = false;
   passFilters              = false;
   findCommon               = false;

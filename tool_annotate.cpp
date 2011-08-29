@@ -10,10 +10,7 @@
 // format.
 // ******************************************************
 
-#include "bedStructure.h"
-#include "intersect.h"
 #include "tool_annotate.h"
-#include "variant.h"
 
 using namespace std;
 using namespace vcfCTools;
@@ -22,7 +19,6 @@ using namespace vcfCTools;
 annotateTool::annotateTool(void)
   : AbstractTool()
 {
-  recordsInMemory = 100;
   currentReferenceSequence = "";
   annotateDbsnp = false;
   annotateVcf = false;
@@ -178,11 +174,14 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
 // Run the tool.
 int annotateTool::Run(int argc, char* argv[]) {
   int getOptions = annotateTool::parseCommandLine(argc, argv);
-  output = openOutputFile(outputFile);
+
+  // Define an output object and open the output file.
+  output ofile;
+  ofile.outputStream = ofile.openOutputFile(outputFile);
 
   vcf v; // Define vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
 
   intersect ints; // Define an intersection object.
   ints.setBooleanFlags(false, false, false, true, true, true);  // Set the flags required for performing intersections.
@@ -191,19 +190,21 @@ int annotateTool::Run(int argc, char* argv[]) {
   // Open the vcf file and parse the header.
   v.openVcf(vcfFile);
   v.parseHeader();
+  var.headerInfoFields   = v.headerInfoFields;
+  var.headerFormatFields = v.headerFormatFields;
 
   // Either a vcf file, a dbsnp vcf file or a bed file can be provided for
   // annotation.  To annotate from multiple files, piping should be used.
   vcf annVcf; // Define a vcf object.
   variant annVar; // Define a variant object
-  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
+  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
 
   if (annotateDbsnp || annotateVcf) {
 
     // Open the vcf file and parse the header.
     annVcf.openVcf(annVcfFile);
     annVcf.parseHeader();
-    if (annotateDbsnp) {annVcf.dbsnpVcf = true;}
+    if (annotateDbsnp) {annVar.isDbsnp = true;}
   }
 
   bed b; // Define a bed object.
@@ -230,15 +231,14 @@ int annotateTool::Run(int argc, char* argv[]) {
   }
   else if (annotateVcf) { 
     taskDescription += "vcf file " + annVcfFile;
-
   } else if (annotateBed) {
     taskDescription += "bed file " + bedFile;
   }
-  writeHeader(output, v, false, taskDescription); // tools.cpp
+  writeHeader(ofile.outputStream, v, false, taskDescription); // tools.cpp
 
 // Annotate the vcf file.
-  if (annotateDbsnp || annotateVcf) {ints.intersectVcf(v, var, annVcf, annVar, output);}
-  else if (annotateBed) {ints.intersectVcfBed(v, var, b, bs, output);}
+  if (annotateDbsnp || annotateVcf) {ints.intersectVcf(v, var, annVcf, annVar, ofile);}
+  else if (annotateBed) {ints.intersectVcfBed(v, var, b, bs, ofile);}
 
 // Check that the input files had the same list of reference sequences.
 // If not, it is possible that there were some problems.

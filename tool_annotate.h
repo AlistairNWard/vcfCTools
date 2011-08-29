@@ -13,9 +13,12 @@
 #ifndef TOOL_ANNOTATE_H
 #define TOOL_ANNOTATE_H
 
-#include "tools.h"
-#include "vcf.h"
 #include "bed.h"
+#include "bedStructure.h"
+#include "intersect.h"
+#include "tools.h"
+#include "variant.h"
+#include "vcf.h"
 #include "vcfCTools_tool.h"
 
 #include <iostream>
@@ -46,8 +49,6 @@ class annotateTool : public AbstractTool {
     bool annotateDbsnp;
     bool annotateVcf;
     bool annotateBed;
-    ostream* output;
-    unsigned int recordsInMemory;
 
     // Boolean flags.
     bool processSnps;

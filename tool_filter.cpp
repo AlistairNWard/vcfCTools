@@ -75,11 +75,11 @@ int filterTool::Help(void) {
   //cout << "  -t, --strip-records" << endl;
   //cout << "	strip out records containing the specified info field (comma separated list)." << endl;
   cout << "  -1, --snps" << endl;
-  cout << "	analyse SNPs only." << endl;
+  cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
-  cout << "	analyse MNPs only." << endl;
+  cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
-  cout << "	analyse indels only." << endl;
+  cout << "	analyse indels." << endl;
   cout << endl;
   exit(0);
 

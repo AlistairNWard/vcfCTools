@@ -44,7 +44,6 @@ class intersectTool : public AbstractTool {
     vector<string> vcfFiles;
     string outputFile;
 
-    unsigned int recordsInMemory;
     string currentReferenceSequence;
     string writeFrom;
 

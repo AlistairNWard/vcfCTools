@@ -22,8 +22,10 @@
 
 #include "bed.h"
 #include "bedStructure.h"
+#include "genotype_info.h"
 #include "info.h"
 #include "output.h"
+#include "tools.h"
 #include "trim_alleles.h"
 #include "vcf.h"
 
@@ -114,21 +116,20 @@ class variant {
   public:
     variant(void);
     ~variant(void);
-    void determineVariantsToProcess(bool, bool, bool, bool, bool, bool);
-    bool buildVariantStructure(vcf&);
     void addVariantToStructure(int, variantDescription&);
-    void clearType(variantType&);
-    void clearReferenceSequence(vcf&, intFlags, string, output&);
-    void clearReferenceSequenceBed(vcf&, intFlags, string, output&);
-    void applyFilter(vector<reducedVariants>&, bool);
-    void determineVariantType(string, int, string, string, variantType&, int);
-    void buildOutputRecord(output&);
-    void annotateRecordVcf(variantsAtLocus&, bool);
     void annotateRecordBed(bedRecord&);
+    void annotateRecordVcf(bool, int, string&, bool, bool);
+    void buildOutputRecord(output&);
+    bool buildVariantStructure(vcf&);
+    void clearReferenceSequence(vcf&, intFlags, string, output&, bool);
+    void clearReferenceSequenceBed(vcf&, intFlags, string, output&);
+    void clearType(variantType&);
     void compareVariantsSameLocus(variant&, intFlags);
-    void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags);
-    void filterUnique();
+    void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags, variant&);
+    void determineVariantsToProcess(bool, bool, bool, bool, bool, bool);
+    void determineVariantType(string, int, string, string, variantType&, int, bool);
     vector<string> extractGenotypeField(string);
+    void filterUnique();
 
   public:
     unsigned int recordsInMemory;
@@ -153,16 +154,17 @@ class variant {
 
     // Boolean flags.
     bool assessAlts;
-    bool storeReducedAlts;
+    bool isDbsnp;
+    bool locusHasQuadSnp;
+    bool locusHasSnp;
+    bool locusHasTriSnp;
     bool processSnps;
     bool processMnps;
     bool processIndels;
     bool processAll;
     bool splitMnps;
     bool removeGenotypes;
-    bool locusHasSnp;
-    bool locusHasTriSnp;
-    bool locusHasQuadSnp;
+    bool storeReducedAlts;
 };
 
 } // namespace vcfCTools

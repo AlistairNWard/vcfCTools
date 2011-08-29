@@ -196,9 +196,6 @@ class vcf {
 
   public:
 
-// General information.
-    bool dbsnpVcf;
-
 // Header information and text.
     unsigned int numberDataSets;
     map<unsigned int, string> includedDataSets;
