@@ -839,8 +839,9 @@ void variant::buildOutputRecord(output& ofile) {
   // and the entire record is required.
   modifiedAlleles.push_back(0);
   if (assessAlts) {
+    modified = false;
     for (; aIter != ovmIter->second.alts.end(); aIter++) {
-  
+
       // Check if this allele is to be kept or removed.
       removeAllele = false;
       if (*fIter) {
@@ -852,9 +853,8 @@ void variant::buildOutputRecord(output& ofile) {
         {removeAllele = true;}
       }
   
-      // Now updatet the modifiedAlleles vector depending on whether
+      // Now update the modifiedAlleles vector depending on whether
       // the allele is to be removed or not.
-      modified = false;
       if (removeAllele) {
         modified = true;
         modifiedAlleles.push_back(-1);
