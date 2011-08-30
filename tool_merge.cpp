@@ -147,7 +147,6 @@ int mergeTool::Run(int argc, char* argv[]) {
         currentReferenceSequence = v.variantRecord.referenceSequence;
         v.success = var.buildVariantStructure(v);
       }
-
       // For merging, the vcf records are not interrogated and reduced to
       // the shortest unambiguous description.  As such, loop over the
       // originalVariants structure writing out each position in order until

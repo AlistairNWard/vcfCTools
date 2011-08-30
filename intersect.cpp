@@ -174,8 +174,11 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
 // in common reference sequence.
 void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, output& ofile) {
   map<int, bedRecord>::iterator bmNext;
-  int lastBedIntervalEnd   = 0;
-  bool lastBedInterval = false;
+  unsigned int lastBedIntervalEnd = 0;
+  unsigned int distanceToBed      = 0;
+  unsigned int leftDistance       = 0;
+  unsigned int rightDistance      = 0;
+  bool lastBedInterval            = false;
 
   // Build the variant structures for the vcf and bed files.
   v.success = var.buildVariantStructure(v);
@@ -187,8 +190,11 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
   var.ovmIter = var.originalVariantsMap.begin();
   bs.bmIter   = bs.bedMap.begin();
   bmNext      = bs.bedMap.begin();
-  bmNext++;
-  if (bmNext == bs.bedMap.end()) {lastBedInterval = true;}
+  if (bs.bedMap.size() == 1) {
+    lastBedInterval = true;
+  } else {
+    bmNext++;
+  }
 
   // Check if the end position of the current interval is larger than the start
   // position of the next interval in the structure.  If so, the intervals
@@ -209,8 +215,6 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
 // Parse through the vcf file until it is finished and the variant structure is empty.
   //while (var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
   while (var.originalVariantsMap.size() != 0 || v.success) {
-    cerr << var.ovmIter->first << " " << lastBedIntervalEnd << " " << bs.bmIter->first;
-    cerr << " " << bs.bmIter->second.end << " " << bmNext->first << endl;
     if (var.ovmIter->second.referenceSequence == bs.bmIter->second.referenceSequence) {
 
       // Consider each variant allele in turn and use the filtered vector to
@@ -253,6 +257,15 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
         // ref and alt alleles are required to fall wholly within the bed
         // interval.
         if (beforeStart || (overlapStart && flags.whollyWithin)) {
+          leftDistance  = *posIter - lastBedIntervalEnd;
+          rightDistance = bedStart - *posIter;
+          //distanceToBed = (lastBedIntervalEnd == 0) ? rightDistance : min(leftDistance, rightDistance);
+          if (lastBedIntervalEnd == 0) {
+            distanceToBed = rightDistance;
+          } else {
+            distanceToBed = (rightDistance > leftDistance) ? -1 * leftDistance : rightDistance;
+          }
+          distanceDist[currentReferenceSequence][distanceToBed]++;
 
           // Mark this as a variant to be written out if variants unique to the
           // vcf file (i.e. outside of the bed intervals) were requested.
@@ -261,10 +274,16 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
 
         // Variant is beyond the bed interval.
         } else if (afterEnd || (overlapEnd && flags.whollyWithin)) {
+          if (lastBedInterval) {
+            distanceToBed = *posIter - bedEnd;
+            distanceDist[currentReferenceSequence][distanceToBed]++;
+          }
           iterateBed = true;
 
         // Variant is within the bed interval
         } else if (within || ( (overlapStart || overlapEnd) && !flags.whollyWithin)) {
+          distanceToBed = 0;
+          distanceDist[currentReferenceSequence][distanceToBed]++;
           *filtIter  = flags.findUnique ? true : false;
           iterateVcf = true;
 
@@ -315,10 +334,14 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
         }
         if (bs.bedMap.size() != 0) {
           bs.bmIter = bs.bedMap.begin();
-          if (bs.bedMap.begin()++ != bs.bedMap.end()) {
-            bmNext = bs.bedMap.begin();
+
+          // This is the last bed interval if the size of the bed map is 1.
+          bmNext = bs.bedMap.begin();
+          if (bs.bedMap.size() == 1) {
+            lastBedInterval = true;
+          } else {
             bmNext++;
-          } else {lastBedInterval = true;}
+          }
 
           // Check if the end position of the current interval is larger than the start
           // position of the next interval in the structure.  If so, the intervals

@@ -41,6 +41,7 @@ class intersect {
   public:
     intFlags flags;
     string writeFrom;
+    map<string, map<int, unsigned int> > distanceDist;
 };
 
 } // namespace vcfCTools

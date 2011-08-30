@@ -296,7 +296,21 @@ int intersectTool::Run(int argc, char* argv[]) {
     cerr << "Number: " << b.numberTargets << endl;
     cerr << "Total target length: " << b.targetLength << endl;
     cerr << "Average target length: " << b.targetLength / b.numberTargets << endl;
-    
+    cerr << endl;
+
+// Print out the distribution of distances to targets.
+    cerr << "Histogram describing the distribution of variant distances from targets:" << endl;
+    cerr << endl;
+
+    map<string, map<int, unsigned int> >::iterator rIter = ints.distanceDist.begin();
+    map<int, unsigned int>::iterator dIter;
+    for (; rIter != ints.distanceDist.end(); rIter++) {
+      cerr << "Reference sequence: " << rIter->first << endl;
+      for (dIter = rIter->second.begin(); dIter != rIter->second.end(); dIter++) {
+        cerr << dIter->first << "	" << dIter->second << endl;
+      }
+    }
+
 // Close the bed object.
     b.closeBed();
 

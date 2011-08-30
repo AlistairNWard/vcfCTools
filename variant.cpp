@@ -21,6 +21,7 @@ variant::variant(void) {
   processIndels   = false;
   processAll      = false;
   recordsInMemory = 1000;
+  removeGenotypes = false;
   splitMnps       = false;
 };
 
@@ -260,9 +261,6 @@ void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output
       bool filter = flags.findUnique ? false : true;
       vector<bool>::iterator fIter = ovmIter->second.filtered.begin();
       for (; fIter != ovmIter->second.filtered.end(); fIter++) {*fIter = filter;}
-      //applyFilter(vmIter->second.snps, filter);
-      //applyFilter(vmIter->second.mnps, filter);
-      //applyFilter(vmIter->second.indels, filter);
     }
 
     // Build the output record, removing unwanted alleles and modifying the
@@ -836,45 +834,55 @@ void variant::buildOutputRecord(output& ofile) {
   // allele.  Now the array index can be used to determine the new allele ID.
   // For example if a genotype 0/2 is encountered, this can be replaced with
   // modifiedAlleles[0]/modifiedAlleles[2].
+  //
+  // If the alleles weren't explicitly interrogated, the types etc. will not be known
+  // and the entire record is required.
   modifiedAlleles.push_back(0);
-  for (; aIter != ovmIter->second.alts.end(); aIter++) {
-
-    // Check if this allele is to be kept or removed.
-    removeAllele = false;
-    if (*fIter) {
-      removeAllele = true;
-    } else {
-      if ( (!processSnps && (typeIter->isBiallelicSnp || typeIter->isTriallelicSnp || typeIter->isQuadallelicSnp)) ||
-           (!processMnps && typeIter->isMnp) ||
-           (!processIndels && (typeIter->isInsertion || typeIter->isDeletion)) )
-      {removeAllele = true;}
-    }
-
-    // Now updatet the modifiedAlleles vector depending on whether
-    // the allele is to be removed or not.
-    modified = false;
-    if (removeAllele) {
-      modified = true;
-      modifiedAlleles.push_back(-1);
-    } else {
-      hasAltAlleles = true;
-      modifiedAlleles.push_back(alleleID);
-      alleleID++;
-      if (firstAlt) {firstAlt = false;}
-      else {altAlleles += ",";}
-      if (processSnps && !processMnps && !processIndels) {
-        altAlleles += *modifiedIter;
-        refAllele   = *refIter;
-        position    = *posIter;
+  if (assessAlts) {
+    for (; aIter != ovmIter->second.alts.end(); aIter++) {
+  
+      // Check if this allele is to be kept or removed.
+      removeAllele = false;
+      if (*fIter) {
+        removeAllele = true;
       } else {
-        altAlleles += *aIter;
+        if ( (!processSnps && (typeIter->isBiallelicSnp || typeIter->isTriallelicSnp || typeIter->isQuadallelicSnp)) ||
+             (!processMnps && typeIter->isMnp) ||
+             (!processIndels && (typeIter->isInsertion || typeIter->isDeletion)) )
+        {removeAllele = true;}
       }
+  
+      // Now updatet the modifiedAlleles vector depending on whether
+      // the allele is to be removed or not.
+      modified = false;
+      if (removeAllele) {
+        modified = true;
+        modifiedAlleles.push_back(-1);
+      } else {
+        hasAltAlleles = true;
+        modifiedAlleles.push_back(alleleID);
+        alleleID++;
+        if (firstAlt) {firstAlt = false;}
+        else {altAlleles += ",";}
+        if (processSnps && !processMnps && !processIndels) {
+          altAlleles += *modifiedIter;
+          refAllele   = *refIter;
+          position    = *posIter;
+        } else {
+          altAlleles += *aIter;
+        }
+      }
+      fIter++;
+      typeIter++;
+      modifiedIter++;
+      refIter++;
+      posIter++;
     }
-    fIter++;
-    typeIter++;
-    modifiedIter++;
-    refIter++;
-    posIter++;
+  } else {
+    hasAltAlleles = true;
+    altAlleles = *aIter;
+    aIter++;
+    for (; aIter != ovmIter->second.alts.end(); aIter++) {altAlleles += "," + *aIter;}
   }
 
   // Check if any alleles remain.  If all are filtered out, there is no
