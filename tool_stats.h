@@ -50,11 +50,12 @@ class statsTool : public AbstractTool {
     // Boolean flags.
     bool generateAfs;
     bool generateDetailed;
-    bool useAnnotations;
-    bool processSnps;
-    bool processMnps;
     bool processIndels;
+    bool processMnps;
+    bool processSnps;
     bool sampleSnps;
+    bool splitMnps;
+    bool useAnnotations;
 };
 
 } // namespace vcfCTools

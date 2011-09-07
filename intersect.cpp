@@ -70,7 +70,6 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
       string currentReferenceSequence = var1.vmIter->second.referenceSequence;
 
       while (var1.variantMap.size() != 0 && var2.variantMap.size() != 0) {
-
         // Variants at the same locus.
         if (var1.vmIter->first == var2.vmIter->first) {
           var1.compareVariantsSameLocus(var2, flags);
@@ -128,10 +127,27 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // If the current position is beyond the max position in the originalVariantsMap
         // then all of the variants in this position have been compared and so it can
         // be sent to the output and erased.
-        while (var1.vmIter->first > var1.ovmIter->second.maxPosition && var1.originalVariantsMap.size() != 0) {
+        while (var1.vmIter->first > var1.ovmIter->second.begin()->maxPosition && var1.originalVariantsMap.size() != 1) {
           var1.buildOutputRecord(ofile);
           var1.originalVariantsMap.erase(var1.ovmIter);
           if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
+        }
+
+        // If all of the records in the variantMap are exhausted there is nothing else to
+        // compare.  If there are still records that haven't been sent to the output, these
+        // should be sent now.
+        if (var1.variantMap.size() == 0 && var1.originalVariantsMap.size() != 0)  {
+          var1.buildOutputRecord(ofile);
+          var1.originalVariantsMap.erase(var1.ovmIter);
+          if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
+        }
+
+        // In order to avoid large memory usage, also clear out the originalVariantsMap
+        // for var2.
+        while (var1.vmIter->first > var2.ovmIter->second.begin()->maxPosition && var2.originalVariantsMap.size() != 0) {
+          //var1.buildOutputRecord(ofile);
+          var2.originalVariantsMap.erase(var2.ovmIter);
+          if (var2.originalVariantsMap.size() != 0) {var2.ovmIter = var2.originalVariantsMap.begin();}
         }
       }
 
@@ -210,101 +226,105 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
 
   // Define the current reference sequence as that from the first entry in the
   // variant map.
-  string currentReferenceSequence = var.ovmIter->second.referenceSequence;
+  string currentReferenceSequence = var.ovmIter->second.begin()->referenceSequence;
 
 // Parse through the vcf file until it is finished and the variant structure is empty.
-  //while (var.variantMap.size() != 0 && bs.bedMap.size() != 0) {
   while (var.originalVariantsMap.size() != 0 || v.success) {
-    if (var.ovmIter->second.referenceSequence == bs.bmIter->second.referenceSequence) {
 
-      // Consider each variant allele in turn and use the filtered vector to
-      // indicate if a particular allele should be removed.  The actual removal
-      // and modification of the genotypes (if they exist) are dealt with when
-      // the variants are written to file.
-      //
-      // Begin by defining the required iterators.
-      vector<int>::iterator posIter          = var.ovmIter->second.reducedPosition.begin();
-      vector<string>::iterator refIter       = var.ovmIter->second.reducedRef.begin();
-      vector<string>::iterator altIter       = var.ovmIter->second.reducedAlts.begin();
-      vector<variantType>::iterator typeIter = var.ovmIter->second.type.begin();
-      vector<bool>::iterator filtIter        = var.ovmIter->second.filtered.begin();
+    // Loop over all records at this locus.
+    var.ovIter = var.ovmIter->second.begin();
+    if (var.ovIter->referenceSequence == bs.bmIter->second.referenceSequence) {
 
       // Initialise flags that indicate whether to iterate the bed file
       // or the vcf file.
       bool iterateBed = false;
       bool iterateVcf = false;
 
-      // Loop over the variants.
-      for (; posIter != var.ovmIter->second.reducedPosition.end(); posIter++) {
+      for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
 
-        // Determine the coordinate of the last base in the allele.  This
-        // is used to determine if the alleles are wholly within the bed
-        // interval.
-        int endPos = max((refIter->size() + *posIter - 1), (altIter->size() + *posIter -1));
+        // Consider each variant allele in turn and use the filtered vector to
+        // indicate if a particular allele should be removed.  The actual removal
+        // and modification of the genotypes (if they exist) are dealt with when
+        // the variants are written to file.
+        //
+        // Begin by defining the required iterators.
+        vector<int>::iterator posIter          = var.ovIter->reducedPosition.begin();
+        vector<string>::iterator refIter       = var.ovIter->reducedRef.begin();
+        vector<string>::iterator altIter       = var.ovIter->reducedAlts.begin();
+        vector<variantType>::iterator typeIter = var.ovIter->type.begin();
+        vector<bool>::iterator filtIter        = var.ovIter->filtered.begin();
 
-        // Define the start and end of the bed interval.
-        int bedStart = bs.bmIter->first;
-        int bedEnd   = bs.bmIter->second.end;
+        // Loop over the variants.
+        for (; posIter != var.ovIter->reducedPosition.end(); posIter++) {
 
-        // Define the variants overlap with the interval.
-        bool beforeStart    = (endPos < bedStart ) ? true : false;
-        bool overlapStart   = (*posIter < bedStart && endPos >= bedStart) ? true : false;
-        bool within         = (*posIter >= bedStart && endPos <= bedEnd) ? true : false;
-        bool overlapEnd     = (*posIter <= bedEnd && endPos > bedEnd) ? true : false;
-        bool afterEnd       = (*posIter > bedEnd) ? true : false;
+          // Determine the coordinate of the last base in the allele.  This
+          // is used to determine if the alleles are wholly within the bed
+          // interval.
+          int endPos = max((refIter->size() + *posIter - 1), (altIter->size() + *posIter -1));
 
-        // Variant is prior to the bed interval.  This depends on whether the
-        // ref and alt alleles are required to fall wholly within the bed
-        // interval.
-        if (beforeStart || (overlapStart && flags.whollyWithin)) {
-          leftDistance  = *posIter - lastBedIntervalEnd;
-          rightDistance = bedStart - *posIter;
-          //distanceToBed = (lastBedIntervalEnd == 0) ? rightDistance : min(leftDistance, rightDistance);
-          if (lastBedIntervalEnd == 0) {
-            distanceToBed = rightDistance;
-          } else {
-            distanceToBed = (rightDistance > leftDistance) ? -1 * leftDistance : rightDistance;
-          }
-          distanceDist[currentReferenceSequence][distanceToBed]++;
+          // Define the start and end of the bed interval.
+          int bedStart = bs.bmIter->first;
+          int bedEnd   = bs.bmIter->second.end;
 
-          // Mark this as a variant to be written out if variants unique to the
-          // vcf file (i.e. outside of the bed intervals) were requested.
-          *filtIter  = flags.findUnique ? false : true;
-          iterateVcf = true;
+          // Define the variants overlap with the interval.
+          bool beforeStart    = (endPos < bedStart ) ? true : false;
+          bool overlapStart   = (*posIter < bedStart && endPos >= bedStart) ? true : false;
+          bool within         = (*posIter >= bedStart && endPos <= bedEnd) ? true : false;
+          bool overlapEnd     = (*posIter <= bedEnd && endPos > bedEnd) ? true : false;
+          bool afterEnd       = (*posIter > bedEnd) ? true : false;
 
-        // Variant is beyond the bed interval.
-        } else if (afterEnd || (overlapEnd && flags.whollyWithin)) {
-          if (lastBedInterval) {
-            distanceToBed = *posIter - bedEnd;
+          // Variant is prior to the bed interval.  This depends on whether the
+          // ref and alt alleles are required to fall wholly within the bed
+          // interval.
+          if (beforeStart || (overlapStart && flags.whollyWithin)) {
+            leftDistance  = *posIter - lastBedIntervalEnd;
+            rightDistance = bedStart - *posIter;
+            if (lastBedIntervalEnd == 0) {
+              distanceToBed = rightDistance;
+            } else {
+              distanceToBed = (rightDistance > leftDistance) ? -1 * leftDistance : rightDistance;
+            }
             distanceDist[currentReferenceSequence][distanceToBed]++;
+
+            // Mark this as a variant to be written out if variants unique to the
+            // vcf file (i.e. outside of the bed intervals) were requested.
+            *filtIter  = flags.findUnique ? false : true;
+            iterateVcf = true;
+
+          // Variant is beyond the bed interval.
+          } else if (afterEnd || (overlapEnd && flags.whollyWithin)) {
+            if (lastBedInterval) {
+              distanceToBed = *posIter - bedEnd;
+              distanceDist[currentReferenceSequence][distanceToBed]++;
+            }
+            iterateBed = true;
+
+          // Variant is within the bed interval
+          } else if (within || ( (overlapStart || overlapEnd) && !flags.whollyWithin)) {
+            distanceToBed = 0;
+            distanceDist[currentReferenceSequence][distanceToBed]++;
+            *filtIter  = flags.findUnique ? true : false;
+            iterateVcf = true;
+
+          // If the else statement is reached there is an error in the code.
+          } else {
+            cerr << "ERROR: Problem with intersection algorithm detected." << endl;
+            cerr << "The vcf record at " << var.ovIter->referenceSequence;
+            cerr << ":" << var.ovmIter->first << " does not fall before, within or" << endl;
+            cerr << "after the bed interval.  An algorithmic error must be present." << endl;
+            cerr << "Program terminated." << endl;
+            exit(1);
           }
-          iterateBed = true;
 
-        // Variant is within the bed interval
-        } else if (within || ( (overlapStart || overlapEnd) && !flags.whollyWithin)) {
-          distanceToBed = 0;
-          distanceDist[currentReferenceSequence][distanceToBed]++;
-          *filtIter  = flags.findUnique ? true : false;
-          iterateVcf = true;
+          // If annotations are required, perform them here.
+          if (flags.annotate) {}
 
-        // If the else statement is reached there is an error in the code.
-        } else {
-          cerr << "ERROR: Problem with intersection algorithm detected." << endl;
-          cerr << "The vcf record at " << var.ovmIter->second.referenceSequence;
-          cerr << ":" << var.ovmIter->first << " does not fall before, within or" << endl;
-          cerr << "after the bed interval.  An algorithmic error must be present." << endl;
-          cerr << "Program terminated." << endl;
-          exit(1);
+          // Iterate the remaining iterators.
+          refIter++;
+          altIter++;
+          typeIter++;
+          filtIter++;
         }
-
-        // If annotations are required, perform them here.
-        if (flags.annotate) {}
-
-        // Iterate the remaining iterators.
-        refIter++;
-        altIter++;
-        typeIter++;
-        filtIter++;
       }
 
       // Iterate whichever file is necessary.  For example, if all variants were
@@ -362,7 +382,7 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
           // If there are variants in the variant map, clear them out and set the current
           // reference sequence to the next reference sequence in the vcf file.
           if (var.originalVariantsMap.size() != 0) {
-            var.clearReferenceSequenceBed(v, flags, var.ovmIter->second.referenceSequence, ofile);
+            var.clearReferenceSequenceBed(v, flags, var.ovIter->referenceSequence, ofile);
           }
           v.success = var.buildVariantStructure(v);
           if (var.originalVariantsMap.size() != 0) {var.ovmIter = var.originalVariantsMap.begin();}

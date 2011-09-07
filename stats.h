@@ -165,23 +165,24 @@ class statistics {
   public:
     statistics(void);
     ~statistics(void);
-    void generateStatistics(variant&, bool, vector<string>&, bool, output&);
-    void printDetailedHeader(output&);
-    void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
-    void updateSampleSnps(variant&, vcf&, unsigned int);
-    void updateDetailedSnps(variant&, vcf&, unsigned int, output&);
     void countByFilter();
-    void printSnpStatistics(output&);
-    void printHeader(output&, string, bool, bool);
-    void printSnpAnnotations(output&);
+    void determineSnpType(variant&, string&);
+    void generateStatistics(variant&, bool, vector<string>&, bool, output&);
+    void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
     void printAcs(output&);
     void printAfs(output&);
-    void printMnpStatistics(output&);
+    void printDetailedHeader(output&);
+    void printHeader(output&, string, bool, bool);
     void printIndelStatistics(output&);
-    void printVariantStruct(output&, string, variantStruct&);
-    void printSnpAnnotationStruct(output&, string&, variantStruct&, string&);
     void printMnpFilter(string&, output&);
+    void printMnpStatistics(output&);
     void printSampleSnps(vcf&, output&);
+    void printSnpAnnotations(output&);
+    void printSnpAnnotationStruct(output&, string&, variantStruct&, string&);
+    void printSnpStatistics(output&);
+    void printVariantStruct(output&, string, variantStruct&);
+    void updateSampleSnps(variant&, vcf&, unsigned int);
+    void updateDetailedSnps(variant&, vcf&, unsigned int, output&);
 
   public:
     bool isTransition;
@@ -194,6 +195,7 @@ class statistics {
     bool hasInsertion;
     bool hasDeletion;
     bool hasAnnotations;
+    bool splitMnps;
     string currentReferenceSequence;
     int lastSnpPosition;
     int lastMnpPosition;

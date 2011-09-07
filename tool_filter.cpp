@@ -275,30 +275,37 @@ vector<string> filterTool::checkInfoFields(vcf& v, string& infoString) {
 // Perform the required filtering tasks on the variants.
 void filterTool::filter(variant& var) {
 
-  // Define the filterString.  If the filter is '.', set the filterString
-  // to a blank field, otherwise, set it equal to the current filter
-  // string in the variant record.  This filter can be modified by the
-  // various filter operations and will be used as the final value of the
-  // filter field.
-  string filterString = (var.ovmIter->second.filters == ".") ? "" : var.ovmIter->second.filters;
+  // Loop over all records at this locus.
+  var.ovIter = var.ovmIter->second.begin();
+  for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
 
-  // If the record is to be marked as having passed, change the filters
-  // to PASS.
-  if (markPass) {filterString = "PASS";}
-
-  // Check for quality filtering.
-  if (filterQuality && !markPass) {
-    if (var.ovmIter->second.quality < filterQualityValue) {
-      ostringstream s;
-      s << filterQualityValue;
-      filterString = (filterString != "") ? filterString + ";" + "Q" + s.str() : "Q" + s.str();
+    // Define the filterString.  If the filter is '.', set the filterString
+    // to a blank field, otherwise, set it equal to the current filter
+    // string in the variant record.  This filter can be modified by the
+    // various filter operations and will be used as the final value of the
+    // filter field.
+    string filterString = (var.ovIter->filters == ".") ? "" : var.ovIter->filters;
+  
+    // If the record is to be marked as having passed, change the filters
+    // to PASS.
+    if (markPass) {filterString = "PASS";}
+  
+    // Check for quality filtering.
+    if (filterQuality && !markPass) {
+      if (var.ovIter->quality < filterQualityValue) {
+        ostringstream s;
+        s << filterQualityValue;
+        filterString = (filterString != "") ? filterString + ";" + "Q" + s.str() : "Q" + s.str();
+      }
     }
+  
+    // If the filterString is blank, the record didn't fail any of the filters
+    // so set the filter field to PASS, otherwise set it to the filter string.
+    filterString = (filterString == "") ? "." : filterString;
+    var.ovIter->filters = (filterString == "." && appliedFilters) ? "PASS" : filterString;
   }
 
-  // If the filterString is blank, the record didn't fail any of the filters
-  // so set the filter field to PASS, otherwise set it to the filter string.
-  filterString = (filterString == "") ? "." : filterString;
-  var.ovmIter->second.filters = (filterString == "." && appliedFilters) ? "PASS" : filterString;
+
 
 //  // SNPs.
 //  if (var.processSnps) {
@@ -624,6 +631,7 @@ int filterTool::Run(int argc, char* argv[]) {
 //  }
 
   while (v.success) {
+
     // Build the variant structure for this reference sequence.
     if (var.originalVariantsMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;

@@ -23,6 +23,7 @@ statistics::statistics(void) {
   hasDeletion              = false;
   hasMnp                   = false;
   hasSnp                   = false;
+  splitMnps                = false;
 
 // Initialise the arrays.
   variants.clear();
@@ -39,110 +40,108 @@ statistics::~statistics(void) {}
 // Parse the variants at this locus and generate statistics.
 //void statistics::generateStatistics(variant& var, vcf& v, int position, bool useAnnotations, vector<string>& annFlags, bool generateAfs, ostream* output) {
 void statistics::generateStatistics(variant& var, bool useAnnotations, vector<string>& annFlags, bool generateAfs, output& ofile) {
+  string alleles;
 
-// Keep track of the different variants at this locus.  This is used to ensure
-// that multiallelic sites are correctly handled.
-  bool locusHasSnp       = false;
-  bool locusHasMultiSnp  = false;
-  bool locusHasMnp       = false;
-  bool locusHasInsertion = false;
-  bool locusHasDeletion  = false;
+  // Loop over all records at this locus.
+  var.ovIter = var.ovmIter->second.begin();
+  for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
 
-// Loop over all of the variants at this position and add to
-// the stats structure if required.
-  vector<string>::iterator refIter       = var.ovmIter->second.reducedRef.begin();
-  vector<string>::iterator altIter       = var.ovmIter->second.reducedAlts.begin();;
-  vector<variantType>::iterator typeIter = var.ovmIter->second.type.begin();;
-  for (; refIter != var.ovmIter->second.reducedRef.end(); refIter++) {
+    // Keep track of the different variants at this locus.  This is used to ensure
+    // that multiallelic sites are correctly handled.
+    bool locusHasSnp       = false;
+    bool locusHasMultiSnp  = false;
+    bool locusHasMnp       = false;
+    bool locusHasInsertion = false;
+    bool locusHasDeletion  = false;
+
+    // Loop over all of the variants at this position and add to
+    // the stats structure if required.
+    vector<string>::iterator refIter       = var.ovIter->reducedRef.begin();
+    vector<string>::iterator altIter       = var.ovIter->reducedAlts.begin();;
+    vector<variantType>::iterator typeIter = var.ovIter->type.begin();;
+    for (; refIter != var.ovIter->reducedRef.end(); refIter++) {
    
-    // Biallelic SNPs.
-    if (typeIter->isBiallelicSnp) {
-      // Check if this variant is annotated as being in dbsnp.
-      inDbsnp     = (var.ovmIter->second.rsid == ".") ? false : true;
-      hasSnp      = true;
-      locusHasSnp = true;
+      // Biallelic SNPs.
+      if (typeIter->isBiallelicSnp) {
 
-      // Determine if the SNP is a transition or transversion.
-      isTransition   = false;
-      isTransversion = false;
+        // Check if this variant is annotated as being in dbsnp.
+        inDbsnp     = (var.ovIter->rsid == ".") ? false : true;
+        hasSnp      = true;
+        locusHasSnp = true;
+
+        // Determine if the SNP is a transition or transversion.
+        isTransition   = false;
+        isTransversion = false;
   
-      // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
-      // order.  A simple comparison can then be made to determine if the SNP is a 
-      // transition or a transversion.
-      string alleles = *refIter + *altIter;
-      for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
-      sort(alleles.begin(), alleles.end());
+        // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
+        // order.  A simple comparison can then be made to determine if the SNP is a 
+        // transition or a transversion.
+        alleles = *refIter + *altIter;
+        for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
+        sort(alleles.begin(), alleles.end());
   
-      // Transition:   A <-> G or C <-> T.
-      if (alleles == "ag" || alleles == "ct") {
-        isTransition = true;
-        if (inDbsnp) {
-          variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].knownTransitions++;
-          //if (info.infoTags.count("dbSNPX") != 0) {variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].diffKnownTransitions++;}
-        } else {
-          variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].novelTransitions++;
+        // Determine if the SNP is a transition or a transversion and update the relevant
+        // statistics.
+        determineSnpType(var, alleles);
+
+      // Triallelic SNPs.  If hasSnp is true, another SNP allele has already been observed
+      // and counted at this locus, so do not double count.
+      } else if (typeIter->isTriallelicSnp) {
+        if (!locusHasSnp) {variants[var.ovIter->referenceSequence][var.ovIter->filters].multiAllelic++;}
+        hasSnp           = true;
+        hasMultiSnp      = true;
+        locusHasSnp      = true;
+        locusHasMultiSnp = true;
+  
+      // Quadallelic SNPs.
+      } else if (typeIter->isQuadallelicSnp) {
+        if (!locusHasSnp) {variants[var.ovIter->referenceSequence][var.ovIter->filters].multiAllelic++;}
+        hasSnp           = true;
+        hasMultiSnp      = true;
+        locusHasSnp      = true;
+        locusHasMultiSnp = true;
+  
+      // MNPs.
+      } else if (typeIter->isMnp) {
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].mnps[altIter->size()]++;
+        hasMnp      = true;
+        locusHasMnp = true;
+        if (splitMnps) {
+          for (int i = 0; i < refIter->size(); i++) {
+            if ((*refIter).substr(i, 1) == (*altIter).substr(i, 1)) {continue;}
+            alleles = (*refIter).substr(i, 1) + (*altIter).substr(i, 1);
+            for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
+            sort(alleles.begin(), alleles.end());
+            determineSnpType(var, alleles);
+          }
         }
 
-      // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
-      } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
-        isTransversion = true;
-        if (inDbsnp) {
-          variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].knownTransversions++;
-          //if (info.infoTags.count("dbSNPX") != 0) {variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].diffKnownTransversions++;}
-        } else {
-          variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].novelTransversions++;
-        }
+      // Insertions.
+      } else if (typeIter->isInsertion) {
+        int insertionSize = altIter->size() - refIter->size();
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].indels[insertionSize].insertions++;
+        hasInsertion      = true;
+        locusHasInsertion = true;
+  
+      // Deletions.
+      } else if (typeIter->isDeletion) {
+        int deletionSize = refIter->size() - altIter->size();
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].indels[deletionSize].deletions++;
+        hasDeletion      = true;
+        locusHasDeletion = true;
+  
+      // Unknown variant type.
+      } else {
+        cerr << "ERROR: Unknown variant type." << endl;
+        cerr << "Variant at " << var.ovIter->referenceSequence;
+        cerr << ":" << var.ovmIter->first << endl;
+        exit(1);
       }
-
-    // Triallelic SNPs.  If hasSnp is true, another SNP allele has already been observed
-    // and counted at this locus, so do not double count.
-    } else if (typeIter->isTriallelicSnp) {
-      if (!locusHasSnp) {variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].multiAllelic++;}
-      hasSnp           = true;
-      hasMultiSnp      = true;
-      locusHasSnp      = true;
-      locusHasMultiSnp = true;
-
-    // Quadallelic SNPs.
-    } else if (typeIter->isQuadallelicSnp) {
-      if (!locusHasSnp) {variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].multiAllelic++;}
-      hasSnp           = true;
-      hasMultiSnp      = true;
-      locusHasSnp      = true;
-      locusHasMultiSnp = true;
-
-    // MNPs.
-    } else if (typeIter->isMnp) {
-      variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].mnps[altIter->size()]++;
-      hasMnp      = true;
-      locusHasMnp = true;
-
-    // Insertions.
-    } else if (typeIter->isInsertion) {
-      int insertionSize = altIter->size() - refIter->size();
-      variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].indels[insertionSize].insertions++;
-      hasInsertion      = true;
-      locusHasInsertion = true;
-
-    // Deletions.
-    } else if (typeIter->isDeletion) {
-      int deletionSize = refIter->size() - altIter->size();
-      variants[var.ovmIter->second.referenceSequence][var.ovmIter->second.filters].indels[deletionSize].deletions++;
-      hasDeletion      = true;
-      locusHasDeletion = true;
-
-    // Unknown variant type.
-    } else {
-      cerr << "ERROR: Unknown variant type." << endl;
-      cerr << "Variant at " << var.ovmIter->second.referenceSequence;
-      cerr << ":" << var.ovmIter->first << endl;
-      exit(1);
+  
+      // Iterate the alt allele and allele types.
+      altIter++;
+      typeIter++;
     }
-
-    // Iterate the alt allele and allele types.
-    altIter++;
-    typeIter++;
-  }
 
 //  unsigned int ac;
 //  double af;
@@ -299,6 +298,33 @@ void statistics::generateStatistics(variant& var, bool useAnnotations, vector<st
 //      if (var.variantIter->isInsertion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].indels[abs(indelSize)].insertions++;}
 //    }
 //  }
+  }
+}
+
+// Given the SNP alleles, determine if it is a transition/transversion and update
+// all necessary statistics.
+void statistics::determineSnpType(variant& var, string& alleles) {
+
+  // Transition:   A <-> G or C <-> T.
+  if (alleles == "ag" || alleles == "ct") {
+    isTransition = true;
+    if (inDbsnp) {
+      variants[var.ovIter->referenceSequence][var.ovIter->filters].knownTransitions++;
+      //if (info.infoTags.count("dbSNPX") != 0) {variants[var.ovIter->referenceSequence][var.ovIter->filters].diffKnownTransitions++;}
+    } else {
+      variants[var.ovIter->referenceSequence][var.ovIter->filters].novelTransitions++;
+    }
+
+  // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
+  } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
+    isTransversion = true;
+    if (inDbsnp) {
+      variants[var.ovIter->referenceSequence][var.ovIter->filters].knownTransversions++;
+      //if (info.infoTags.count("dbSNPX") != 0) {variants[var.ovIter->referenceSequence][var.ovIter->filters].diffKnownTransversions++;}
+    } else {
+      variants[var.ovIter->referenceSequence][var.ovIter->filters].novelTransversions++;
+    }
+  }
 }
 
 // Print the header for detailed statistics.

@@ -241,8 +241,8 @@ bool vcf::getRecord(string& currentReferenceSequence) {
     variantRecord.genotypeString = recordFields[9];
   }
 
-// If the position is not an integer, the conversion to an integer will have
-// failed and position = 0.  In this case, terminate with an error.
+  // If the position is not an integer, the conversion to an integer will have
+  // failed and position = 0.  In this case, terminate with an error.
   if (position == 0) {
     cerr << "Error processing record." << endl;
     if (position == 0) {cerr << "Variant position is not an integer." << endl;}

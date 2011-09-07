@@ -115,6 +115,9 @@ int mergeTool::Run(int argc, char* argv[]) {
   // Define the output object and open the file.
   output ofile;
   ofile.outputStream = ofile.openOutputFile(outputFile);
+
+  // Include the names of all the files being merged in the header of the
+  // output vcf file.
   string taskDescription = "##vcfCtools=merge ";
   vector<string> samples;
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
@@ -126,8 +129,13 @@ int mergeTool::Run(int argc, char* argv[]) {
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
     vcf v; // Create a vcf object.
     variant var; // Create variant object.
+    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, false, false);
     v.openVcf(vcfFiles[index]);
+
+    // Read in the header information.
     v.parseHeader();
+    var.headerInfoFields   = v.headerInfoFields;
+    var.headerFormatFields = v.headerFormatFields;
 
 // Store the samples list from the first vcf file.  The samplesList from 
 // all other vcf files being merged will be checked against this.

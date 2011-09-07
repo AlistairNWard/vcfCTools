@@ -17,12 +17,13 @@ using namespace vcfCTools;
 statsTool::statsTool(void)
   : AbstractTool()
 {
-  generateAfs              = false;
-  generateDetailed         = false;
-  useAnnotations           = false;
   annotationFlagsString    = "";
   currentReferenceSequence = "";
+  generateAfs              = false;
+  generateDetailed         = false;
   sampleSnps               = false;
+  splitMnps                = false;
+  useAnnotations           = false;
 }
 
 // Destructor.
@@ -44,6 +45,8 @@ int statsTool::Help(void) {
   cout << "     generate statistics as a function of the AFS." << endl;
   cout << "  -d, --detailed" << endl;
   cout << "     generate detailed statistics for each SNP considering samples with genotype quality greater than value specified.." << endl;
+  cout << "  -p, --split-mnps" << endl;
+  cout << "	Consider MNPs as SNPs for the purpose of statistics." << endl;
   cout << "  -n, --annotation" << endl;
   cout << "     include statistics on listed annotations (comma separated list or 'all')." << endl;
   cout << "  -s, --sample-snps" << endl;
@@ -72,8 +75,9 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"in", required_argument, 0, 'i'},
     {"out", required_argument, 0, 'o'},
     {"allele-frequency-spectrum", no_argument, 0, 'a'},
-    {"annotations", required_argument, 0, 'n'},
     {"detailed", required_argument, 0, 'd'},
+    {"annotations", required_argument, 0, 'n'},
+    {"split-mnps", no_argument, 0, 'd'},
     {"sample-snps", required_argument, 0, 's'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
@@ -84,7 +88,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:ad:n:s:124", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:ad:n:ps:124", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -113,6 +117,11 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
       case 'd':
         generateDetailed = true;
         detailedGenotypeQualityString = optarg;
+        break;
+
+      // Determine whether to consider MNPs as SNPs.
+      case 'p':
+        splitMnps = true;
         break;
 
       // Determine whether to output stats on annotations and
@@ -174,17 +183,22 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 int statsTool::Run(int argc, char* argv[]) {
   int getOptions = statsTool::parseCommandLine(argc, argv);
 
+  // Define an output stream object and open the output file.
+  output ofile;
+  ofile.outputStream = ofile.openOutputFile(outputFile);
+
   vcf v; // Create a vcf object.
   variant var; // Create a variant structure to hold the variants.
   var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
   statistics stats; // Create a statistics object.
 
-  // Define an output stream object and open the output file.
-  output ofile;
-  ofile.outputStream = ofile.openOutputFile(outputFile);
-
   v.openVcf(vcfFile);
   v.parseHeader();
+  var.headerInfoFields   = v.headerInfoFields;
+  var.headerFormatFields = v.headerFormatFields;
+
+  // If MNPs should be broken up into SNPs, ensure that the boolean flag is set.
+  if (splitMnps) {stats.splitMnps = true;}
 
 // If statistics are being generated on a per-sample basis (or detailed
 // statistics are being generate, check that genotypes exist.
@@ -229,6 +243,7 @@ int statsTool::Run(int argc, char* argv[]) {
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
   while (v.success) {
+
     // Build the variant structure for this reference sequence.
     if (var.originalVariantsMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;
@@ -245,7 +260,6 @@ int statsTool::Run(int argc, char* argv[]) {
         v.success = v.getRecord(currentReferenceSequence);
       }
       var.ovmIter = var.originalVariantsMap.begin();
-      vector<string>::iterator iter = var.ovmIter->second.alts.begin();
       stats.generateStatistics(var, useAnnotations, annotationFlags, generateAfs, ofile);
       var.originalVariantsMap.erase(var.ovmIter);
     } 

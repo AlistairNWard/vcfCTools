@@ -81,36 +81,48 @@ bool variant::buildVariantStructure(vcf& v) {
 // Add a variant from the vcf file into the variant structure.
 void variant::addVariantToStructure(int position, variantDescription& variant) {
   int altID;
-  bool firstAtLocus   = true;
   vector<string> alts = split(variant.altString, ",");
+  vector<string>::iterator altIter;
 
   // Initialise variant type and reducedVariants structure.
   variantType type;
   reducedVariants rVar;
 
-  // Only update the originalVariantsMap if this is the first time a
-  // variant at this position is seen.
-  if (originalVariantsMap.count(position) == 0) {
-    originalVariantsMap[position].referenceSequence = variant.referenceSequence;
-    originalVariantsMap[position].position          = position;
-    originalVariantsMap[position].rsid              = variant.rsid;
-    originalVariantsMap[position].ref               = variant.ref;
-    originalVariantsMap[position].alts              = alts;
-    originalVariantsMap[position].numberAlts        = alts.size();
-    originalVariantsMap[position].quality           = variant.quality;
-    originalVariantsMap[position].filters           = variant.filters;
-    originalVariantsMap[position].info              = variant.info;
-    originalVariantsMap[position].hasGenotypes      = variant.hasGenotypes;
-    originalVariantsMap[position].genotypeFormat    = variant.genotypeFormatString;
-    originalVariantsMap[position].genotypes         = variant.genotypeString;
+  // Since there can be multiple records for the same locus, define an
+  // originalVariants structure and populate it with information about
+  // the current record.  When complete, push this into the vector of
+  // records at this locus.
+  originalVariants ov;
+
+  // First, update all vectors whose size is the number of records at this locus.
+  ov.rsid           = variant.rsid;
+  ov.ref            = variant.ref;
+  ov.quality        = variant.quality;
+  ov.filters        = variant.filters;
+  ov.info           = variant.info;
+  ov.hasGenotypes   = variant.hasGenotypes;
+  ov.genotypeFormat = variant.genotypeFormatString;
+  ov.genotypes      = variant.genotypeString;
+  ov.maxPosition    = 0;
+
+  // Now update information based on whether this is the first record at this
+  // locus.
+  if (originalVariantsMap[position].size() == 0) {
+    ov.hasMultipleRecords     = false;
+    ov.numberOfRecordsAtLocus = 1;
+
+    // The reference sequence and position will be the same for all records at
+    // this locus and so are not stored in vectors.
+    //originalVariantsMap[position].referenceSequence = variant.referenceSequence;
+    //originalVariantsMap[position].position          = position;
+    //originalVariantsMap[position].numberAlts        = alts.size();
+    ov.referenceSequence = variant.referenceSequence;
+    ov.position          = position;
+    ov.numberAlts        = alts.size();
   
-    // None of the variants should be marked as filtered, so the filtered vector
-    // should be set to the size of the alts vector, with false in every field.
-    for (int i = 0; i < originalVariantsMap[position].alts.size(); i++) {
-      originalVariantsMap[position].filtered.push_back(false);
-    }
   } else {
-    firstAtLocus = false;
+    ov.hasMultipleRecords     = true;
+    ov.numberOfRecordsAtLocus = originalVariantsMap[position].size() + 1;
   }
 
   // If the individual alternate alleles need to be examined to 
@@ -132,7 +144,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
     //
     // Single alternate allele.
     if (alts.size() == 0) {
-      determineVariantType(variant.referenceSequence, position, variant.ref, alts[0], type, 0, firstAtLocus);
+      determineVariantType(variant.referenceSequence, position, variant.ref, alts[0], type, 0, ov);
 
     // Tri-allelic SNP.
     } else if (alts.size() == 2 && altASize == 1 && altBSize == 1) {
@@ -140,21 +152,16 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
       type.isTriallelicSnp = true;
 
       // Add both alleles separately to the originalVariantsMap reduced alleles structure.
-      vector<string>::iterator altIter = alts.begin();
-      for (; altIter != alts.end(); altIter++) {
-        if (firstAtLocus) {
-          originalVariantsMap[position].type.push_back(type);
-          originalVariantsMap[position].reducedRef.push_back(originalVariantsMap[position].ref);
-          originalVariantsMap[position].reducedAlts.push_back(*altIter);
-          originalVariantsMap[position].reducedPosition.push_back(position);
-          if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-        }
+      for (altIter = alts.begin(); altIter != alts.end(); altIter++) {
+        updateVariantMaps(*altIter, type, variant.ref, *altIter, position, variant.referenceSequence, ov);
+
+        // Now store the reduced description in the secondary structure if required.
         if (storeReducedAlts) {
+          rVar.recordNumber     = ov.numberOfRecordsAtLocus;
           rVar.originalPosition = position;
           rVar.ref              = variant.ref;
           rVar.alt              = *altIter;
           rVar.altID            = altID;
-          variantMap[position].referenceSequence = variant.referenceSequence;
           variantMap[position].snps.push_back(rVar);
           altID++;
         }
@@ -166,21 +173,14 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
       type.isQuadallelicSnp = true;
 
       // Add all alleles separately to the originalVariantsMap reduced alleles structure.
-      vector<string>::iterator altIter = alts.begin();
-      for (; altIter != alts.end(); altIter++) {
-        if (firstAtLocus) {
-          originalVariantsMap[position].type.push_back(type);
-          originalVariantsMap[position].reducedRef.push_back(originalVariantsMap[position].ref);
-          originalVariantsMap[position].reducedAlts.push_back(*altIter);
-          originalVariantsMap[position].reducedPosition.push_back(position);
-          if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-        }
+      for (altIter = alts.begin(); altIter != alts.end(); altIter++) {
+        updateVariantMaps(*altIter, type, variant.ref, *altIter, position, variant.referenceSequence, ov);
         if (storeReducedAlts) {
+          rVar.recordNumber     = ov.numberOfRecordsAtLocus;
           rVar.originalPosition = position;
           rVar.ref              = variant.ref;
           rVar.alt              = *altIter;
           rVar.altID            = altID;
-          variantMap[position].referenceSequence = variant.referenceSequence;
           variantMap[position].snps.push_back(rVar);
           altID++;
         }
@@ -201,37 +201,49 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
       int count = 0;
       for (vector<string>::iterator aa = alts.begin(); aa != alts.end(); aa++) {
         clearType(type);
-        determineVariantType(variant.referenceSequence, position, variant.ref, *aa, type, count, firstAtLocus);
+        determineVariantType(variant.referenceSequence, position, variant.ref, *aa, type, count, ov);
         count++;
       }
 
-      // If the locus contains a multi allelic SNP, modify the entries in the
-      // variantType structure to reflect this.  
-      //
-      // Since the originalVariantsMap currently only contains the variants
-      // from the first record at this locus, only do this step the first
-      // time this locus is observed.
-      if (firstAtLocus) {
-        if (locusHasTriSnp) {
-          vector<variantType>::iterator typeIter = originalVariantsMap[position].type.begin();
-          for (; typeIter != originalVariantsMap[position].type.end(); typeIter++) {
-            if (typeIter->isBiallelicSnp) {
-              typeIter->isBiallelicSnp  = false;
-              typeIter->isTriallelicSnp = true;
-            }
+      // If the locus contains multiple SNP alleles, modify the type vector to reflect
+      // that each SNP allele actually belongs to a multiallelic SNP.
+      if (locusHasTriSnp) {
+        vector<variantType>::iterator typeIter = ov.type.begin();
+        for (; typeIter != ov.type.end(); typeIter++) {
+          if (typeIter->isBiallelicSnp) {
+            typeIter->isBiallelicSnp  = false;
+            typeIter->isTriallelicSnp = true;
           }
-        } else if (locusHasQuadSnp) {
-          vector<variantType>::iterator typeIter = originalVariantsMap[position].type.begin();
-          for (; typeIter != originalVariantsMap[position].type.end(); typeIter++) {
-            if (typeIter->isBiallelicSnp) {
-              typeIter->isBiallelicSnp   = false;
-              typeIter->isQuadallelicSnp = true;
-            }
+        }
+      } else if (locusHasQuadSnp) {
+        vector<variantType>::iterator typeIter = ov.type.begin();
+        for (; typeIter != ov.type.end(); typeIter++) {
+          if (typeIter->isBiallelicSnp) {
+            typeIter->isBiallelicSnp   = false;
+            typeIter->isQuadallelicSnp = true;
           }
         }
       }
     }
   }
+
+  // Update the originalVariantsMap.
+  originalVariantsMap[position].push_back(ov);
+
+  // The maxPosition value is used by the intersection routine to determine
+  // if all variants have been processed.  If there are multiple records at
+  // the same locus, the only value of maxPosition that is checked is that
+  // associated with the first record at this locus.  Thus, if this isn't
+  // the first record at this locus and the value of maxPosition is greater
+  // than that of the first record, modify the first record to have this
+  // value.
+  if (ov.hasMultipleRecords) {
+    for (unsigned int i = 0; i < ov.numberOfRecordsAtLocus; i++) {
+      if (originalVariantsMap[position][i].maxPosition > originalVariantsMap[position][0].maxPosition) {
+        originalVariantsMap[position][0].maxPosition = originalVariantsMap[position][i].maxPosition;
+      }
+    }
+  }  
 }
 
 // Initialise variant type.
@@ -244,77 +256,9 @@ void variant::clearType(variantType& type) {
   type.isDeletion       = false;    
 }
 
-// If two vcf files are being compared and all variants from one of
-// the files (for the current reference sequence) have been loaded
-// into the data structures, finish parsing the second vcf file and
-// flush out all variants for this reference sequence.
-//
-// Only the originalVariantsMap is used for building output records,
-// so the variantMap can be kept clear at all times.
-void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output& ofile, bool write) {
-  while (originalVariantsMap.size() != 0) {
-
-    // Since the vcf file to compare with has been exhausted, all of
-    // the remaining variants will not intersect with any others and
-    // so can be omitted unless unique records are required.
-    if (!flags.annotate) {
-      bool filter = flags.findUnique ? false : true;
-      vector<bool>::iterator fIter = ovmIter->second.filtered.begin();
-      for (; fIter != ovmIter->second.filtered.end(); fIter++) {*fIter = filter;}
-    }
-
-    // Build the output record, removing unwanted alleles and modifying the
-    // genotypes if necessary and send to the output buffer.
-    if (write) {buildOutputRecord(ofile);}
-
-    // Erase the entries from the maps.
-    originalVariantsMap.erase(ovmIter);
-    if (variantMap.size() != 0) {variantMap.erase(vmIter);}
-
-    if (v.variantRecord.referenceSequence == cRef && v.success) {
-      addVariantToStructure(v.position, v.variantRecord);
-      v.success = v.getRecord(cRef);
-    }
-    if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
-    if (variantMap.size() != 0) {vmIter = variantMap.begin();}
-  }
-}
-
-// If a vcf file is being intersected with a bed file and all of the
-// bed intervals have been processed, flush out the remaining variants
-// in the data structure for this reference sequence.
-void variant::clearReferenceSequenceBed(vcf& v, intFlags flags, string cRef, output& ofile) {
-  while (originalVariantsMap.size() != 0) {
-    if (flags.annotate) {}
-
-    // Since the bed file has been exhausted, all of the remaining
-    // records will not intersect with any intervals.  As such, remove
-    // all variants unless findUnique = true.
-    vector<bool>::iterator filtIter = ovmIter->second.filtered.begin();
-    bool filter = flags.findUnique ? false : true;
-    for (; filtIter != ovmIter->second.filtered.end(); filtIter++) {*filtIter = filter;}
-
-    // Build the output record, removing unwanted alleles and modifying the
-    // genotypes if necessary and send to the output buffer.
-    buildOutputRecord(ofile);
-
-    // Erase the entries from the maps.
-    originalVariantsMap.erase(ovmIter);
-    if (variantMap.size() != 0) {variantMap.erase(vmIter);}
-    
-    // Update the originalVariants structure.
-    if (v.variantRecord.referenceSequence == cRef && v.success) {
-      addVariantToStructure(v.position, v.variantRecord);
-      v.success = v.getRecord(cRef);
-    }
-    if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
-    if (variantMap.size() != 0) {vmIter = variantMap.begin();}
-  }
-}
-
 // Determine the variant class from the ref and alt alleles.
 //void variant::determineVariantType(int position, string ref, string alt, variantDescription& variant, bool isDbsnp) {
-void variant::determineVariantType(string refSeq, int position, string ref, string alt, variantType& type, int ID, bool first) {
+void variant::determineVariantType(string refSeq, int position, string ref, string alt, variantType& type, int ID, originalVariants& ov) {
   reducedVariants rVar;
   int start;
   bool doSmithWaterman = false;
@@ -328,19 +272,14 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
     type.isBiallelicSnp = true;
-    if (first) {
-      originalVariantsMap[position].type.push_back(type);
-      originalVariantsMap[position].reducedRef.push_back(ref);
-      originalVariantsMap[position].reducedAlts.push_back(alt);
-      originalVariantsMap[position].reducedPosition.push_back(position);
-      if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-    }
+    updateVariantMaps(alt, type, ref, alt, position, refSeq, ov);
+
     if (storeReducedAlts) {
+      rVar.recordNumber     = ov.numberOfRecordsAtLocus;
       rVar.originalPosition = position;
       rVar.ref   = ref;
       rVar.alt   = alt;
       rVar.altID = ID;
-      variantMap[position].referenceSequence = refSeq;
       variantMap[position].snps.push_back(rVar);
     }
   } else {
@@ -370,6 +309,7 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
     }
 
     // Populate the structure rVar with the modified variant.
+    rVar.recordNumber     = ov.numberOfRecordsAtLocus;
     rVar.originalPosition = position;
     rVar.ref              = alRef;
     rVar.alt              = alAlt;
@@ -394,93 +334,28 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
       } else {
         locusHasSnp = true;
       }
-      if (first) {
-        originalVariantsMap[position].type.push_back(type);
-        originalVariantsMap[position].reducedRef.push_back(alRef);
-        originalVariantsMap[position].reducedAlts.push_back(alAlt);
-        originalVariantsMap[position].reducedPosition.push_back(start);
-        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-      }
-      if (storeReducedAlts) {
-        variantMap[position].referenceSequence = refSeq;
-        variantMap[start].snps.push_back(rVar);
-      }
+
+      // Update the structures.
+      updateVariantMaps(alt, type, alRef, alAlt, start, refSeq, ov);
+      if (storeReducedAlts) {variantMap[start].snps.push_back(rVar);}
 
     // MNP.
     } else if (alRef.size() != 1 && (alRef.size() - alAlt.size()) == 0) {
       type.isMnp = true;
-      if (first) {
-        originalVariantsMap[position].type.push_back(type);
-        originalVariantsMap[position].reducedRef.push_back(alRef);
-        originalVariantsMap[position].reducedAlts.push_back(alAlt);
-        originalVariantsMap[position].reducedPosition.push_back(start);
-        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-      }
-      if (storeReducedAlts) {
-        variantMap[position].referenceSequence = refSeq;
-        variantMap[start].mnps.push_back(rVar);
-      }
-//      if (splitMnps) {
-//        string::iterator ovmIter->second.altIter = alt.begin();
-//        int variantPosition = position;
-//
-//        // Append the flag "FROM_MNP" to the info field so it is clear that this
-//        // entry was generated from a called MNP.
-//        if (variant.info == "") {variant.info = "SNP;FROM_MNP";}
-//        else {variant.info += ";SNP;FROM_MNP";}
-//
-//        for (string::iterator reovmIter->second.fIter = ref.begin(); reovmIter->second.fIter != ref.end(); reovmIter->second.fIter++) {
-//
-//          // Add this part of the MNP to the map as a SNP.
-//          variant.isBiallelicSnp = true;
-//          variant.ref = *reovmIter->second.fIter;
-//          variant.altString = *ovmIter->second.altIter;
-//
-//          // Add the variant to the map.
-//          variantMap[variantPosition].biSnps.push_back(variant);
-//          variantMap[variantPosition].hasBiallelicSnp = true;
-//
-//          // Update the alt allele and the coordinate of the variant.
-//          variantPosition++;
-//          ovmIter->second.altIter++;
-//        }
-//      } else {
-//        variant.isMnp = true;
-//        variant.ref = alRef;
-//        variant.altString = alAlt;
-//        variantMap[position].mnps.push_back(variant);
-//        variantMap[position].hasMnp = true;
-//      }
+      updateVariantMaps(alt, type, alRef, alAlt, start, refSeq, ov);
+      if (storeReducedAlts) {variantMap[start].mnps.push_back(rVar);}
 
     // Insertion.
     } else if ( alAlt.size() > alRef.size() ) {
       type.isInsertion = true;
-      if (first) {
-        originalVariantsMap[position].type.push_back(type);
-        originalVariantsMap[position].reducedRef.push_back(alRef);
-        originalVariantsMap[position].reducedAlts.push_back(alAlt);
-        originalVariantsMap[position].reducedPosition.push_back(start);
-        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-      }
-      if (storeReducedAlts) {
-        variantMap[position].referenceSequence = refSeq;
-        variantMap[start].indels.push_back(rVar);
-      }
+      updateVariantMaps(alt, type, alRef, alAlt, start, refSeq, ov);
+      if (storeReducedAlts) {variantMap[start].indels.push_back(rVar);}
 
     // Deletion.
     } else if ( alRef.size() > alAlt.size() ) {
       type.isDeletion = true;
-      if (first) {
-        originalVariantsMap[position].type.push_back(type);
-        originalVariantsMap[position].reducedRef.push_back(alRef);
-        originalVariantsMap[position].reducedAlts.push_back(alAlt);
-        originalVariantsMap[position].reducedPosition.push_back(start);
-        if (position > originalVariantsMap[position].maxPosition) {originalVariantsMap[position].maxPosition = position;}
-      }
-      if (storeReducedAlts) {
-        variantMap[position].referenceSequence = refSeq;
-        variantMap[start].indels.push_back(rVar);
-      }
+      updateVariantMaps(alt, type, alRef, alAlt, start, refSeq, ov);
+      if (storeReducedAlts) {variantMap[start].indels.push_back(rVar);}
 
     // None of the known types.
     } else {
@@ -489,6 +364,92 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
       cerr << "Ref: " << ref << endl << "Alt: " << alt << endl;
       exit(1);
     }
+  }
+}
+
+// Update the variant maps with the information about individual
+// alternate alleles.
+void variant::updateVariantMaps(string alt, variantType type, string alRef, string alAlt, int position, string refSeq, originalVariants& ov) {
+  ov.alts.push_back(alt);
+  ov.filtered.push_back(false);
+  ov.type.push_back(type);
+  ov.reducedRef.push_back(alRef);
+  ov.reducedAlts.push_back(alAlt);
+  ov.reducedPosition.push_back(position);
+
+  if (position > ov.maxPosition) {ov.maxPosition = position;}
+  if (storeReducedAlts) {variantMap[position].referenceSequence = refSeq;}
+}
+
+// If two vcf files are being compared and all variants from one of
+// the files (for the current reference sequence) have been loaded
+// into the data structures, finish parsing the second vcf file and
+// flush out all variants for this reference sequence.
+//
+// Only the originalVariantsMap is used for building output records,
+// so the variantMap can be kept clear at all times.
+void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output& ofile, bool write) {
+  while (originalVariantsMap.size() != 0) {
+
+    // Since the vcf file to compare with has been exhausted, all of
+    // the remaining variants will not intersect with any others and
+    // so can be omitted unless unique records are required.
+    if (!flags.annotate) {
+      bool filter = flags.findUnique ? false : true;
+      for (ovIter = ovmIter->second.begin(); ovIter != ovmIter->second.end(); ovIter++) {
+        vector<bool>::iterator fIter = ovIter->filtered.begin();
+        for (; fIter != ovIter->filtered.end(); fIter++) {*fIter = filter;}
+      }
+    }
+
+    // Build the output record, removing unwanted alleles and modifying the
+    // genotypes if necessary and send to the output buffer.
+    if (write) {buildOutputRecord(ofile);}
+
+    // Erase the entries from the maps.
+    originalVariantsMap.erase(ovmIter);
+    if (variantMap.size() != 0) {variantMap.erase(vmIter);}
+
+    if (v.variantRecord.referenceSequence == cRef && v.success) {
+      addVariantToStructure(v.position, v.variantRecord);
+      v.success = v.getRecord(cRef);
+    }
+    if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
+    if (variantMap.size() != 0) {vmIter = variantMap.begin();}
+  }
+}
+
+// If a vcf file is being intersected with a bed file and all of the
+// bed intervals have been processed, flush out the remaining variants
+// in the data structure for this reference sequence.
+void variant::clearReferenceSequenceBed(vcf& v, intFlags flags, string cRef, output& ofile) {
+  while (originalVariantsMap.size() != 0) {
+    if (flags.annotate) {}
+
+    // Since the bed file has been exhausted, all of the remaining
+    // records will not intersect with any intervals.  As such, remove
+    // all variants unless findUnique = true.
+    bool filter = flags.findUnique ? false : true;
+    for (ovIter = ovmIter->second.begin(); ovIter != ovmIter->second.end(); ovIter++) {
+      vector<bool>::iterator filtIter = ovIter->filtered.begin();
+      for (; filtIter != ovIter->filtered.end(); filtIter++) {*filtIter = filter;}
+    }
+
+    // Build the output record, removing unwanted alleles and modifying the
+    // genotypes if necessary and send to the output buffer.
+    buildOutputRecord(ofile);
+
+    // Erase the entries from the maps.
+    originalVariantsMap.erase(ovmIter);
+    if (variantMap.size() != 0) {variantMap.erase(vmIter);}
+    
+    // Update the originalVariants structure.
+    if (v.variantRecord.referenceSequence == cRef && v.success) {
+      addVariantToStructure(v.position, v.variantRecord);
+      v.success = v.getRecord(cRef);
+    }
+    if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
+    if (variantMap.size() != 0) {vmIter = variantMap.begin();}
   }
 }
 
@@ -589,7 +550,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
           // If the two files share the alleles, keep them only if the common
           // alleles (or union) is required.
           if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
-            if (flags.annotate) {rsid = var.originalVariantsMap[compIter->originalPosition].rsid;}
+            if (flags.annotate) {rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;}
             commonAlleles = true;
             break;
           }
@@ -599,24 +560,27 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
       // Based on whether this variant is common or not, decide whether
       // or not to filter out the allele.
       if (flags.annotate) {
-        annotateRecordVcf(var.isDbsnp, iter->originalPosition, rsid, commonType, commonAlleles);
+        annotateRecordVcf(var.isDbsnp, iter->originalPosition, iter->recordNumber - 1, rsid, commonType, commonAlleles);
       } else {
-        if (commonAlleles) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? true : false;}
-        else {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = (flags.findUnique) ? false : true;}
+        if (commonAlleles) {
+          originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = (flags.findUnique) ? true : false;
+        } else {
+          originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = (flags.findUnique) ? false : true;
+        }
       }
     }
   }
 }
 
 // Annotate the variants at this locus with the contents of the vcf file.
-void variant::annotateRecordVcf(bool isDbsnp, int position, string& rsid, bool commonType, bool commonAlleles) {
+void variant::annotateRecordVcf(bool isDbsnp, int position, unsigned int record, string& rsid, bool commonType, bool commonAlleles) {
 
   // If the vcf file used for annotation is a dbSNP vcf file, only compare the
   // relevant variant classes.  Also, parse the info string to check that the
   // variant class as determined by vcfCTools agrees with that listed in the
   // variant class (VC) info field.
   if (isDbsnp) {
-    if (commonAlleles) {originalVariantsMap[position].rsid = rsid;}
+    if (commonAlleles) {originalVariantsMap[position][record].rsid = rsid;}
   } else {
 
   }
@@ -780,150 +744,151 @@ void variant::annotateRecordVcf(bool isDbsnp, int position, string& rsid, bool c
 void variant::filterUnique() {
   vector<reducedVariants>::iterator iter;
 
-  // SNPs
+  // SNPs.
   iter = vmIter->second.snps.begin();
-  for (; iter != vmIter->second.snps.end(); iter++) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;}
-
-  // MNPs
-  iter = vmIter->second.mnps.begin();
-  for (; iter != vmIter->second.mnps.end(); iter++) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;}
-
-  // Indels
-  iter = vmIter->second.indels.begin();
-  for (; iter != vmIter->second.indels.end(); iter++) {originalVariantsMap[iter->originalPosition].filtered[iter->altID] = true;}
-}
-
-// Build up the output record.  Depending on preceding actions
-// this may require breaking up the genotypes and info string.
-void variant::buildOutputRecord(output& ofile) {
-  bool removeAllele;
-  bool modified;
-  bool firstAlt      = true;
-  bool hasAltAlleles = false;
-  int position       = ovmIter->first;
-  string altAlleles  = "";
-  string refAllele   = ovmIter->second.ref;;
-  string filter      = ovmIter->second.filters;
-  ostringstream sPosition, sQuality;
-
-  // Loop over the alternate alleles and check if they have been filtered
-  // out or not.  Reconstruct the alt field, the filter string, then info
-  // string and the genotypes if any of the alleles have been removed.  If
-  // only outputting a particular variant type, use the reduced alleles.
-  vector<string>::iterator aIter         = ovmIter->second.alts.begin();
-  vector<string>::iterator modifiedIter  = ovmIter->second.reducedAlts.begin();
-  vector<int>::iterator posIter          = ovmIter->second.reducedPosition.begin();
-  vector<string>::iterator refIter       = ovmIter->second.reducedRef.begin();
-  vector<bool>::iterator fIter           = ovmIter->second.filtered.begin();
-  vector<variantType>::iterator typeIter = ovmIter->second.type.begin();
-
-  // Create an array of integers that represent the genotype identifiers
-  // for the output record.  For example, if the original record has an
-  // MNP and a SNP AG -> TC,TG, the genotypes are AG = 0, TC = 1 and
-  // TG = 2.  If the MNP is filtered out, the genotypes need to be
-  // modified such that AG = 0, TC = 0 and TG = 1.  This would ensure that 
-  // samples with the MNP allele would just have a homozygous reference
-  // genotype (as the MNP allele no longer exists in the output) and
-  // samples with the SNP allele are 0/0, 0/1 or 1/1.  Keeping the original
-  // genotype of 0/2 would now be nonsensical as there aren't enough
-  // alternate alleles for 2 to mean anything.
-  vector<int> modifiedAlleles;
-  int alleleID = 1;
-
-  // Set the first entry in modifiedAlleles to 0.  This represents the reference
-  // allele.  Now the array index can be used to determine the new allele ID.
-  // For example if a genotype 0/2 is encountered, this can be replaced with
-  // modifiedAlleles[0]/modifiedAlleles[2].
-  //
-  // If the alleles weren't explicitly interrogated, the types etc. will not be known
-  // and the entire record is required.
-  modifiedAlleles.push_back(0);
-  if (assessAlts) {
-    modified = false;
-    for (; aIter != ovmIter->second.alts.end(); aIter++) {
-
-      // Check if this allele is to be kept or removed.
-      removeAllele = false;
-      if (*fIter) {
-        removeAllele = true;
-      } else {
-        if ( (!processSnps && (typeIter->isBiallelicSnp || typeIter->isTriallelicSnp || typeIter->isQuadallelicSnp)) ||
-             (!processMnps && typeIter->isMnp) ||
-             (!processIndels && (typeIter->isInsertion || typeIter->isDeletion)) )
-        {removeAllele = true;}
-      }
-  
-      // Now update the modifiedAlleles vector depending on whether
-      // the allele is to be removed or not.
-      if (removeAllele) {
-        modified = true;
-        modifiedAlleles.push_back(-1);
-      } else {
-        hasAltAlleles = true;
-        modifiedAlleles.push_back(alleleID);
-        alleleID++;
-        if (firstAlt) {firstAlt = false;}
-        else {altAlleles += ",";}
-        if (processSnps && !processMnps && !processIndels) {
-          altAlleles += *modifiedIter;
-          refAllele   = *refIter;
-          position    = *posIter;
-        } else {
-          altAlleles += *aIter;
-        }
-      }
-      fIter++;
-      typeIter++;
-      modifiedIter++;
-      refIter++;
-      posIter++;
-    }
-  } else {
-    hasAltAlleles = true;
-    altAlleles = *aIter;
-    aIter++;
-    for (; aIter != ovmIter->second.alts.end(); aIter++) {altAlleles += "," + *aIter;}
+  for (; iter != vmIter->second.snps.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
   }
 
-  // Check if any alleles remain.  If all are filtered out, there is no
-  // record to output.
-  if (hasAltAlleles) {
+  // MNPs.
+  iter = vmIter->second.mnps.begin();
+  for (; iter != vmIter->second.mnps.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
+  }
 
-    // The position and quality need to be converted to strings via
-    // a stringstream in order to included in the string.
-    sPosition << position;
-    sQuality << ovmIter->second.quality;
+  // Indels.
+  iter = vmIter->second.indels.begin();
+  for (; iter != vmIter->second.indels.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
+  }
+}
 
-    // If alt alleles have been removed, the info field needs to be modified
-    // so that the fields with a value per alternate have the correct number
-    // of entries.
-    variantInfo info(ovmIter->second.info, headerInfoFields);
-    if (modified) {info.modifyInfo(modifiedAlleles);}
+// Build up the output record.  Depending on preceding actions this may require
+// breaking up the genotypes and info string.  Also, if the locus had multiple
+// records in the input vcf, output the same multiple records.
+void variant::buildOutputRecord(output& ofile) {
+  bool hasAltAlleles = false;
+  bool removedAllele = false;
+  int alleleID       = 1;
+  int position;  
+  string altAlleles  = "";
+  string filter;
+  string refAllele;
+  ostringstream sPosition, sQuality;
+  vector<int> modifiedAlleles;
+  modifiedAlleles.push_back(0);
 
-    // Build up the standard fields from the constituent parts.
-    ofile.outputRecord = ovmIter->second.referenceSequence + "	" +
-                         sPosition.str() + "	" +
-                         ovmIter->second.rsid + "	" +
-                         refAllele + "	" +
-                         altAlleles + "	" +
-                         sQuality.str() + "	" +
-                         filter + "	" +
-                         info.infoString;
+  // Loop over the individual records at this locus.  Merging these into a single
+  // record is not implemented.
+  for (ovIter = ovmIter->second.begin(); ovIter != ovmIter->second.end(); ovIter++) {
+    vector<string>::iterator aIter = ovIter->alts.begin();
 
-    // Now, if genotypes exist, modify them if necessary and then add
-    // to the record.
-    if (ovmIter->second.hasGenotypes && !removeGenotypes) {
-      genotypeInfo gen(ovmIter->second.genotypeFormat, ovmIter->second.genotypes, headerFormatFields);
+    // Define the reference allele and the position.
+    filter    = ovIter->filters;
+    position  = ovmIter->first;
+    refAllele = ovIter->ref;
 
-      // If there are multiple alleles at this locus and some of them
-      // are being removed/filtered out, the sample genotypes need to be
-      // modified to be consistent with the number of alternate alleles
-      // being output.
-      if (modified) {gen.modifyGenotypes(modifiedAlleles);}
-      ofile.outputRecord += "	" + gen.genotypeFormat + "	" + gen.genotypeString;
+    // If the individual alternate alleles were not interrogated, the variant types
+    // will be unknown etc.  In this case, reconstruct the record as it appeared in
+    // the original vcf file.  Otherwise, check each alternate allele to see if it
+    // needs to be removed and consequent info and genotype modifications are
+    // required.
+    if (!assessAlts) {
+      hasAltAlleles = true;
+      for (; aIter != ovIter->alts.end(); aIter++) {altAlleles += *aIter + ",";}
+    } else { 
+
+      // Define iterators.
+      vector<bool>::iterator fIter           = ovIter->filtered.begin();
+      vector<string>::iterator modifiedIter  = ovIter->reducedAlts.begin();
+      vector<int>::iterator posIter          = ovIter->reducedPosition.begin();
+      vector<string>::iterator refIter       = ovIter->reducedRef.begin();
+      vector<variantType>::iterator typeIter = ovIter->type.begin();
+  
+      // Loop over all the alternate alleles and determine if they need to be removed
+      // or not.  Build up the new alt allele string and generate a new array of allele
+      // IDs for use in the genotypes.  For example if there are three alt alleles, the
+      // values 0, 1, 2 and 3 will appear in the genotypes.  If the allele represented
+      // by 2 is removed, all genotypes containing 2 should be replaced with a '.' and
+      // all genotypes with a 3 should be replaced with a 2 as there are now only 2
+      // alternate alleles.
+      for (; aIter != ovIter->alts.end(); aIter++) {
+
+        // Based on the variant type, check if the allele should be kept.
+        if (typeIter->isBiallelicSnp || typeIter->isTriallelicSnp || typeIter->isQuadallelicSnp) {if (!processSnps) {*fIter = true;}}
+        else if (typeIter->isMnp) {if (!processMnps) {*fIter = true;}}
+        else if (typeIter->isInsertion || typeIter->isDeletion) {if (!processIndels) {*fIter = true;}}
+
+        if (!*fIter) {
+          hasAltAlleles = true;
+  
+          // If only SNPs are being output, the alleles in the output record
+          // should be the reduced alleles.
+          if (processSnps && !processMnps && !processIndels) {
+            altAlleles += *modifiedIter + ",";
+            position    = *posIter;
+            refAllele   = *refIter;
+          } else {
+            altAlleles += *aIter + ",";
+          }
+          modifiedAlleles.push_back(alleleID);
+          alleleID++;
+        } else {
+          removedAllele = true;
+          modifiedAlleles.push_back(-1);
+        }
+        fIter++;
+        modifiedIter++;
+        posIter++;  
+        refIter++;
+        typeIter++;
+      }
     }
 
-    // Flush the output record to the output buffer.
-    ofile.flushToBuffer(ovmIter->first, ovmIter->second.referenceSequence);
+    // Check if any alleles remain.  If all are filtered out, there is no
+    // record to output.
+    if (hasAltAlleles) {
+
+      // The position and quality need to be converted to strings via
+      // a stringstream in order to included in the string.
+      sPosition << position;
+      sQuality << ovIter->quality;
+
+      // If alt alleles have been removed, the info field needs to be modified
+      // so that the fields with a value per alternate have the correct number
+      // of entries.
+      variantInfo info(ovIter->info, headerInfoFields);
+      if (removedAllele) {info.modifyInfo(modifiedAlleles);}
+
+      // In constructing the alt allele string, a comma is added after every
+      // alt, so the last character (the trailing comma) needs to be removed.
+      altAlleles = altAlleles.substr(0, altAlleles.length() - 1);
+
+      // Build up the standard fields from the constituent parts.
+      ofile.outputRecord = ovIter->referenceSequence + "	" +
+                           sPosition.str() + "	" +
+                           ovIter->rsid + "	" +
+                           refAllele + "	" +
+                           altAlleles + "	" +
+                           sQuality.str() + "	" +
+                           filter + "	" +
+                           info.infoString;
+
+      // Now, if genotypes exist, modify them if necessary and then add
+      // to the record.
+      if (ovIter->hasGenotypes && !removeGenotypes) {
+        genotypeInfo gen(ovIter->genotypeFormat, ovIter->genotypes, headerFormatFields);
+
+        // If there are multiple alleles at this locus and some of them
+        // are being removed/filtered out, the sample genotypes need to be
+        // modified to be consistent with the number of alternate alleles
+        // being output.
+        if (removedAllele) {gen.modifyGenotypes(modifiedAlleles);}
+        ofile.outputRecord += "	" + gen.genotypeFormat + "	" + gen.genotypeString;
+      }
+
+      // Flush the output record to the output buffer.
+      ofile.flushToBuffer(ovmIter->first, ovIter->referenceSequence);
+    }
   }
 }

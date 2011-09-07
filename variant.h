@@ -65,23 +65,25 @@ struct variantType {
 struct originalVariants {
 
   // General information.
-  string referenceSequence;
+  bool hasMultipleRecords;
+  unsigned int numberOfRecordsAtLocus;
   int position;
-  vector<int> reducedPosition;
   int maxPosition;
   double quality;
-  string filters;
   string info;
+  string filters;
+  string referenceSequence;
+  vector<int> reducedPosition;
  
   // Ref and alt allele information.
+  unsigned int numberAlts;
   string ref;
+  string rsid;
+  vector<bool> filtered;
   vector<string> reducedRef;
   vector<string> alts;
   vector<string> reducedAlts;
-  unsigned int numberAlts;
-  vector<bool> filtered;
   vector<variantType> type;
-  string rsid;
 
   // Genotype information.
   bool hasGenotypes;
@@ -96,6 +98,11 @@ struct originalVariants {
 // This structure will point back to the originalVariants
 // structure for genotypes and info etc.
 struct reducedVariants {
+
+  // If there are multiple records at this locus, the recordNumber
+  // indicates which record this variant comes from.
+  unsigned int recordNumber;
+
   int originalPosition;
   int altID; // If alts were A,G, this will indicate 1 for A and 2 for G etc.
   string ref;
@@ -118,7 +125,7 @@ class variant {
     ~variant(void);
     void addVariantToStructure(int, variantDescription&);
     void annotateRecordBed(bedRecord&);
-    void annotateRecordVcf(bool, int, string&, bool, bool);
+    void annotateRecordVcf(bool, int, unsigned int, string&, bool, bool);
     void buildOutputRecord(output&);
     bool buildVariantStructure(vcf&);
     void clearReferenceSequence(vcf&, intFlags, string, output&, bool);
@@ -127,9 +134,10 @@ class variant {
     void compareVariantsSameLocus(variant&, intFlags);
     void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags, variant&);
     void determineVariantsToProcess(bool, bool, bool, bool, bool, bool);
-    void determineVariantType(string, int, string, string, variantType&, int, bool);
+    void determineVariantType(string, int, string, string, variantType&, int, originalVariants&);
     vector<string> extractGenotypeField(string);
     void filterUnique();
+    void updateVariantMaps(string, variantType, string, string, int, string, originalVariants&);
 
   public:
     unsigned int recordsInMemory;
@@ -145,8 +153,9 @@ class variant {
 
     // Structure containing variant information in the order that it
     // appeared in the vcf file.
-    map<int, originalVariants> originalVariantsMap;
-    map<int, originalVariants>::iterator ovmIter;
+    map<int, vector<originalVariants> > originalVariantsMap;
+    map<int, vector<originalVariants> >::iterator ovmIter;
+    vector<originalVariants>::iterator ovIter;
 
     // Header information.
     map<string, headerInfoStruct> headerInfoFields;

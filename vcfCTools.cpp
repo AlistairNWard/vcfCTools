@@ -27,7 +27,7 @@ using namespace std;
 
 
 // vcfCTools tool list
-static const string ANNOTATE      = "annotate";
+//static const string ANNOTATE      = "annotate";
 //static const string DISTRIBUTIONS = "distributions";
 static const string FILTER        = "filter";
 static const string INTERSECT     = "intersect";
@@ -55,7 +55,7 @@ static bool IsVersion(char* str) {
 
 // Determine the tool.
 AbstractTool* CreateTool(const string& arg) {
-  if (arg == ANNOTATE      ) return new annotateTool;
+  //if (arg == ANNOTATE      ) return new annotateTool;
   //if (arg == DISTRIBUTIONS ) return new distributionsTool;
   if (arg == FILTER        ) return new filterTool;
   if (arg == INTERSECT     ) return new intersectTool;
