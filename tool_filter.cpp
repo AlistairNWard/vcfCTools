@@ -644,7 +644,7 @@ int filterTool::Run(int argc, char* argv[]) {
     while (var.originalVariantsMap.size() != 0) {
       if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
         var.addVariantToStructure(v.position, v.variantRecord);
-        v.success = v.getRecord(currentReferenceSequence);
+        v.success = v.getRecord();
       }
       var.ovmIter = var.originalVariantsMap.begin();
 

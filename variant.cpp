@@ -69,9 +69,28 @@ bool variant::buildVariantStructure(vcf& v) {
 // structure.
   count = 0;
   string tempReferenceSequence = v.variantRecord.referenceSequence;
+
+  // If this is not the first time that this reference sequence has been seen
+  // when building, the structure then the records for this reference sequence
+  // are not contiguous in the vcf file.  For a number of tools (especially
+  // the intersect tool), this will cause erroneous results to be generated.
+  if (referenceSequenceInfo.count(tempReferenceSequence) != 0) {
+    referenceSequenceInfo[tempReferenceSequence].contiguous = false;
+  }
   while (v.success && count < recordsInMemory && v.variantRecord.referenceSequence == tempReferenceSequence) {
+
+    // Update the information about observed reference sequences.
+    if (referenceSequenceInfo.count(tempReferenceSequence) == 0) {
+      referenceSequenceInfo[tempReferenceSequence].numberRecords    = 1;
+      referenceSequenceInfo[tempReferenceSequence].usedInComparison = false;
+      referenceSequenceInfo[tempReferenceSequence].contiguous       = true;
+    } else {
+      referenceSequenceInfo[tempReferenceSequence].numberRecords++;
+    }
+
+    // Add the variant into the structure.
     addVariantToStructure(v.position, v.variantRecord);
-    v.success = v.getRecord(tempReferenceSequence); 
+    v.success = v.getRecord(); 
     count++;
   }
 
@@ -103,7 +122,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
   ov.hasGenotypes   = variant.hasGenotypes;
   ov.genotypeFormat = variant.genotypeFormatString;
   ov.genotypes      = variant.genotypeString;
-  ov.maxPosition    = 0;
+  ov.maxPosition    = position;
 
   // Now update information based on whether this is the first record at this
   // locus.
@@ -381,6 +400,16 @@ void variant::updateVariantMaps(string alt, variantType type, string alRef, stri
   if (storeReducedAlts) {variantMap[position].referenceSequence = refSeq;}
 }
 
+// Loop over all variants contained in the originalVariantsMap and send them to
+// the output.
+void variant::clearOriginalVariants(intFlags& flags, output& ofile, bool write) {
+  while (originalVariantsMap.size() != 0)  {
+    if (write || flags.findUnion) {buildOutputRecord(ofile);}
+    originalVariantsMap.erase(ovmIter);
+    if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
+  }
+}
+
 // If two vcf files are being compared and all variants from one of
 // the files (for the current reference sequence) have been loaded
 // into the data structures, finish parsing the second vcf file and
@@ -393,9 +422,9 @@ void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output
 
     // Since the vcf file to compare with has been exhausted, all of
     // the remaining variants will not intersect with any others and
-    // so can be omitted unless unique records are required.
+    // so can be omitted unless unique/union of records is required.
     if (!flags.annotate) {
-      bool filter = flags.findUnique ? false : true;
+      bool filter = (!flags.findCommon) ? false : true;
       for (ovIter = ovmIter->second.begin(); ovIter != ovmIter->second.end(); ovIter++) {
         vector<bool>::iterator fIter = ovIter->filtered.begin();
         for (; fIter != ovIter->filtered.end(); fIter++) {*fIter = filter;}
@@ -404,7 +433,7 @@ void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output
 
     // Build the output record, removing unwanted alleles and modifying the
     // genotypes if necessary and send to the output buffer.
-    if (write) {buildOutputRecord(ofile);}
+    if (write || flags.findUnion) {buildOutputRecord(ofile);}
 
     // Erase the entries from the maps.
     originalVariantsMap.erase(ovmIter);
@@ -412,7 +441,7 @@ void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output
 
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord);
-      v.success = v.getRecord(cRef);
+      v.success = v.getRecord();
     }
     if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
     if (variantMap.size() != 0) {vmIter = variantMap.begin();}
@@ -446,7 +475,7 @@ void variant::clearReferenceSequenceBed(vcf& v, intFlags flags, string cRef, out
     // Update the originalVariants structure.
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord);
-      v.success = v.getRecord(cRef);
+      v.success = v.getRecord();
     }
     if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
     if (variantMap.size() != 0) {vmIter = variantMap.begin();}
@@ -531,43 +560,89 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
 
 // Compare two arrays of variant alleles of the same type (e.g. all SNPs).
 void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVariants>& alleles2, intFlags flags, variant& var) {
+  bool write;
   string rsid;
+  vector<bool> commonA (alleles1.size(), false);
+  vector<bool> commonB (alleles2.size(), false);
+  vector<bool>::iterator aIter;
+  vector<bool>::iterator bIter;
   vector<reducedVariants>::iterator iter;
   vector<reducedVariants>::iterator compIter;
-  bool commonType;
-  bool commonAlleles;
 
   if (alleles1.size() != 0) {
-    iter = alleles1.begin();
+    iter  = alleles1.begin();
+    aIter = commonA.begin();
     for (; iter != alleles1.end(); iter++) {
-      commonType    = false;
-      commonAlleles = false;
       if (alleles2.size() != 0) {
-        compIter  = alleles2.begin();
-        commonType = true;
+        compIter = alleles2.begin();
+        bIter    = commonB.begin();
         for (; compIter != alleles2.end(); compIter++) {
 
           // If the two files share the alleles, keep them only if the common
           // alleles (or union) is required.
           if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
             if (flags.annotate) {rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;}
-            commonAlleles = true;
+            *aIter = true;
+            *bIter = true;
             break;
           }
+          bIter++;
         }
       }
+      aIter++;
+    }
+  }
 
-      // Based on whether this variant is common or not, decide whether
-      // or not to filter out the allele.
+  // Update the filtered vectors in both originalVariantsMaps (each file) as long
+  // as this isn't an annotation task.
+  //
+  // Start with the first file.
+  iter  = alleles1.begin();
+  aIter = commonA.begin();
+  for (; iter != alleles1.end(); iter++) {
+    if (*aIter) {
       if (flags.annotate) {
-        annotateRecordVcf(var.isDbsnp, iter->originalPosition, iter->recordNumber - 1, rsid, commonType, commonAlleles);
+        annotateRecordVcf(var.isDbsnp, iter->originalPosition, iter->recordNumber - 1, rsid, true, *aIter);
       } else {
-        if (commonAlleles) {
-          originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = (flags.findUnique) ? true : false;
-        } else {
-          originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = (flags.findUnique) ? false : true;
-        }
+        write = (flags.findUnique) ? true : !flags.writeFromFirst;
+        originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
       }
+    } else {
+
+      // Determine if this allele is to be filtered.
+      if (flags.findCommon) {
+        write = true;
+      } else if (flags.findUnique) {
+        write = !flags.writeFromFirst;
+      } else {
+        write = false;
+      }
+      originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
+    }
+    aIter++;
+  }
+
+  // Then the second file.
+  if (!flags.writeFromFirst || flags.findUnion) {
+    iter  = alleles2.begin();
+    aIter = commonB.begin();
+    for (; iter != alleles2.end(); iter++) {
+      if (*aIter) {
+        write = (flags.findUnique) ? true : flags.writeFromFirst;
+        var.originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
+      } else {
+
+        // Determine if this allele is to be filtered.
+        if (flags.findCommon) {
+          write = true;
+        } else if (flags.findUnique) {
+          write = flags.writeFromFirst;
+        } else if (flags.findUnion) {
+          write = false;
+        }
+        var.originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
+      }
+      aIter++;
     }
   }
 }

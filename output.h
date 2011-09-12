@@ -18,6 +18,7 @@
 #include <string>
 #include <stdlib.h>
 #include <map>
+#include <vector>
 
 using namespace std;
 
@@ -36,8 +37,9 @@ class output {
     ostream* outputStream;
     string currentReferenceSequence;
     string outputRecord;
-    map<int, string> outputBuffer;
-    map<int, string>::iterator obIter;
+    map<int, vector<string> > outputBuffer;
+    map<int, vector<string> >::iterator obIter;
+    vector<string>::iterator recordIter;
 };
 
 } // namespace vcfCTools

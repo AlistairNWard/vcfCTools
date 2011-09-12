@@ -27,32 +27,6 @@ unsigned int setVcfPriority(string& priorityFile, vector<string>& vcfFiles) {
   return priority;
 }
 
-// Check that the two reference sequence lists are identical.
-// If there are a different number or order, the results may
-// not be as expected.
-void checkReferenceSequences(vector<string>& vector1, vector<string>& vector2) {
-  bool errorMessage = false;
-  if ( vector1.size() != vector2.size() ) {
-    cerr << "WARNING: Input files contain a different number of reference sequences." << endl;
-    errorMessage = true;
-  }
-  else if (vector1 != vector2) {
-    cerr <<  "WARNING: Input files contain different or differently ordered reference sequences." << endl;
-    errorMessage = true;
-  }
-  if (errorMessage) {
-    cerr << "Results may not be as expected." << endl;
-    cerr << "Ensure that input files have the same reference sequences in the same order." << endl;
-    cerr << "Reference sequence lists observed were:" << endl;
-    cerr << "	vcf 1: ";
-    for (vector<string>::iterator iter = vector1.begin(); iter != vector1.end(); iter++) {cerr << (*iter) << ", ";}
-    cerr << endl;
-    cerr << "	vcf 2: ";
-    for (vector<string>::iterator iter = vector2.begin(); iter != vector2.end(); iter++) {cerr << (*iter) << ", ";}
-    cerr << endl;
-  }
-}
-
 // If the union or intersection of two vcf files is being performed
 // and the output vcf file is to contain the information from both
 // files, the headers need to be merged to ensure that all info and

@@ -38,6 +38,8 @@ void variantInfo::modifyInfo(vector<int>& alleleIDs) {
       vector<string> values            = split(infoIter->value, ",");
       vector<string>::iterator vIter   = values.begin();
       vector<int>::iterator alleleIter = alleleIDs.begin();
+
+      // Skip the reference allele in the alleleIDs.
       alleleIter++;
 
       modifiedInfo += infoIter->tag + "=";

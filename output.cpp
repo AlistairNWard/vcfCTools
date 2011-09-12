@@ -39,7 +39,9 @@ void output::flushToBuffer(int position, string& referenceSequence) {
   if (outputBuffer.size() != 0 && currentReferenceSequence != referenceSequence) {
     currentReferenceSequence = referenceSequence;
     for (obIter = outputBuffer.begin(); obIter != outputBuffer.end(); obIter++) {
-      *outputStream << obIter->second << endl;
+      for (recordIter = obIter->second.begin(); recordIter != obIter->second.end(); recordIter++) {
+        *outputStream << *recordIter << endl;
+      }
       outputBuffer.erase(obIter);
     }
   }
@@ -48,16 +50,22 @@ void output::flushToBuffer(int position, string& referenceSequence) {
   // first entry to the output and erase it from the buffer.
   if (outputBuffer.size() > 1000) {
     obIter = outputBuffer.begin();
-    *outputStream << obIter->second << endl;
+    for (recordIter = obIter->second.begin(); recordIter != obIter->second.end(); recordIter++) {
+      *outputStream << *recordIter << endl;
+    }
     outputBuffer.erase(obIter);
   }
-  outputBuffer[position] = outputRecord;
+
+  // Add the new built record to the buffer.
+  outputBuffer[position].push_back(outputRecord);
 }
 
 // Clear all entries out of the output buffer.
 void output::flushOutputBuffer() {
   for (obIter = outputBuffer.begin(); obIter != outputBuffer.end(); obIter++) {
-    *outputStream << obIter->second << endl;
+    for (recordIter = obIter->second.begin(); recordIter != obIter->second.end(); recordIter++) {
+      *outputStream << *recordIter << endl;
+    }
     outputBuffer.erase(obIter);
   }
 }

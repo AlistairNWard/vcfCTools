@@ -82,7 +82,7 @@ void vcf::parseHeader() {
     fromHeader = true;
     record = headerLine;
     string temp = "";
-    success = getRecord(temp);
+    success = getRecord();
   }
 }
 
@@ -203,7 +203,7 @@ bool vcf::noHeader() {
 }
 
 // Get the next record from the vcf file.
-bool vcf::getRecord(string& currentReferenceSequence) {
+bool vcf::getRecord() {
 
 // Read in the vcf record.
   success = true;
@@ -420,7 +420,7 @@ bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, boo
         //OUTPUT
       }
       variants.erase(variantsIter);
-      success = getRecord(compReferenceSequence);
+      success = getRecord();
     } else {
       break;
     }
@@ -439,7 +439,7 @@ bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsign
   if (vc.referenceSequence != compReferenceSequence) {
     while (referenceSequence != compReferenceSequence && success) {
       //if (write) {*output << record << endl;}
-      success = getRecord(compReferenceSequence);
+      success = getRecord();
     }
   }
   if (success) {success = getVariantGroup(vc, refFa);}

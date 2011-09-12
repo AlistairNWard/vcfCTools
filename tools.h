@@ -31,7 +31,6 @@ using namespace std;
 using namespace vcfCTools;
 
 unsigned int setVcfPriority(string&, vector<string>&);
-void checkReferenceSequences(vector<string>&, vector<string>&);
 void mergeHeaders(vcf&, vcf&, vcf&);
 void writeHeader(ostream*, vcf&, bool, string&);
 void checkDataSets(vcf&, vcf&);

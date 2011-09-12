@@ -231,14 +231,10 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
   } else {
     if (writeFrom == "a") {cerr << "Writing out records from file: " << vcfFiles[0] << endl;}
     else if (writeFrom == "b") {cerr << "Writing out records from file: " << vcfFiles[1] << endl;}
-    else if (writeFrom == "u" && findUnion || findCommon) {cerr << "Writing out all records." << endl;}
-    else if ( (findCommon || findUnion) && writeFrom == "q") {cerr << "Writing out records with the highest quality value." << endl;}
     else {
       cerr << "The file from which the records are to be written needs to be selected." << endl;
       cerr << "    a - write records from the first inputted file." << endl;
       cerr << "    b - write records from the second inputted file." << endl;
-      cerr << "    u - write out all records from both files." << endl;
-      if (findCommon) {cerr << "    q - write records with the highest variant quality." << endl;}
       exit(1);
     }
   }
@@ -256,10 +252,11 @@ int intersectTool::Run(int argc, char* argv[]) {
 
   intersect ints; // Define an intersection object.
   ints.setBooleanFlags(findCommon, findUnion, findUnique, sitesOnly, false, whollyWithin);  // Set the flags required for performing intersections.
-  ints.writeFrom = writeFrom;
+  if (writeFrom == "a") {ints.flags.writeFromFirst = true;}
+  else if (writeFrom == "b") {ints.flags.writeFromFirst = false;}
 
-// If intersection is between a vcf file and a bed file, create a vcf and a bed object
-// and intersect.
+  // If intersection is between a vcf file and a bed file, create a vcf and a bed object
+  // and intersect.
   if (bedFile != "") {
     vcf v; // Create a vcf object.
     variant var; // Create a variant object.
@@ -271,34 +268,34 @@ int intersectTool::Run(int argc, char* argv[]) {
     v.openVcf(vcfFiles[0]);
     b.openBed(bedFile);
 
-// Parse the headers.
+    // Parse the headers.
     v.parseHeader();
     var.headerInfoFields   = v.headerInfoFields;
     var.headerFormatFields = v.headerFormatFields;
 
     b.parseHeader();
 
-// Write the header to the output file.
+    // Write the header to the output file.
     string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
     writeHeader(ofile.outputStream, v, false, taskDescription);
 
-// Intersect the files.
+    // Intersect the files.
     ints.intersectVcfBed(v, var, b, bs, ofile);
 
-// Check that the input files had the same list of reference sequences.
-// If not, it is possible that there were some problems.
-    checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector); // tools.cpp
+    // Check that the input files had the same list of reference sequences.
+    // If not, it is possible that there were some problems.
+    //checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector); // tools.cpp
 
-// Close the vcf file and return.
+    // Close the vcf file and return.
     v.closeVcf();
 
-// Output some brief statistics on the targets.
+    // Output some brief statistics on the targets.
     cerr << "Number: " << b.numberTargets << endl;
     cerr << "Total target length: " << b.targetLength << endl;
     cerr << "Average target length: " << b.targetLength / b.numberTargets << endl;
     cerr << endl;
 
-// Print out the distribution of distances to targets.
+    // Print out the distribution of distances to targets.
     cerr << "Histogram describing the distribution of variant distances from targets:" << endl;
     cerr << endl;
 
@@ -311,10 +308,10 @@ int intersectTool::Run(int argc, char* argv[]) {
       }
     }
 
-// Close the bed object.
+    // Close the bed object.
     b.closeBed();
 
-// Intersection of two vcf files.
+  // Intersection of two vcf files.
   } else {
     vcf v1; // Create a vcf object.
     variant var1; // Create a variant object.
@@ -324,11 +321,11 @@ int intersectTool::Run(int argc, char* argv[]) {
     variant var2;
     var2.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
     
-// Open the vcf files.
+    // Open the vcf files.
     v1.openVcf(vcfFiles[0]);
     v2.openVcf(vcfFiles[1]);
 
-// Read in the header information.
+    // Read in the header information.
     v1.parseHeader();
     var1.headerInfoFields   = v1.headerInfoFields;
     var1.headerFormatFields = v1.headerFormatFields;
@@ -339,23 +336,24 @@ int intersectTool::Run(int argc, char* argv[]) {
 
     checkDataSets(v1, v2); // tools.cpp
 
-// Check that the header for the two files contain the same samples.
+    // Check that the header for the two files contain the same samples.
     if (v1.samples != v2.samples) {
       cerr << "vcf files contain different samples (or sample order)." << endl;
       exit(1);
     } else {
       string taskDescription = "##vcfCTools=intersect " + vcfFiles[0] + ", " + vcfFiles[1];
-      writeHeader(ofile.outputStream, v1, false, taskDescription); // tools.cpp
+      if (ints.flags.writeFromFirst) {writeHeader(ofile.outputStream, v1, false, taskDescription);} // tools.cpp
+      else {writeHeader(ofile.outputStream, v2, false, taskDescription);} // tools.cpp
     }
 
-// Intersect the two vcf files.
+    // Intersect the two vcf files.
     ints.intersectVcf(v1, var1, v2, var2, ofile);
 
-// Check that the input files had the same list of reference sequences.
-// If not, it is possible that there were some problems.
-    checkReferenceSequences(v1.referenceSequenceVector, v2.referenceSequenceVector); // tools.cpp
+    // Check that the input files had the same list of reference sequences.
+    // If not, it is possible that there were some problems.
+    ints.checkReferenceSequences(var1, var2);
 
-// Close the vcf files.
+    // Close the vcf files.
     v1.closeVcf();
     v2.closeVcf();
   }

@@ -34,13 +34,13 @@ class intersect {
   public:
     intersect(void);
     ~intersect(void);
-    void setBooleanFlags(bool, bool, bool, bool, bool, bool);
+    void checkReferenceSequences(variant&, variant&);
     void intersectVcf(vcf&, variant&, vcf&, variant&, output&);
     void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, output&);
+    void setBooleanFlags(bool, bool, bool, bool, bool, bool);
 
   public:
     intFlags flags;
-    string writeFrom;
     map<string, map<int, unsigned int> > distanceDist;
 };
 

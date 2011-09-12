@@ -173,7 +173,7 @@ int validateTool::Run(int argc, char* argv[]) {
   map<string, bool> parsedReferenceSequences;
 
 // Read through all the entries in the file.
-  while(v.getRecord(currentReferenceSequence)) {
+  while(v.getRecord()) {
 
 // Check that the current record is not before the previous one (i.e.
 // check that the vcf file is sorted).

@@ -138,7 +138,7 @@ class vcf {
     bool noHeader();
 
     // Variant reading and structures.
-    bool getRecord(string&);
+    bool getRecord();
 
     // Managing genotypes.
 

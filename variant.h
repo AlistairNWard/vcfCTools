@@ -36,11 +36,12 @@ namespace vcfCTools {
 // Create astructure to hold all of the flags required to determine the intersection
 // operations to be performed.
 struct intFlags {
-  bool sitesOnly;
   bool annotate;
   bool findCommon;
   bool findUnion;
   bool findUnique;
+  bool writeFromFirst;
+  bool sitesOnly;
   bool whollyWithin;
 };
 
@@ -119,6 +120,17 @@ struct variantsAtLocus {
   vector<reducedVariants> indels;
 };
 
+// Define a structure that contains information about the different reference
+// sequences encountered.  This includes information such as the number of
+// records parsed for each reference sequence and if an intersection is
+// performed, information about whether the reference sequences have been
+// used in comparisons.
+struct refSeqInfo {
+  unsigned int numberRecords;
+  bool contiguous;
+  bool usedInComparison;
+};
+
 class variant {
   public:
     variant(void);
@@ -128,6 +140,7 @@ class variant {
     void annotateRecordVcf(bool, int, unsigned int, string&, bool, bool);
     void buildOutputRecord(output&);
     bool buildVariantStructure(vcf&);
+    void clearOriginalVariants(intFlags&, output&, bool);
     void clearReferenceSequence(vcf&, intFlags, string, output&, bool);
     void clearReferenceSequenceBed(vcf&, intFlags, string, output&);
     void clearType(variantType&);
@@ -160,6 +173,10 @@ class variant {
     // Header information.
     map<string, headerInfoStruct> headerInfoFields;
     map<string, headerInfoStruct> headerFormatFields;
+
+    // Information about encountered reference sequences.
+    map<string, refSeqInfo> referenceSequenceInfo;
+    map<string, refSeqInfo>::iterator refSeqIter;
 
     // Boolean flags.
     bool assessAlts;

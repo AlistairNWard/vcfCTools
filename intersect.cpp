@@ -51,15 +51,6 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
   var1.ovmIter = var1.originalVariantsMap.begin();
   var2.ovmIter = var2.originalVariantsMap.begin();
 
-  // The following Boolean flags are used when adding variants to the map.  They
-  // determine whether or not to write out records that are unique to one of the
-  // files.  write1 is set to true if the vcf file is being annotated.  This
-  // ensures that every record from the vcf file is written out regardless of
-  // whether it intersects with the other vcf file.  In the case that the two
-  // files intersect, the additional annotation routine will be called.
-  //bool write1 = ( (flags.findUnique && writeFrom == "a") || flags.findUnion || flags.annotate) ? true : false;
-  //bool write2 = ( (flags.findUnique && writeFrom == "b") || flags.findUnion) ? true : false;
-
   // Parse and compare the two variant structures until the end of one of the files
   // is reached and the variant structure for that file is empty.
   while ( !(var1.variantMap.size() == 0 && !v1.success) && !(var2.variantMap.size() == 0 && !v2.success) ) {
@@ -69,7 +60,16 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
     if (var1.vmIter->second.referenceSequence == var2.vmIter->second.referenceSequence) {
       string currentReferenceSequence = var1.vmIter->second.referenceSequence;
 
+      // Since there are records from both vcf files containing this reference
+      // sequence, set the reference sequence information variable, usedInComparison
+      // to true.  If the vcf file is not sorted, the intersection will not work
+      // correctly, but the vcf file should fail validation and, as such, shouldn't
+      // be used.
+      var1.referenceSequenceInfo[currentReferenceSequence].usedInComparison = true;
+      var2.referenceSequenceInfo[currentReferenceSequence].usedInComparison = true;
+
       while (var1.variantMap.size() != 0 && var2.variantMap.size() != 0) {
+
         // Variants at the same locus.
         if (var1.vmIter->first == var2.vmIter->first) {
           var1.compareVariantsSameLocus(var2, flags);
@@ -79,14 +79,14 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
             var1.addVariantToStructure(v1.position, v1.variantRecord);
-            v1.success = v1.getRecord(currentReferenceSequence);
+            v1.success = v1.getRecord();
           }
           if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
 
           var2.variantMap.erase(var2.vmIter);
           if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
             var2.addVariantToStructure(v2.position, v2.variantRecord);
-            v2.success = v2.getRecord(currentReferenceSequence);
+            v2.success = v2.getRecord();
           }
           if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
 
@@ -94,82 +94,117 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // second vcf file.  Parse through the second file until the position is greater
         // than or equal to that in the second file.
         } else if (var1.vmIter->first > var2.vmIter->first) {
-
-//**************************************************
-//**************************************************
-//**************************************************
-//**************************************************
-// UNION NEEDS TO HAVE VARIANTS FROM THE SECOND FILE.
-//**************************************************
-//**************************************************
-//**************************************************
-//**************************************************
-
+          if (flags.findCommon) {var2.filterUnique();}
           var2.variantMap.erase(var2.vmIter);
           if (v2.variantRecord.referenceSequence == currentReferenceSequence && v2.success) {
             var2.addVariantToStructure(v2.position, v2.variantRecord);
-            v2.success = v2.getRecord(currentReferenceSequence);
+            v2.success = v2.getRecord();
           }
-          if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+
+          // Reset the iterator if there are still variants in the structure.
+          if (var2.variantMap.size() != 0) {
+            var2.vmIter = var2.variantMap.begin();
+
+          // If the variant position in the first file is greater than that in the
+          // second and there are no more variants left for this reference sequence
+          // in the second file, clear out the rest of the variants from the first
+          // file for this reference sequence.
+          } else {
+
+            // First clear out any variants left in the originalVariants structure for
+            // the second file.
+            var2.clearOriginalVariants(flags, ofile, !flags.writeFromFirst);
+
+            // Then clear the remaining variants from the first file.
+            if (var1.originalVariantsMap.size() != 0) {
+              var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile, flags.writeFromFirst);
+            }
+          }
           
         // Variant from the first vcf file is at a smaller coordinate than that in the
         // second vcf file.
         } else if (var1.vmIter->first < var2.vmIter->first) {
-          if (!flags.findUnique && !flags.annotate) {var1.filterUnique();}
+          if (flags.findCommon) {var1.filterUnique();}
           var1.variantMap.erase(var1.vmIter);
           if (v1.variantRecord.referenceSequence == currentReferenceSequence && v1.success) {
             var1.addVariantToStructure(v1.position, v1.variantRecord);
-            v1.success = v1.getRecord(currentReferenceSequence);
+            v1.success = v1.getRecord();
           }
-          if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
+
+          // Reset the iterator if there are still variants in the structure.
+          if (var1.variantMap.size() != 0) {
+            var1.vmIter = var1.variantMap.begin();
+
+          // If the variant position in the second file is greater than that in the
+          // first and there are no more variants left for this reference sequence
+          // in the first file, clear out the rest of the variants from the second
+          // file for this reference sequence.
+          } else {
+
+            // First clear out any variants left in the originalVariants structure for
+            // the first file.
+            var1.clearOriginalVariants(flags, ofile, flags.writeFromFirst);
+
+            // Then clear the remaining variants from the second file.
+            if (var2.originalVariantsMap.size() != 0) {
+              var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile, !flags.writeFromFirst);
+            }
+          }
         }
 
         // If the current position is beyond the max position in the originalVariantsMap
         // then all of the variants in this position have been compared and so it can
         // be sent to the output and erased.
-        while (var1.vmIter->first > var1.ovmIter->second.begin()->maxPosition && var1.originalVariantsMap.size() != 1) {
-          var1.buildOutputRecord(ofile);
-          var1.originalVariantsMap.erase(var1.ovmIter);
-          if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
+        if (var1.variantMap.size() != 0 && var1.originalVariantsMap.size() != 0) {
+          while (var1.vmIter->first > var1.ovmIter->second.begin()->maxPosition && var1.originalVariantsMap.size() != 0) {
+            if (flags.writeFromFirst || flags.findUnion) {var1.buildOutputRecord(ofile);}
+            var1.originalVariantsMap.erase(var1.ovmIter);
+            if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
+          }
         }
 
         // If all of the records in the variantMap are exhausted there is nothing else to
         // compare.  If there are still records that haven't been sent to the output, these
         // should be sent now.
-        if (var1.variantMap.size() == 0 && var1.originalVariantsMap.size() != 0)  {
-          var1.buildOutputRecord(ofile);
-          var1.originalVariantsMap.erase(var1.ovmIter);
-          if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
-        }
+        if (var1.variantMap.size() == 0) {var1.clearOriginalVariants(flags, ofile, flags.writeFromFirst);}
 
         // In order to avoid large memory usage, also clear out the originalVariantsMap
         // for var2.
-        while (var1.vmIter->first > var2.ovmIter->second.begin()->maxPosition && var2.originalVariantsMap.size() != 0) {
-          //var1.buildOutputRecord(ofile);
-          var2.originalVariantsMap.erase(var2.ovmIter);
-          if (var2.originalVariantsMap.size() != 0) {var2.ovmIter = var2.originalVariantsMap.begin();}
+        if (var2.variantMap.size() != 0 && var2.originalVariantsMap.size() != 0) {
+          while (var2.vmIter->first > var2.ovmIter->second.begin()->maxPosition && var2.originalVariantsMap.size() != 0) {
+            if (!flags.writeFromFirst || flags.findUnion) {var2.buildOutputRecord(ofile);}
+            var2.originalVariantsMap.erase(var2.ovmIter);
+            if (var2.originalVariantsMap.size() != 0) {var2.ovmIter = var2.originalVariantsMap.begin();}
+          }
         }
+
+        // If all of the records in the variantMap are exhausted there is nothing else to
+        // compare.  If there are still records that haven't been sent to the output, these
+        // should be sent now.
+        if (var2.variantMap.size() == 0) {var2.clearOriginalVariants(flags, ofile, !flags.writeFromFirst);}
       }
 
       // Having finished comparing, there may still be variants left from one of the two files.
       // Check that the two variant structures are empty and if not, finish processing the
       // remaining variants for this reference sequence.
-      if (var1.originalVariantsMap.size() != 0) {var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile, true);}
-      if (var2.originalVariantsMap.size() != 0) {var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile, false);}
+      if (var1.originalVariantsMap.size() != 0) {var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile, flags.writeFromFirst);}
+      if (var2.originalVariantsMap.size() != 0) {var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile, !flags.writeFromFirst);}
 
       // Now both variant maps are exhausted, so rebuild the maps with the variants from the
       // next reference sequence in the file.
-      v1.success = var1.buildVariantStructure(v1);
-      v2.success = var2.buildVariantStructure(v2);
+      if (v1.success) {v1.success = var1.buildVariantStructure(v1);}
+      if (v2.success) {v2.success = var2.buildVariantStructure(v2);}
  
       if (var1.variantMap.size() != 0) {var1.vmIter = var1.variantMap.begin();}
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
+      if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
+      if (var2.originalVariantsMap.size() != 0) {var2.ovmIter = var2.originalVariantsMap.begin();}
 
     // If the variant structures are from different reference sequences, parse through the
     // second vcf file until the next reference sequence is found.  If finding the union
     // of the variants unique to the second vcf file, write them out.
     } else {
-      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, flags, var2.vmIter->second.referenceSequence, ofile, false);}
+      if (var2.variantMap.size() != 0) {var2.clearReferenceSequence(v2, flags, var2.vmIter->second.referenceSequence, ofile, !flags.writeFromFirst);}
       var2.buildVariantStructure(v2);
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
     }
@@ -340,7 +375,7 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
         var.originalVariantsMap.erase(var.ovmIter);
         if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
           var.addVariantToStructure(v.position, v.variantRecord);
-          v.success = v.getRecord(currentReferenceSequence);
+          v.success = v.getRecord();
         }
         if (var.originalVariantsMap.size() != 0) {var.ovmIter = var.originalVariantsMap.begin();}
 
@@ -413,4 +448,61 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
 
   // Flush the output buffer.
   ofile.flushOutputBuffer();
+}
+
+// Check to see that records for all reference sequences were compared
+// correctly.
+void intersect::checkReferenceSequences(variant& var1, variant& var2) {
+  bool error = false;
+
+  // Loop through all of the observed reference sequences from the first
+  // variant structure and for each one, check if that reference sequence
+  // exists in the second structure.  If so, check to see if the
+  // usedInComparison is set to true.  If not, the ordering of the records
+  // in one of the files is different to the other and so the variants
+  // were not compared to each other.  This will lead to erroneous results.
+  var1.refSeqIter = var1.referenceSequenceInfo.begin();
+  var2.refSeqIter = var2.referenceSequenceInfo.begin();
+  for (; var1.refSeqIter != var1.referenceSequenceInfo.end(); var1.refSeqIter++) {
+
+    // Reference sequence not present in second variant structure.
+    if (var2.referenceSequenceInfo.count(var1.refSeqIter->first) == 0) {
+
+    // Reference sequence present in second variant structure.
+    } else {
+      if (!var2.refSeqIter->second.usedInComparison) {
+        cerr << "WARNING: Variants were not compared for reference sequence: " << var2.refSeqIter->first << endl;
+        error = true;
+      }
+
+      // If the records for this reference sequence were not contiguous, give a
+      // warning.
+      if (!var2.refSeqIter->second.contiguous) {
+        cerr << "WARNING: Non-contiguous records in file b for reference sequence: " << var2.refSeqIter->first << endl;;
+        error = true;
+      }
+
+      // Erase this element from the reference sequence information.
+      var2.referenceSequenceInfo.erase(var2.refSeqIter);
+      if (var2.referenceSequenceInfo.size() != 0) {var2.refSeqIter = var2.referenceSequenceInfo.begin();}
+    }
+
+    // If the records for this reference sequence were not contiguous, give a
+    // warning.
+    if (!var1.refSeqIter->second.contiguous) {
+      cerr << "WARNING: Non-contiguous records in file a for reference sequence: " << var1.refSeqIter->first << endl;;
+      error = true;
+    }
+  }
+
+  // Display a final warning if errors were discovered.
+  if (error) {
+    cerr << endl;
+    cerr << "WARNING: Not all reference sequences that should have been compared, were compared." << endl;
+    cerr << "This is most likely due to an unsorted vcf file, or that the order in which the" << endl;
+    cerr << "reference sequences appeared in the two files is different." << endl;
+    cerr << endl;
+    cerr << "Verify that the vcf files are sorted and reference sequences appear in the same" << endl;
+    cerr << "order.  vcfCTools validate can be used to help establish this." << endl;
+  }
 }

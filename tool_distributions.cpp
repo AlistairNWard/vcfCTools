@@ -366,7 +366,7 @@ int distributionsTool::Run(int argc, char* argv[]) {
     while (var.variantMap.size() != 0) {
       if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
         var.addVariantToStructure(v.position, v.variantRecord, false);
-        v.success = v.getRecord(currentReferenceSequence);
+        v.success = v.getRecord();
       }
       var.vmIter = var.variantMap.begin();
       distributions(v, var);
