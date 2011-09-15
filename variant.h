@@ -148,7 +148,6 @@ class variant {
     void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags, variant&);
     void determineVariantsToProcess(bool, bool, bool, bool, bool, bool);
     void determineVariantType(string, int, string, string, variantType&, int, originalVariants&);
-    vector<string> extractGenotypeField(string);
     void filterUnique();
     void updateVariantMaps(string, variantType, string, string, int, string, originalVariants&);
 
@@ -173,6 +172,9 @@ class variant {
     // Header information.
     map<string, headerInfoStruct> headerInfoFields;
     map<string, headerInfoStruct> headerFormatFields;
+
+    // Samples information.
+    vector<string> samples;
 
     // Information about encountered reference sequences.
     map<string, refSeqInfo> referenceSequenceInfo;

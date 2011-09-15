@@ -184,71 +184,72 @@ int annotateTool::Run(int argc, char* argv[]) {
   var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
 
   intersect ints; // Define an intersection object.
-  ints.setBooleanFlags(false, false, false, true, true, true);  // Set the flags required for performing intersections.
-  ints.writeFrom = "a";
+  ints.setBooleanFlags(true, false, false, true, true, false);  // Set the flags required for performing intersections.
+  ints.flags.writeFromFirst = true;
 
   // Open the vcf file and parse the header.
   v.openVcf(vcfFile);
-  v.parseHeader();
-  var.headerInfoFields   = v.headerInfoFields;
-  var.headerFormatFields = v.headerFormatFields;
+  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
 
-  // Either a vcf file, a dbsnp vcf file or a bed file can be provided for
-  // annotation.  To annotate from multiple files, piping should be used.
-  vcf annVcf; // Define a vcf object.
-  variant annVar; // Define a variant object
-  annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
+  // Add an extra line to the vcf header to indicate the file used for
+  // performing dbsnp annotation.
+  string taskDescription = "##vcfCTools=annotated vcf file with ";
 
   if (annotateDbsnp || annotateVcf) {
+    if (annotateDbsnp) {
+      v.headerInfoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
+      v.headerInfoLine["dbSNP"] += " with common alleles.\">";
+      //v.headerInfoLine["dbSNPX"] = "##INFO=<ID=dbSNPX,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
+      //v.headerInfoLine["dbSNPX"] += " with different alleles.\">";
+      //v.headerInfoLine["dbSNPM"] = "##INFO=<ID=dbSNPM,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
+      //v.headerInfoLine["dbSNPM"] += ". Either the vcf or dbSNP entry show a variant with multiple alternate alleles.\">";
+      taskDescription += "vcf file " + annVcfFile;
+    }
+    taskDescription += "vcf file " + annVcfFile;
+    writeHeader(ofile.outputStream, v, false, taskDescription); // tools.cpp
+
+    // Either a vcf file, a dbsnp vcf file or a bed file can be provided for
+    // annotation.  To annotate from multiple files, piping should be used.
+    vcf annVcf; // Define a vcf object.
+    variant annVar; // Define a variant object
+    annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
 
     // Open the vcf file and parse the header.
     annVcf.openVcf(annVcfFile);
-    annVcf.parseHeader();
+    annVcf.parseHeader(annVar.headerInfoFields, annVar.headerFormatFields, annVar.samples);
     if (annotateDbsnp) {annVar.isDbsnp = true;}
+
+    // Perform the annotation by intersecting the two vcf files.
+    ints.intersectVcf(v, var, annVcf, annVar, ofile);
+
+    // Check that the input files had the same list of reference sequences.
+    // If not, it is possible that there were some problems.
+    ints.checkReferenceSequences(var, annVar);
+
+    // Close the vcf files.
+    v.closeVcf();
+    annVcf.closeVcf();
   }
 
-  bed b; // Define a bed object.
-  bedStructure bs; // Define a bed structure object.
-
   if (annotateBed) {
+    taskDescription += "bed file " + bedFile;
+    writeHeader(ofile.outputStream, v, false, taskDescription); // tools.cpp
+
+    bed b; // Define a bed object.
+    bedStructure bs; // Define a bed structure object.
 
     // Open the bed file and parse the header.
     b.openBed(bedFile);
     b.parseHeader();
+
+    // Perform the annotation by intersecting the vcf file with the bed file.
+    ints.intersectVcfBed(v, var, b, bs, ofile);
+
+    //checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector);} // tools.cpp
+    // Close the vcf and bed files.
+    b.closeBed();
+    v.closeVcf();
   }
-
-// Add an extra line to the vcf header to indicate the file used for
-// performing dbsnp annotation.
-  string taskDescription = "##vcfCTools=annotated vcf file with ";
-  if (annotateDbsnp) {
-    v.headerInfoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
-    v.headerInfoLine["dbSNP"] += " with common alleles.\">";
-    v.headerInfoLine["dbSNPX"] = "##INFO=<ID=dbSNPX,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
-    v.headerInfoLine["dbSNPX"] += " with different alleles.\">";
-    v.headerInfoLine["dbSNPM"] = "##INFO=<ID=dbSNPM,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
-    v.headerInfoLine["dbSNPM"] += ". Either the vcf or dbSNP entry show a variant with multiple alternate alleles.\">";
-    taskDescription += "vcf file " + annVcfFile;
-  }
-  else if (annotateVcf) { 
-    taskDescription += "vcf file " + annVcfFile;
-  } else if (annotateBed) {
-    taskDescription += "bed file " + bedFile;
-  }
-  writeHeader(ofile.outputStream, v, false, taskDescription); // tools.cpp
-
-// Annotate the vcf file.
-  if (annotateDbsnp || annotateVcf) {ints.intersectVcf(v, var, annVcf, annVar, ofile);}
-  else if (annotateBed) {ints.intersectVcfBed(v, var, b, bs, ofile);}
-
-// Check that the input files had the same list of reference sequences.
-// If not, it is possible that there were some problems.
-  if (annotateVcf || annotateDbsnp) {checkReferenceSequences(v.referenceSequenceVector, annVcf.referenceSequenceVector);} // tools.cpp
-  if (annotateBed) {checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector);} // tools.cpp
-
-// Close the vcf files.
-  v.closeVcf();
-  annVcf.closeVcf();
-  b.closeBed();
 
   return 0;
 }

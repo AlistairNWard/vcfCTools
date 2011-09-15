@@ -12,6 +12,16 @@
 
 using namespace std;
 
+// Calculate a factorial.
+unsigned int fact(unsigned int& x) {
+  unsigned int y;
+  unsigned int z = 1;
+
+  for (y = 0; y < x; y++) {z = z * (y + 1);}
+
+  return z;
+}
+
 // Determine which file has priority for writing out records.
 unsigned int setVcfPriority(string& priorityFile, vector<string>& vcfFiles) {
   unsigned int priority;

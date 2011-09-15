@@ -131,7 +131,7 @@ class vcf {
     void closeVcf();
 
     // Header parsing.
-    void parseHeader();
+    void parseHeader(map<string, headerInfoStruct>&, map<string, headerInfoStruct>&, vector<string>&);
     bool headerInfo(string&, unsigned int);
     bool headerAdditionalInfo(string&);
     bool headerTitles(string&);

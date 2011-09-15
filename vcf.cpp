@@ -61,7 +61,7 @@ void vcf::closeVcf() {
 }
 
 // Parse the vcf header.
-void vcf::parseHeader() {
+void vcf::parseHeader(map<string, headerInfoStruct>& oInfo, map<string, headerInfoStruct>& oFormats, vector<string>& oSamples) {
   success = false;
   while(getline(*input, headerLine)) {
     if (headerLine.substr(0, 6) == "##INFO") {success = headerInfo(headerLine, 0);}
@@ -84,6 +84,10 @@ void vcf::parseHeader() {
     string temp = "";
     success = getRecord();
   }
+
+  oInfo    = headerInfoFields;
+  oFormats = headerFormatFields;
+  oSamples = samples;
 }
 
 // Parse information from the info and format descriptors.
@@ -138,7 +142,7 @@ bool vcf::headerInfo(string& headerLine, unsigned int headerLineType) {
 
   if (headerLineType == 0) {
     headerInfoFields[tag] = infoTag;
-    headerInfoLine[tag]   = headerLine;
+    headerInfoLine[tag] = headerLine;
   }
   else if (headerLineType == 1) {
     headerFormatFields[tag] = infoTag;

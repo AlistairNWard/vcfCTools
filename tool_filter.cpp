@@ -552,9 +552,7 @@ int filterTool::Run(int argc, char* argv[]) {
   v.openVcf(vcfFile); // Open the vcf file.
 
   // Read in the header information.
-  v.parseHeader();
-  var.headerInfoFields   = v.headerInfoFields;
-  var.headerFormatFields = v.headerFormatFields;
+  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
   string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}
 
@@ -608,7 +606,7 @@ int filterTool::Run(int argc, char* argv[]) {
   //  removeInfoList.push_back("dbSNPM");
   //}
 
-// Write out the header.
+  // Write out the header.
   writeHeader(ofile.outputStream, v, removeGenotypes, taskDescription);
 
 // Read through all the entries in the file.  First construct the
@@ -648,17 +646,17 @@ int filterTool::Run(int argc, char* argv[]) {
       }
       var.ovmIter = var.originalVariantsMap.begin();
 
-// Perform all filtering tasks on this variant.
+      // Perform all filtering tasks on this variant.
       filter(var);
       var.buildOutputRecord(ofile);
       var.originalVariantsMap.erase(var.ovmIter);
     }
   }
 
-// Close the vcf files.
+  // Close the vcf files.
   v.closeVcf();
 
-// Flush the output buffer.
+  // Flush the output buffer.
   ofile.flushOutputBuffer();
 
   return 0;

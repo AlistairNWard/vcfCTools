@@ -133,9 +133,7 @@ int mergeTool::Run(int argc, char* argv[]) {
     v.openVcf(vcfFiles[index]);
 
     // Read in the header information.
-    v.parseHeader();
-    var.headerInfoFields   = v.headerInfoFields;
-    var.headerFormatFields = v.headerFormatFields;
+    v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
 
 // Store the samples list from the first vcf file.  The samplesList from 
 // all other vcf files being merged will be checked against this.

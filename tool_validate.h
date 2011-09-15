@@ -20,6 +20,10 @@
 #include <getopt.h>
 #include <stdlib.h>
 
+#include "info.h"
+#include "genotype_info.h"
+#include "variant.h"
+#include "vcf.h"
 #include "vcfCTools_tool.h"
 
 using namespace std;
@@ -36,14 +40,10 @@ class validateTool : public AbstractTool {
     int parseCommandLine( int argc, char* argv[] );
 
   private:
+    bool error;
     string commandLine;
-    string vcfFile;
     string currentReferenceSequence;
-
-    // Boolean flags.
-    bool processSnps;
-    bool processMnps;
-    bool processIndels;
+    string vcfFile;
 };
 
 } // namespace vcfCTools

@@ -12,10 +12,6 @@
 // ******************************************************
 
 #include "tool_validate.h"
-#include "vcf.h"
-
-#include <iostream>
-#include <string>
 
 using namespace std;
 using namespace vcfCTools;
@@ -24,7 +20,8 @@ using namespace vcfCTools;
 validateTool::validateTool(void)
   : AbstractTool()
 {
-  currentReferenceSequence = true;
+  currentReferenceSequence = "";
+  error                    = false;
 }
 
 // Destructor.
@@ -42,12 +39,6 @@ int validateTool::Help(void) {
   cout << "     input vcf file." << endl;
   cout << "  -o, --output" << endl;
   cout << "     output file." << endl;
-  cout << "  -1, --snps" << endl;
-  cout << "	analyse SNPs." << endl;
-  cout << "  -2, --mnps" << endl;
-  cout << "	analyse MNPs." << endl;
-  cout << "  -3, --indels" << endl;
-  cout << "	analyse indels." << endl;
   return 0;
 }
 
@@ -64,9 +55,6 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"help", no_argument, 0, 'h'},
     {"in", required_argument, 0, 'i'},
-    {"snps", no_argument, 0, '1'},
-    {"mnps", no_argument, 0, '2'},
-    {"indels", no_argument, 0, '3'},
 
     {0, 0, 0, 0}
   };
@@ -84,21 +72,6 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
         vcfFile = optarg;
         break;
 
-      // Analyse SNPs.
-      case '1':
-        processSnps = true;
-        break;
-
-      // Analyse MNPs.
-      case '2':
-        processMnps = true;
-        break;
-
-      // Analyse indels.
-      case '3':
-        processIndels = true;
-        break;
-      
       // Help.
       case 'h':
         return Help();
@@ -134,83 +107,74 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
 int validateTool::Run(int argc, char* argv[]) {
   int getOptions = validateTool::parseCommandLine(argc, argv);
 
-// The info/format fields and the genotypes need to be processed to
-// ensure that there are no errors.
+  // The info/format fields and the genotypes need to be processed to
+  // ensure that there are no errors.
   vcf v; // Create a vcf object.
-  v.processInfo = true;
-  v.processGenotypes = true;
+  variant var; // Define variant object.
+  var.determineVariantsToProcess(true, true, true, false, true, false);
+  v.openVcf(vcfFile); // Open the vcf file.
 
-  v.openVcf(vcfFile);
-  v.parseHeader();
+  // Read in the header information.
+  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
 
-// Check that all of the info and format fields in the header were
-// succesfully parsed.
+  // Check that all of the info descriptions in the header are in the correct form.
   map<string, headerInfoStruct>::iterator iter;
-  for (iter = v.headerInfoFields.begin(); iter != v.headerInfoFields.end(); iter++) {
-    if ( !(iter->second).success) {
-      cerr << "Error parsing the info header lines." << endl;
-      cerr << "Failed to read: " << (iter->first) << endl;
-      cerr << endl;
-      cerr << "Info header lines must conform to the spec to allow file validation." << endl;
+  for (iter = var.headerInfoFields.begin(); iter != var.headerInfoFields.end(); iter++) {
+    if ( !(iter->second.success) ) {
+      cerr << "ERROR: Malformed info string in the header: " << iter->first << endl;
       exit(1);
     }
   }
 
-  for (iter = v.headerFormatFields.begin(); iter != v.headerFormatFields.end(); iter++) {
-    if ( !(iter->second).success) {
-      cerr << "Error parsing the format header lines." << endl;
-      cerr << "Failed to read: " << (iter->first) << endl;
-      cerr << endl;
-      cerr << "Info header lines must conform to the spec to allow file validation." << endl;
+  for (iter = var.headerFormatFields.begin(); iter != var.headerFormatFields.end(); iter++) {
+    if ( !(iter->second.success) ) {
+      cerr << "ERROR: Malformed format string in the header: " << iter->first << endl;
       exit(1);
     }
   }
 
-  int previousPosition = 0;
-  string previousReferenceSequence = "";
-  bool positionSorted = true;
-  bool referenceSequenceSorted = true;
-  map<string, bool> parsedReferenceSequences;
+  // Read through all the entries in the file.
+  while (v.success) {
 
-// Read through all the entries in the file.
-  while(v.getRecord()) {
-
-// Check that the current record is not before the previous one (i.e.
-// check that the vcf file is sorted).
-    if (previousReferenceSequence != v.referenceSequence) {
-      if (parsedReferenceSequences[v.referenceSequence]) {referenceSequenceSorted = false;}
-      previousReferenceSequence = v.referenceSequence;
-    }
-    else if (v.position < previousPosition) {positionSorted = false;}
-
-    previousPosition = v.position;
-    parsedReferenceSequences[v.referenceSequence] = true;
-
-// For each field in the info string, check that there exists a
-// line in the header explaining the field and that the field
-// contains the correct number and type of entries.
-    for (map<string, string>::iterator iter = v.infoTags.begin(); iter != v.infoTags.end(); iter++) {
-      string tag = (*iter).first;
-      information sInfo = v.getInfo(tag);
+    // Build the variant structure for this reference sequence.
+    if (var.originalVariantsMap.size() == 0) {
+      currentReferenceSequence = v.variantRecord.referenceSequence;
+      v.success = var.buildVariantStructure(v);
     }
 
-// Parse all of the genotype information and check that it is complete and
-// consistent with the header information.
-    for (vector<string>::iterator iter = v.genotypes.begin(); iter != v.genotypes.end(); iter++) {
-      v.processGenotypeFields(*iter);
-      for (vector<string>::iterator formatIter = v.genotypeFormat.begin(); formatIter != v.genotypeFormat.end(); formatIter++) {
-        information sInfo = v.getGenotypeInfo(*formatIter);
+    // Loop over the variant structure until it is empty.  While v.update is true,
+    // i.e. when the reference sequence is still the current reference sequence,
+    // keep adding variants to the structure.
+    while (var.originalVariantsMap.size() != 0) {
+      if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
+        var.addVariantToStructure(v.position, v.variantRecord);
+        v.success = v.getRecord();
       }
+      var.ovmIter = var.originalVariantsMap.begin();
+
+      // Loop over all records at this locus.
+      var.ovIter = var.ovmIter->second.begin();
+      for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
+
+        // Check the info string for inconsistencies.
+        variantInfo info(var.ovIter->info, var.headerInfoFields);
+        info.validateInfo(var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, error);
+
+        // Check the genotypes for inconsistencies.
+        if (var.ovIter->hasGenotypes) {
+          genotypeInfo gen(var.ovIter->genotypeFormat, var.ovIter->genotypes, var.headerFormatFields);
+          gen.validateGenotypes(var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, var.samples, error);
+        }
+      }
+      var.originalVariantsMap.erase(var.ovmIter);
     }
   }
 
-// Close the vcf file and return.
+  // Close the vcf files.
   v.closeVcf();
 
-// Write to screen that the file is unsorted or that no errors were found.
-  if (!referenceSequenceSorted) {cerr << "vcf file has unsorted referenceSequences" << endl;}
-  if (!positionSorted) {cerr << "vcf file has unsorted positions" << endl;}
-  if (positionSorted && referenceSequenceSorted) {cout << "No errors found with the vcf file." << endl;}
+  // If no errors were found, indicate that this was the case.
+  if (!error) {cerr << "No errors found with vcf file." << endl;}
 
   return 0;
 }

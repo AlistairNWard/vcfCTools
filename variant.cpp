@@ -404,6 +404,9 @@ void variant::updateVariantMaps(string alt, variantType type, string alRef, stri
 // the output.
 void variant::clearOriginalVariants(intFlags& flags, output& ofile, bool write) {
   while (originalVariantsMap.size() != 0)  {
+
+    // If this is the second vcf file and an annotation task is being performed,
+    // do not send these records to the output.
     if (write || flags.findUnion) {buildOutputRecord(ofile);}
     originalVariantsMap.erase(ovmIter);
     if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
@@ -517,27 +520,6 @@ void variant::annotateRecordBed(bedRecord& b) {
 //  }
 }
 
-// Extract the genotypes from each sample.
-vector<string> variant::extractGenotypeField(string field) {
-  unsigned int i;
-  vector<string> values;
-
-//  vector<string> format = split(variantIter->genotypeFormatString, ':');
-//  for (i = 0; i < format.size(); i++) {
-//    if (format[i] == field) {break;}
-//  }
-//
-//  // Parse the genotype of each sample;
-//  vector<string> genotypeString = split(variantIter->genotypeString, "\t");
-//  for (vector<string>::iterator gIter = genotypeString.begin(); gIter != genotypeString.end(); gIter++) {
-//    vector<string> genotypeFields = split(*gIter, ':');
-//    if ( genotypeFields.size() < format.size() ) {values.push_back("0");}
-//    else {values.push_back(genotypeFields[i]);}
-//  } 
-
-  return values;
-}
-
 // From the intersection routine, two variants are found at the same position.
 // It is possible that different variants are to be compared with each other
 // (e.g. SNPs with indels) and this requires looking ahead in the variant
@@ -581,7 +563,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
           // If the two files share the alleles, keep them only if the common
           // alleles (or union) is required.
           if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
-            if (flags.annotate) {rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;}
+            if (flags.annotate && var.isDbsnp) {rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;}
             *aIter = true;
             *bIter = true;
             break;
@@ -610,7 +592,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
     } else {
 
       // Determine if this allele is to be filtered.
-      if (flags.findCommon) {
+      if (flags.findCommon && !flags.annotate) {
         write = true;
       } else if (flags.findUnique) {
         write = !flags.writeFromFirst;

@@ -30,10 +30,11 @@
 using namespace std;
 using namespace vcfCTools;
 
-unsigned int setVcfPriority(string&, vector<string>&);
-void mergeHeaders(vcf&, vcf&, vcf&);
-void writeHeader(ostream*, vcf&, bool, string&);
-void checkDataSets(vcf&, vcf&);
 void buildRecord(int, variantDescription&);
+void checkDataSets(vcf&, vcf&);
+unsigned int fact(unsigned int&);
+void mergeHeaders(vcf&, vcf&, vcf&);
+unsigned int setVcfPriority(string&, vector<string>&);
+void writeHeader(ostream*, vcf&, bool, string&);
 
 #endif

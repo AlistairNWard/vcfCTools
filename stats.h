@@ -43,16 +43,17 @@ struct snpTypes {
 };
 
 struct sampleSnpStats {
-  unsigned int novelTransitions;
-  unsigned int novelTransversions;
-  unsigned int knownTransitions;
-  unsigned int knownTransversions;
-  unsigned int singletons;
+  unsigned int het;
   unsigned int homRef;
   unsigned int homAlt;
-  unsigned int het;
+  unsigned int knownTransitions;
+  unsigned int knownTransversions;
+  unsigned int novelTransitions;
+  unsigned int novelTransversions;
+  unsigned int singletons;
   unsigned int totalDepth;
   unsigned int totalAltDepth;
+  unsigned int unknown;
 };
 
 struct variantStruct {
@@ -166,7 +167,7 @@ class statistics {
     statistics(void);
     ~statistics(void);
     void countByFilter();
-    void determineSnpType(variant&, string&);
+    void determineSnpType(variant&, string&, unsigned int);
     void generateStatistics(variant&, bool, vector<string>&, bool, output&);
     void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
     void printAcs(output&);
@@ -181,7 +182,7 @@ class statistics {
     void printSnpAnnotationStruct(output&, string&, variantStruct&, string&);
     void printSnpStatistics(output&);
     void printVariantStruct(output&, string, variantStruct&);
-    void updateSampleSnps(variant&, vcf&, unsigned int);
+    void updateSampleSnps(variant&, unsigned int);
     void updateDetailedSnps(variant&, vcf&, unsigned int, output&);
 
   public:

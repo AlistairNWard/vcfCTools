@@ -20,6 +20,7 @@
 #include <map>
 #include <vector>
 
+#include "split.h"
 #include "vcf.h"
 
 using namespace std;
@@ -27,10 +28,9 @@ using namespace std;
 namespace vcfCTools {
 
 struct infoStruct {
-  string tag;
   string number;
   string type;
-  string value;
+  vector<string> values;
   unsigned int numberValues;
 };
 
@@ -38,14 +38,16 @@ class variantInfo {
   public:
     variantInfo(string&, map<string, headerInfoStruct>&);
     ~variantInfo(void);
+    void checkTypes(string&, int&, bool&);
     void modifyInfo(vector<int>&);
     void retrieveFields();
+    void validateInfo(string&, int&, unsigned int&, bool&);
 
   public:
     string infoString;
     map<string, headerInfoStruct> headerInfo;
-    vector<infoStruct> infoFields;
-    vector<infoStruct>::iterator infoIter;
+    map<string, infoStruct> infoFields;
+    map<string, infoStruct>::iterator infoIter;
 };
 
 } // namespace vcfCTools

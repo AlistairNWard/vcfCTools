@@ -269,9 +269,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     b.openBed(bedFile);
 
     // Parse the headers.
-    v.parseHeader();
-    var.headerInfoFields   = v.headerInfoFields;
-    var.headerFormatFields = v.headerFormatFields;
+    v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
 
     b.parseHeader();
 
@@ -326,13 +324,8 @@ int intersectTool::Run(int argc, char* argv[]) {
     v2.openVcf(vcfFiles[1]);
 
     // Read in the header information.
-    v1.parseHeader();
-    var1.headerInfoFields   = v1.headerInfoFields;
-    var1.headerFormatFields = v1.headerFormatFields;
-
-    v2.parseHeader();
-    var2.headerInfoFields   = v2.headerInfoFields;
-    var2.headerFormatFields = v2.headerFormatFields;
+    v1.parseHeader(var1.headerInfoFields, var1.headerFormatFields, var1.samples);
+    v2.parseHeader(var2.headerInfoFields, var2.headerFormatFields, var2.samples);
 
     checkDataSets(v1, v2); // tools.cpp
 

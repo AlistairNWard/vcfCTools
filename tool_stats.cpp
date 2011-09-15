@@ -193,35 +193,46 @@ int statsTool::Run(int argc, char* argv[]) {
   statistics stats; // Create a statistics object.
 
   v.openVcf(vcfFile);
-  v.parseHeader();
-  var.headerInfoFields   = v.headerInfoFields;
-  var.headerFormatFields = v.headerFormatFields;
+  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
 
   // If MNPs should be broken up into SNPs, ensure that the boolean flag is set.
   if (splitMnps) {stats.splitMnps = true;}
 
-// If statistics are being generated on a per-sample basis (or detailed
-// statistics are being generate, check that genotypes exist.
-//  if (sampleSnps || generateDetailed) {
-//    if (sampleSnps) {stats.minGenotypeQuality = atof(genotypeQualityString.c_str());}
-//    if (generateDetailed) {stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());}
-//    if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
-//      cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double." << endl;
-//      exit(1);
-//    }
-//    if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
-//        detailedGenotypeQualityString != "0.0") ) {
-//      cerr << "ERROR: genotype quality for --detailed (-d) must be a double." << endl;
-//      exit(1);
-//    }
-//    if (!v.hasGenotypes) {
-//      cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
-//      exit(1);
-//    } else {
-//      if (sampleSnps) {stats.processSampleSnps = true;}
-//      if (generateDetailed) {stats.generateDetailed  = true;}
-//    }
-//  }
+ //If statistics are being generated on a per-sample basis (or detailed
+ //statistics are being generate, check that genotypes exist.
+ if (sampleSnps || generateDetailed) {
+
+    // Check that a genotype quality cut-off was supplied as a double.
+    if (sampleSnps) {stats.minGenotypeQuality = atof(genotypeQualityString.c_str());}
+    if (generateDetailed) {stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());}
+    if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
+      cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double (e.g. 0.)." << endl;
+      exit(1);
+    }
+    if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
+        detailedGenotypeQualityString != "0.0") ) {
+      cerr << "ERROR: genotype quality for --detailed (-d) must be a double (e.g. 0.)." << endl;
+      exit(1);
+    }
+
+    // Check that the file contains genotypes.  Without this, there can be no sample level
+    // statistics.
+    if (!v.hasGenotypes) {
+      cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
+      exit(1);
+    } else {
+      if (sampleSnps) {stats.processSampleSnps = true;}
+      if (generateDetailed) {stats.generateDetailed  = true;}
+    }
+
+    // Check that the AC and DP fields are defined in the header.  These values are required
+    // for performing sample level or detailed statistics.
+    if (var.headerInfoFields.count("AC") == 0) {
+      cerr << "ERROR: No information for the AC field appear in the header." << endl;
+      cerr << "This information needs to be present for detailed statistics." << endl;
+      exit(1);
+    }
+  }
 
 // If statistics on annotations are required, generate a list of flags to get
 // statistics on.  Provide a warning if the flags do not appear in the header.
@@ -253,7 +264,6 @@ int statsTool::Run(int argc, char* argv[]) {
     // Loop over the variant structure until it is empty.  While v.update is true,
     // i.e. when the reference sequence is still the current reference sequence,
     // keep adding variants to the structre.
-    //while (v.variants.size() != 0) {
     while (var.originalVariantsMap.size() != 0) {
       if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
         var.addVariantToStructure(v.position, v.variantRecord);
