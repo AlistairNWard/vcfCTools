@@ -80,6 +80,7 @@ struct originalVariants {
   unsigned int numberAlts;
   string ref;
   string rsid;
+  string altString;
   vector<bool> filtered;
   vector<string> reducedRef;
   vector<string> alts;

@@ -116,6 +116,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
   // First, update all vectors whose size is the number of records at this locus.
   ov.rsid           = variant.rsid;
   ov.ref            = variant.ref;
+  ov.altString      = variant.altString;
   ov.quality        = variant.quality;
   ov.filters        = variant.filters;
   ov.info           = variant.info;
@@ -132,9 +133,6 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
 
     // The reference sequence and position will be the same for all records at
     // this locus and so are not stored in vectors.
-    //originalVariantsMap[position].referenceSequence = variant.referenceSequence;
-    //originalVariantsMap[position].position          = position;
-    //originalVariantsMap[position].numberAlts        = alts.size();
     ov.referenceSequence = variant.referenceSequence;
     ov.position          = position;
     ov.numberAlts        = alts.size();
@@ -852,7 +850,7 @@ void variant::buildOutputRecord(output& ofile) {
     // required.
     if (!assessAlts) {
       hasAltAlleles = true;
-      for (; aIter != ovIter->alts.end(); aIter++) {altAlleles += *aIter + ",";}
+      altAlleles = ovIter->altString + ",";
     } else { 
 
       // Define iterators.
