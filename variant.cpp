@@ -114,29 +114,25 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
   originalVariants ov;
 
   // First, update all vectors whose size is the number of records at this locus.
-  ov.rsid           = variant.rsid;
-  ov.ref            = variant.ref;
-  ov.altString      = variant.altString;
-  ov.quality        = variant.quality;
-  ov.filters        = variant.filters;
-  ov.info           = variant.info;
-  ov.hasGenotypes   = variant.hasGenotypes;
-  ov.genotypeFormat = variant.genotypeFormatString;
-  ov.genotypes      = variant.genotypeString;
-  ov.maxPosition    = position;
+  ov.referenceSequence = variant.referenceSequence;
+  ov.position          = position;
+  ov.numberAlts        = alts.size();
+  ov.rsid              = variant.rsid;
+  ov.ref               = variant.ref;
+  ov.altString         = variant.altString;
+  ov.quality           = variant.quality;
+  ov.filters           = variant.filters;
+  ov.info              = variant.info;
+  ov.hasGenotypes      = variant.hasGenotypes;
+  ov.genotypeFormat    = variant.genotypeFormatString;
+  ov.genotypes         = variant.genotypeString;
+  ov.maxPosition       = position;
 
   // Now update information based on whether this is the first record at this
   // locus.
   if (originalVariantsMap[position].size() == 0) {
     ov.hasMultipleRecords     = false;
     ov.numberOfRecordsAtLocus = 1;
-
-    // The reference sequence and position will be the same for all records at
-    // this locus and so are not stored in vectors.
-    ov.referenceSequence = variant.referenceSequence;
-    ov.position          = position;
-    ov.numberAlts        = alts.size();
-  
   } else {
     ov.hasMultipleRecords     = true;
     ov.numberOfRecordsAtLocus = originalVariantsMap[position].size() + 1;
@@ -247,6 +243,8 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
   // Update the originalVariantsMap.
   originalVariantsMap[position].push_back(ov);
 
+  //if (position == 137939) {exit(0);}
+
   // The maxPosition value is used by the intersection routine to determine
   // if all variants have been processed.  If there are multiple records at
   // the same locus, the only value of maxPosition that is checked is that
@@ -320,6 +318,7 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
     } else if (doTrimAlleles) {
       start = trimAlleles(refSeq, position, ref, alt, alRef, alAlt); // trim_alleles.cpp
       if (start != position) {
+        cerr << "HELLO " << start << " " << ref << " " << alt << " " << alRef << " " << alAlt << endl;
         cerr << "WARNING: Modified variant position from " << refSeq;
         cerr << ":" << position << " to " << refSeq << ":" << start << endl;
       }
@@ -824,18 +823,23 @@ void variant::filterUnique() {
 void variant::buildOutputRecord(output& ofile) {
   bool hasAltAlleles = false;
   bool removedAllele = false;
-  int alleleID       = 1;
+  int alleleID;
   int position;  
-  string altAlleles  = "";
+  string altAlleles;
   string filter;
   string refAllele;
-  ostringstream sPosition, sQuality;
   vector<int> modifiedAlleles;
-  modifiedAlleles.push_back(0);
 
   // Loop over the individual records at this locus.  Merging these into a single
   // record is not implemented.
   for (ovIter = ovmIter->second.begin(); ovIter != ovmIter->second.end(); ovIter++) {
+
+    // Reset certain variables for each iteration.
+    alleleID   = 1;
+    altAlleles = "";
+    modifiedAlleles.clear();
+    modifiedAlleles.push_back(0);
+
     vector<string>::iterator aIter = ovIter->alts.begin();
 
     // Define the reference allele and the position.
@@ -906,6 +910,7 @@ void variant::buildOutputRecord(output& ofile) {
 
       // The position and quality need to be converted to strings via
       // a stringstream in order to included in the string.
+      ostringstream sPosition, sQuality;
       sPosition << position;
       sQuality << ovIter->quality;
 
