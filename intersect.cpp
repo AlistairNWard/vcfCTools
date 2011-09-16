@@ -54,7 +54,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
 
   // Parse and compare the two variant structures until the end of one of the files
   // is reached and the variant structure for that file is empty.
-  while ( !(var1.variantMap.size() == 0 && !v1.success) && !(var2.variantMap.size() == 0 && !v2.success) ) {
+  while ( !(var1.variantMap.size() == 0 && !v1.success) || !(var2.variantMap.size() == 0 && !v2.success) ) {
 
     // If the two variant structures are built with the same reference sequence, compare
     // the contents and parse through all varians for this reference sequence.
@@ -66,8 +66,8 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
       // to true.  If the vcf file is not sorted, the intersection will not work
       // correctly, but the vcf file should fail validation and, as such, shouldn't
       // be used.
-      var1.referenceSequenceInfo[currentReferenceSequence].usedInComparison = true;
-      var2.referenceSequenceInfo[currentReferenceSequence].usedInComparison = true;
+      if (var1.variantMap.size() != 0) {var1.referenceSequenceInfo[currentReferenceSequence].usedInComparison = true;}
+      if (var2.variantMap.size() != 0) {var2.referenceSequenceInfo[currentReferenceSequence].usedInComparison = true;}
 
       while (var1.variantMap.size() != 0 && var2.variantMap.size() != 0) {
 
@@ -222,7 +222,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
   }
 
   // If the variant structures are not empty, there was a problem and a warning is given.
-  if (var1.variantMap.size() != 0 || var2.variantMap.size() != 0) {
+  if (var1.variantMap.size() != 0 || (var2.variantMap.size() != 0 && !flags.annotate) ) {
     cerr << "WARNING: Not all records were flushed out of the variant structure." << endl;
   }
 

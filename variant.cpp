@@ -318,7 +318,6 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
     } else if (doTrimAlleles) {
       start = trimAlleles(refSeq, position, ref, alt, alRef, alAlt); // trim_alleles.cpp
       if (start != position) {
-        cerr << "HELLO " << start << " " << ref << " " << alt << " " << alRef << " " << alAlt << endl;
         cerr << "WARNING: Modified variant position from " << refSeq;
         cerr << ":" << position << " to " << refSeq << ":" << start << endl;
       }
@@ -540,6 +539,7 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
 // Compare two arrays of variant alleles of the same type (e.g. all SNPs).
 void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVariants>& alleles2, intFlags flags, variant& var) {
   bool write;
+  string infoAdd;
   string rsid;
   vector<bool> commonA (alleles1.size(), false);
   vector<bool> commonB (alleles2.size(), false);
@@ -560,7 +560,15 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
           // If the two files share the alleles, keep them only if the common
           // alleles (or union) is required.
           if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
-            if (flags.annotate && var.isDbsnp) {rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;}
+            if (flags.annotate) {
+              if (var.isDbsnp) {
+                rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;
+                infoAdd = "dbSNP";
+              }
+              else {
+                infoAdd = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].filters;
+              }
+            }
             *aIter = true;
             *bIter = true;
             break;
@@ -581,7 +589,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
   for (; iter != alleles1.end(); iter++) {
     if (*aIter) {
       if (flags.annotate) {
-        annotateRecordVcf(var.isDbsnp, iter->originalPosition, iter->recordNumber - 1, rsid, true, *aIter);
+        annotateRecordVcf(iter->originalPosition, iter->recordNumber - 1, var.isDbsnp, rsid, infoAdd, true, *aIter);
       } else {
         write = (flags.findUnique) ? true : !flags.writeFromFirst;
         originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
@@ -627,7 +635,8 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
 }
 
 // Annotate the variants at this locus with the contents of the vcf file.
-void variant::annotateRecordVcf(bool isDbsnp, int position, unsigned int record, string& rsid, bool commonType, bool commonAlleles) {
+void variant::annotateRecordVcf(int position, unsigned int record, bool isDbsnp, string& rsid, string& infoAdd, bool commonType, bool commonAlleles) {
+  string oString;
 
   // If the vcf file used for annotation is a dbSNP vcf file, only compare the
   // relevant variant classes.  Also, parse the info string to check that the
@@ -635,161 +644,15 @@ void variant::annotateRecordVcf(bool isDbsnp, int position, unsigned int record,
   // variant class (VC) info field.
   if (isDbsnp) {
     if (commonAlleles) {originalVariantsMap[position][record].rsid = rsid;}
-  } else {
 
+  // If a vcf file is provided for performing annotations that is not a dbSNP
+  // vcf file, add the filter string from this file to the vcf file being
+  // annotated.
   }
 
-// If the vcf file used for annotation is a dbSNP vcf file, only compare the
-// relevant variant classes.  Also, parse the info string to check that the
-// variant class as determined by vcfCTools agrees with that listed in the
-// variant class (VC) info field.
-//  if (isDbsnp) {
-//
-//    // Annotate SNPs.
-//    if (vmIter->second.biSnps.size() != 0) {
-//      for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
-//  
-//        // Check that the VC class lists this entry as a SNP.
-//        annInfo.processInfoFields(iter->info);
-//        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-//        if (annInfo.values[0] != "SNP") {
-//          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected SNP.";
-//          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
-//        }
-//  
-//        // Annotate the SNPs with the rsid value.
-//        for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-//          variantIter->rsid = iter->rsid;
-//          vcfInfo.processInfoFields(variantIter->info);
-//          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
-//          buildRecord(vmIter->first, *variantIter); // tools.cpp
-//        }
-//      }
-//    }
-//
-//    // Annotate multiallelic SNPs.
-//    if (vmIter->second.multiSnps.size() != 0) {
-//      for (iter = v.multiSnps.begin(); iter != v.multiSnps.end(); iter++) {
-//  
-//        // Check that the VC class lists this entry as a SNP.
-//        annInfo.processInfoFields(iter->info);
-//        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-//        if (annInfo.values[0] != "SNP") {
-//          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected SNP.";
-//          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
-//        }
-//  
-//        // Annotate the SNPs with the rsid value.
-//        for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
-//          variantIter->rsid = iter->rsid;
-//          vcfInfo.processInfoFields(variantIter->info);
-//          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
-//          buildRecord(vmIter->first, *variantIter); // tools.cpp
-//        }
-//      }
-//    }
-//
-//    // Annotate MNPs.
-//    if (vmIter->second.mnps.size() != 0) {
-//      for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
-//  
-//        // Check that the VC class lists this entry as an MNP.
-//        annInfo.processInfoFields(iter->info);
-//        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-//        if (annInfo.values[0] != "MULTI-BASE") {
-//          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected MNP (MULTI-BASE).";
-//          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
-//        }
-//  
-//        // Annotate the SNPs with the rsid value.
-//        for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
-//          vcfInfo.processInfoFields(variantIter->info);
-//          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
-//          variantIter->rsid = iter->rsid;
-//          buildRecord(vmIter->first, *variantIter); // tools.cpp
-//        }
-//      }
-//    }
-//
-//    // Annotate indels.
-//    if (vmIter->second.indels.size() != 0) {
-//      for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
-//  
-//        // Check that the VC class lists this entry as an indel.
-//        annInfo.processInfoFields(iter->info);
-//        annInfo.getInfo(string("VC"), v.referenceSequence, vmIter->first);
-//        if (annInfo.values[0] != "INDEL") {
-//          cerr << "WARNING: dbSNP entry listed as " << annInfo.values[0] << ", expected INDEL.";
-//          cerr << " Coordinate (" << vmIter->second.referenceSequence << ":" << vmIter->first << ")" << endl;
-//        }
-//  
-//        // Annotate the SNPs with the rsid value.
-//        for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-//          vcfInfo.processInfoFields(variantIter->info);
-//          if (vcfInfo.infoTags.count("dbSNP") == 0) {variantIter->info += ";dbSNP";}
-//          variantIter->rsid = iter->rsid;
-//          buildRecord(vmIter->first, *variantIter); // tools.cpp
-//        }
-//      }
-//    }
-//
-//// If a vcf file is provided for performing annotations that is not a dbSNP
-//// vcf file, add the info string from this file to the vcf file being
-//// annotated.
-//  } else {
-//
-//    // Annotate SNPs.
-//    for (iter = v.biSnps.begin(); iter != v.biSnps.end(); iter++) {
-//
-//      // Add the filter string from the annotation file to the info string of
-//      // the vcf file.  First check that this does not already exist to avoid
-//      // multiple instances of the same flag.
-//      for (variantIter = vmIter->second.biSnps.begin(); variantIter != vmIter->second.biSnps.end(); variantIter++) {
-//        vcfInfo.processInfoFields(variantIter->info);
-//        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
-//        buildRecord(vmIter->first, *variantIter);
-//      }
-//    }
-//
-//    // Annotate multiallelic SNPs.
-//    for (iter = v.multiSnps.begin(); iter != v.multiSnps.end(); iter++) {
-//
-//      // Add the filter string from the annotation file to the info string of
-//      // the vcf file.  First check that this does not already exist to avoid
-//      // multiple instances of the same flag.
-//      for (variantIter = vmIter->second.multiSnps.begin(); variantIter != vmIter->second.multiSnps.end(); variantIter++) {
-//        vcfInfo.processInfoFields(variantIter->info);
-//        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
-//        buildRecord(vmIter->first, *variantIter);
-//      }
-//    }
-//
-//    // Annotate MNPs.
-//    for (iter = v.mnps.begin(); iter != v.mnps.end(); iter++) {
-//
-//      // Add the filter string from the annotation file to the info string of
-//      // the vcf file.  First check that this does not already exist to avoid
-//      // multiple instances of the same flag.
-//      for (variantIter = vmIter->second.mnps.begin(); variantIter != vmIter->second.mnps.end(); variantIter++) {
-//        vcfInfo.processInfoFields(variantIter->info);
-//        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
-//        buildRecord(vmIter->first, *variantIter);
-//      }
-//    }
-//
-//    // Annotate indels.
-//    for (iter = v.indels.begin(); iter != v.indels.end(); iter++) {
-//
-//      // Add the filter string from the annotation file to the info string of
-//      // the vcf file.  First check that this does not already exist to avoid
-//      // multiple instances of the same flag.
-//      for (variantIter = vmIter->second.indels.begin(); variantIter != vmIter->second.indels.end(); variantIter++) {
-//        vcfInfo.processInfoFields(variantIter->info);
-//        if (vcfInfo.infoTags.count(iter->filters) == 0) {variantIter->info += ";" + iter->filters;}
-//        buildRecord(vmIter->first, *variantIter);
-//      }
-//    }
-//  }
+  // Add the term infoAdd to the info string.
+  oString = originalVariantsMap[position][record].info;
+  originalVariantsMap[position][record].info = (oString == ".") ? infoAdd : oString + ";" + infoAdd;
 }
   
 // For variants that are known to be unique to a single vcf file when
