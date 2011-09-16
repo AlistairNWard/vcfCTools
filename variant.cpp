@@ -525,14 +525,10 @@ void variant::annotateRecordBed(bedRecord& b) {
 //
 // If the variants compared are at the same position.
 void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
-
-  // Compare SNPs.
+  
+  // Compare variant types individually.
   compareAlleles(vmIter->second.snps, var.vmIter->second.snps, flags, var);
-
-  // Compare MNPs.
   compareAlleles(vmIter->second.mnps, var.vmIter->second.mnps, flags, var);
-
-  // Compare indels.
   compareAlleles(vmIter->second.indels, var.vmIter->second.indels, flags, var);
 }
 
@@ -559,7 +555,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
 
           // If the two files share the alleles, keep them only if the common
           // alleles (or union) is required.
-          if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
+          if (iter->alt == compIter->alt && iter->ref == compIter->ref || flags.sitesOnly) {
             if (flags.annotate) {
               if (var.isDbsnp) {
                 rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;
@@ -589,7 +585,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
   for (; iter != alleles1.end(); iter++) {
     if (*aIter) {
       if (flags.annotate) {
-        annotateRecordVcf(iter->originalPosition, iter->recordNumber - 1, var.isDbsnp, rsid, infoAdd, true, *aIter);
+        annotateRecordVcf(iter->originalPosition, iter->recordNumber - 1, var.isDbsnp, rsid, infoAdd);
       } else {
         write = (flags.findUnique) ? true : !flags.writeFromFirst;
         originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
@@ -635,20 +631,11 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
 }
 
 // Annotate the variants at this locus with the contents of the vcf file.
-void variant::annotateRecordVcf(int position, unsigned int record, bool isDbsnp, string& rsid, string& infoAdd, bool commonType, bool commonAlleles) {
+void variant::annotateRecordVcf(int position, unsigned int record, bool isDbsnp, string& rsid, string& infoAdd) {
   string oString;
 
-  // If the vcf file used for annotation is a dbSNP vcf file, only compare the
-  // relevant variant classes.  Also, parse the info string to check that the
-  // variant class as determined by vcfCTools agrees with that listed in the
-  // variant class (VC) info field.
-  if (isDbsnp) {
-    if (commonAlleles) {originalVariantsMap[position][record].rsid = rsid;}
-
-  // If a vcf file is provided for performing annotations that is not a dbSNP
-  // vcf file, add the filter string from this file to the vcf file being
-  // annotated.
-  }
+  // If the vcf file used for annotation is a dbSNP vcf file, update the rsid field.
+  if (isDbsnp) {originalVariantsMap[position][record].rsid = rsid;}
 
   // Add the term infoAdd to the info string.
   oString = originalVariantsMap[position][record].info;

@@ -138,7 +138,7 @@ class variant {
     ~variant(void);
     void addVariantToStructure(int, variantDescription&);
     void annotateRecordBed(bedRecord&);
-    void annotateRecordVcf(int, unsigned int, bool, string&, string&, bool, bool);
+    void annotateRecordVcf(int, unsigned int, bool, string&, string&);
     void buildOutputRecord(output&);
     bool buildVariantStructure(vcf&);
     void clearOriginalVariants(intFlags&, output&, bool);

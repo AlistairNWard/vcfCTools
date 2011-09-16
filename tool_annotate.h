@@ -46,14 +46,16 @@ class annotateTool : public AbstractTool {
     string bedFile;
     string currentReferenceSequence;
     string newRecord;
+
+    // Boolean flags.
     bool annotateDbsnp;
     bool annotateVcf;
     bool annotateBed;
-
-    // Boolean flags.
     bool processSnps;
     bool processMnps;
     bool processIndels;
+    bool sitesOnly;
+    bool whollyWithin;
 };
 
 } // namespace vcfCTools

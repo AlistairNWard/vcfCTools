@@ -21,8 +21,10 @@ annotateTool::annotateTool(void)
 {
   currentReferenceSequence = "";
   annotateDbsnp = false;
-  annotateVcf = false;
-  annotateBed = false;
+  annotateVcf   = false;
+  annotateBed   = false;
+  sitesOnly     = false;
+  whollyWithin  = false;
 }
 
 // Destructor.
@@ -46,6 +48,10 @@ int annotateTool::Help(void) {
   cout << "	input dbsnp vcf file." << endl;
   cout << "  -b, --bed" << endl;
   cout << "	input bed file." << endl;
+  cout << "  -s, --sites-only" << endl;
+  cout << "	only compare files based on sites.  Do not evaluate the alleles." << endl;
+  cout << "  -w, --wholly-within-interval" << endl;
+  cout << "	For bed-intersections, start and end of ref/variant allele must fall within interval." << endl;
   cout << "  -1, --snps" << endl;
   cout << "	analyse SNPs." << endl;
   cout << "  -2, --mnps" << endl;
@@ -76,6 +82,8 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
     {"dbsnp", required_argument, 0, 'd'},
     {"annotation-vcf", required_argument, 0, 'a'},
     {"bed", required_argument, 0, 'b'},
+    {"sites-only", no_argument, 0, 'b'},
+    {"wholly-within", no_argument, 0, 'b'},
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
@@ -84,7 +92,7 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
   };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:a:b:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:a:b:d:w:s123", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -115,6 +123,17 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
       case 'b':
         bedFile = optarg;
         annotateBed = true;
+        break;
+
+      // Only compare variants based on the position.  Do not
+      // interrogate the alleles.
+        case 's':
+        sitesOnly = true;
+        break;
+
+      // An allele must fall wholly within bed interval.
+        case 'w':
+        whollyWithin = true;
         break;
 
       // Analyse SNPs.
@@ -184,7 +203,7 @@ int annotateTool::Run(int argc, char* argv[]) {
   var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
 
   intersect ints; // Define an intersection object.
-  ints.setBooleanFlags(true, false, false, true, true, false);  // Set the flags required for performing intersections.
+  ints.setBooleanFlags(true, false, false, sitesOnly, true, whollyWithin);  // Set the flags required for performing intersections.
   ints.flags.writeFromFirst = true;
 
   // Open the vcf file and parse the header.
