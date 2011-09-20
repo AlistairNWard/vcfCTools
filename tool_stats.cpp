@@ -21,6 +21,10 @@ statsTool::statsTool(void)
   currentReferenceSequence = "";
   generateAfs              = false;
   generateDetailed         = false;
+  processComplex           = false;
+  processIndels            = false;
+  processMnps              = false;
+  processSnps              = false;
   sampleSnps               = false;
   splitMnps                = false;
   useAnnotations           = false;
@@ -57,6 +61,8 @@ int statsTool::Help(void) {
   cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
   cout << "	analyse indels." << endl;
+  cout << "  -4, --complex" << endl;
+  cout << "	analyse complex events." << endl;
   return 0;
 }
 
@@ -82,13 +88,14 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
+    {"complex", no_argument, 0, '4'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:ad:n:ps:124", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:ad:n:ps:1234", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -152,6 +159,11 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
         processIndels = true;
         break;
 
+      // Analyse complex events.
+      case '4':
+        processComplex = true;
+        break;
+
       //
       case '?':
         cerr << "Unknown option: " << argv[optind - 2] << endl;
@@ -189,7 +201,7 @@ int statsTool::Run(int argc, char* argv[]) {
 
   vcf v; // Create a vcf object.
   variant var; // Create a variant structure to hold the variants.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
   statistics stats; // Create a statistics object.
 
   v.openVcf(vcfFile);

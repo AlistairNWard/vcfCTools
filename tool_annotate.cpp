@@ -20,11 +20,15 @@ annotateTool::annotateTool(void)
   : AbstractTool()
 {
   currentReferenceSequence = "";
-  annotateDbsnp = false;
-  annotateVcf   = false;
-  annotateBed   = false;
-  sitesOnly     = false;
-  whollyWithin  = false;
+  annotateDbsnp            = false;
+  annotateVcf              = false;
+  annotateBed              = false;
+  processComplex           = false;
+  processIndels            = false;
+  processMnps              = false;
+  processSnps              = false;
+  sitesOnly                = false;
+  whollyWithin             = false;
 }
 
 // Destructor.
@@ -58,6 +62,8 @@ int annotateTool::Help(void) {
   cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
   cout << "	analyse indels." << endl;
+  cout << "  -4, --complex" << endl;
+  cout << "	analyse complex events." << endl;
   cout << endl;
 
   return 0;
@@ -87,12 +93,13 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
+    {"complex", no_argument, 0, '4'},
 
     {0, 0, 0, 0}
   };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:a:b:d:w:s123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:a:b:d:w:s1234", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -150,6 +157,11 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
       case '3':
         processIndels = true;
         break;
+
+      // Analyse indels.
+      case '4':
+        processComplex = true;
+        break;
       
       // Help.
       case 'h':
@@ -200,7 +212,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
   vcf v; // Define vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
 
   intersect ints; // Define an intersection object.
   ints.setBooleanFlags(true, false, false, sitesOnly, true, whollyWithin);  // Set the flags required for performing intersections.
@@ -231,7 +243,7 @@ int annotateTool::Run(int argc, char* argv[]) {
     // annotation.  To annotate from multiple files, piping should be used.
     vcf annVcf; // Define a vcf object.
     variant annVar; // Define a variant object
-    annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
+    annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
 
     // Open the vcf file and parse the header.
     annVcf.openVcf(annVcfFile);

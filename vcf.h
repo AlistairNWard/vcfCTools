@@ -140,8 +140,6 @@ class vcf {
     // Variant reading and structures.
     bool getRecord();
 
-    // Managing genotypes.
-
   public:
     istream* input;
     ifstream file;
@@ -150,12 +148,10 @@ class vcf {
 // Keep track of when a record is read successfully.
     bool success;
     bool update;
-    bool removeGenotypes;
 
 // Header information and text.
     bool fromHeader;
     bool hasHeader;
-    bool processInfo;
     string headerLine;
     map<string, string> headerInfoLine;
     map<string, headerInfoStruct> headerInfoFields;
@@ -164,79 +160,19 @@ class vcf {
     string headerText;
     string headerTitlesText;
 
-// General information.
-
 // variant information.
+    string record;
     variantDescription variantRecord;
     string referenceSequence;
-    int position;
-
-
-
-
-
-
-
-
-
-
-// Original information is kept below here and should be empty
-// when all updates are complete.
-  public:
-    unsigned int determineVariantClass(string&, string&);
-    bool getVariantGroup(variantGroup&, string&);
-    void processInfoFields(string&);
-    information getInfo(string&);
-    void processGenotypeFields(string&);
-    information getGenotypeInfo(string&);
-    bool parseVcf(string&, unsigned int, bool, ostream*, bool);
-    bool parseVcfGroups(variantGroup&, string&, unsigned int, bool, ostream*, string&);
-    string getDbsnpInfo();
-    void writeRecord(ostream*);
-
-  public:
-
-// Header information and text.
-    unsigned int numberDataSets;
-    map<unsigned int, string> includedDataSets;
-
-// variant information
-    map<unsigned int, vector<variantDescription> > variants;
-    map<unsigned int, vInfo> variantsInformation;
-    map<unsigned int, vector<variantDescription> >::iterator variantsIter;
-    map<string, string> infoTags;
-
-    string record;
     vector<string> referenceSequenceVector;
     map<string, bool> referenceSequences;
-    bool comparedReferenceSequence;
-    string rsid;
-    string ref;
-    string altString;
-    vector<string> alt;
-    double quality;
-    string sQuality;
-    string filters;
-    string info;
-    bool hasMultipleAlternates;
-    vector<bool> isSNP;
-    vector<bool> isMNP;
-    vector<bool> isDeletion;
-    vector<bool> isInsertion;
+    int position;
 
 // Genotype information.
     bool hasGenotypes;
     bool processGenotypes;
-    string genotypeFormatString;
     vector<string> samples;
     unsigned int numberSamples;
-    vector<string> genotypeFormat;
-    vector<string> genotypes;
-    bool phasedGenotype;
-    map<string, string> genotypeTags;
-
-    // Reference sequence information.
-    string fasta;
 };
 
 } // namespace vcfCTools

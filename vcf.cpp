@@ -22,14 +22,9 @@ using namespace vcfCTools;
 
 // Constructor.
 vcf::vcf(void) {
-  removeGenotypes = false;
   hasHeader = true;
-  processInfo = false;
   hasGenotypes = true;
   processGenotypes = false;
-  numberDataSets = 0;
-  comparedReferenceSequence = false;
-  fasta = "/d2/data/references/build_37/human_reference_v37.fa";
 }
 
 // Destructor.
@@ -193,7 +188,7 @@ bool vcf::noHeader() {
 // that there is header information, but the title line (#CHROM POS ...) is missing
 // or malformed.  If this is the case, terminate with a warning.
 
-  if (!headerText.empty() || headerInfoFields.size() != 0 || headerFormatFields.size() != 0 || includedDataSets.size() != 0) {
+  if (!headerText.empty() || headerInfoFields.size() != 0 || headerFormatFields.size() != 0) {
     cerr << "No titles line in the vcf file (#CHROM POS etc.)" << endl;
     cerr << "vcfCTools requires a properly constructed header or no header at all to ensure correct operation." << endl;
     cerr << "Please add the required title line to the vcf file:" << endl;
@@ -247,13 +242,9 @@ bool vcf::getRecord() {
 
   // If the position is not an integer, the conversion to an integer will have
   // failed and position = 0.  In this case, terminate with an error.
-  if (position == 0) {
-    cerr << "Error processing record." << endl;
-    if (position == 0) {cerr << "Variant position is not an integer." << endl;}
-    if (quality == 0) {cerr << "Variant quality is not an integer or a floating point number." << endl;}
-    cerr << endl;
-    cerr << "Record:" << endl << endl << record << endl;
-    exit(1);
+  if (position == 0 || variantRecord.quality == 0) {
+    if (position == 0) {cerr << "ERROR: Unable to process variant position (not an integer)." << endl;}
+    if (variantRecord.quality == 0 && recordFields[5] != "0") {cerr << "ERROR: Variant quality is not an integer or a floating point number." << endl;}
   }
 
 // Add the reference sequence to the map.  If it didn't previously
@@ -266,204 +257,4 @@ bool vcf::getRecord() {
   }
 
   return success;
-}
-
-//
-bool vcf::getVariantGroup(variantGroup& vg, string& refFa) {
-  bool success = true, inGroup = true;
-  string alRef, alAlt;
-  size_t found;
-  unsigned int end;
-
-// Define the variant group structure.
-  vg.clear();
-  vg.referenceSequence = referenceSequence;
-  vg.start = -1;
-
-  //cout << "Variant: " << referenceSequence << ":" << position << endl;
-  for (vector<string>::iterator iter = alt.begin(); iter != alt.end(); iter ++) {
-    unsigned int start = alignAlternate(referenceSequence, position, ref, *iter, alRef, alAlt, refFa); // vcf_aux.cpp
-    found = alRef.find("-");
-    if (found == string::npos) {end = alRef.length() + start - 1;}
-    else {end = found + start - 1;}
-  }
-
-  return success;
-}
-
-// Process the info entries.
-void vcf::processInfoFields(string& infoString) {
-  infoTags.clear();
-  vector<string> infoEntries = split(infoString, ';');
-  for (vector<string>::iterator iter = infoEntries.begin(); iter != infoEntries.end(); iter++) {
-    size_t found = (*iter).find_first_of("=");
-    string tag = (*iter).substr(0, found);
-    if (found == string::npos) {infoTags[tag] = "0";}
-    else {infoTags[tag] = (*iter).substr(found + 1, (*iter).size());}
-  }
-}
-
-// Parse the genotype format string for this record and put the information into
-// genotypeFormat.  Create a vector containing all the genotype information.
-// There should be as many genotypes as samples.  Actual processing of the
-// individual sample genotype strings is performed when required by
-// vcf::getGenotypeInfo.
-void vcf::processGenotypeFields(string& genotypeString) {
-  genotypeTags.clear();
-  vector<string> genotypeEntries = split(genotypeString, ':');
-
-// Check that the genotype string has the correct number of entries.
-  if (genotypeString == "./." || genotypeString == ".") {}
-  else {
-    if (genotypeEntries.size() != genotypeFormat.size()) {
-      cerr << "Error processing genotypes." << endl;
-      cerr << "The genotype string does not contain the correct number of entries:" << endl;
-      cerr << "\tFormat  : " << genotypeFormatString << endl;
-      cerr << "\tGenotype: " << genotypeString << endl;
-      exit(1);
-    }
-    vector<string>::iterator formatIter = genotypeFormat.begin();
-    for (vector<string>::iterator iter = genotypeEntries.begin(); iter != genotypeEntries.end(); iter++) {
-      genotypeTags[*formatIter] = *iter;
-      formatIter++;
-    }
-  }
-}
-
-// Get the information for a specific info tag.  Also check that it contains
-// the correct number and type of entries.
-//information vcf::getInfo(string& tag) {
-//  information sInfo;
-//  sInfo.tag = tag;
-//
-//// If this routine has been called and processInfoFields has no, or there are
-//// no fields in the info string, terminate the program.  Information can only
-//// be retrieved if the info fields have been processed and so entering this
-//// routine without having procesed the info fields will result in a failue toi
-//// extract information.
-//  if (infoTags.size() == 0) {
-//    cerr << "Routine vcf::getInfo called while there is no information in the" << endl;
-//    cerr << "info string, or the routine processInfoFields has not previously been" << endl;
-//    cerr << "called.  Please ensure that information exists in the vcf file" << endl;
-//    cerr << "and that processInfoFields has been called." << endl;
-//    cerr << endl;
-//    exit(1);
-//  }
-//
-//// Check if the tag exists in the header information.  If so,
-//// determine the number and type of entries asscoiated with this
-//// tag.
-//  if (headerInfoFields.count(tag) > 0) {
-//    sInfo.number = headerInfoFields[tag].number;
-//    sInfo.type   = headerInfoFields[tag].type;
-//
-//// First check that the tag exists in the information string.  Then split
-//// the entry on commas.  For flag entries, do not perform the split.
-//    if (infoTags.count(tag) > 0) {
-//      if (sInfo.number == 0 && sInfo.type == "Flag") {sInfo.values.push_back("true");}
-//      else if (sInfo.number != 0 && sInfo.type == "Flag") {
-//        cerr << "Error processing info string." << endl;
-//        cerr << "Header inforamtion for entry: " << tag << " lists a flag with a non-zero number of entries." << endl;
-//        exit(1);
-//      } else {
-//        sInfo.values = split(infoTags[tag],",");
-//        if (sInfo.number != 0 && sInfo.values.size() != sInfo.number) {
-//          cerr << "Error processing info string." << endl;
-//          cerr << "Unexpected number of entries for info field " << tag << " at " << referenceSequence << ":" << position << endl;
-//          exit(1);
-//        }
-//      }
-//
-//    // Requested info tag is not in the info string
-//    } else {
-//      //sInfo.number = 0;
-//      cerr << "Tag: " << tag << " is not present in the info string." << endl;
-//      cerr << variantsIter->first << endl;
-//      cerr << "Terminating program." << endl;
-//      exit(1);
-//    }
-//  }
-//  else {
-//    cerr << "Error processing info string." << endl;
-//    cerr << "No information in the header for info entry: " << tag << endl;
-//    exit(1);
-//  }
-//
-//  return sInfo;
-//}
-//
-//// Get the genotype information.
-//information vcf::getGenotypeInfo(string& tag) {
-//  information gInfo;
-//  if (headerFormatFields.count(tag) > 0) {
-//    gInfo.number = headerFormatFields[tag].number;
-//    gInfo.type   = headerFormatFields[tag].type;
-//    gInfo.values = split(genotypeTags[tag], ",");
-//    if (gInfo.values.size() != gInfo.number) {
-//      cerr << "Error processing info string." << endl;
-//      cerr << "Unexpected number of entries for genotype entry " << tag << " at " << referenceSequence << ":" << position << endl;
-//      exit(1);
-//    }
-//  }
-//  else {
-//    cerr << "Error processing info string." << endl;
-//    cerr << "No information in the header for genotype format entry: " << tag << endl;
-//    exit(1);
-//  }
-//
-//  return gInfo;
-//}
-
-// Parse through the vcf file until the correct reference sequence is
-// encountered and the position is greater than or equal to that requested.
-bool vcf::parseVcf(string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output, bool passFilters) {
-  while (success && variantRecord.referenceSequence == compReferenceSequence) {
-    variantsIter = variants.begin();
-    if (variantsIter->first < compPosition) {
-      if (write) {
-        //OUTPUT
-      }
-      variants.erase(variantsIter);
-      success = getRecord();
-    } else {
-      break;
-    }
-  }
-
-  return success;
-}
-
-// Parse through the vcf file until the correct reference sequence is
-// encountered and then construct groups of variants occupying
-// overlapping reference sequence and parse through these until the
-// start position of the cluster is greater than or equal to the
-// requested value.
-bool vcf::parseVcfGroups(variantGroup& vc, string& compReferenceSequence, unsigned int compPosition, bool write, ostream* output, string& refFa) {
-  bool success = true;
-  if (vc.referenceSequence != compReferenceSequence) {
-    while (referenceSequence != compReferenceSequence && success) {
-      //if (write) {*output << record << endl;}
-      success = getRecord();
-    }
-  }
-  if (success) {success = getVariantGroup(vc, refFa);}
-  while ( (vc.referenceSequence == compReferenceSequence) && (vc.end < compPosition) && success) {
-    //if (write) {*output << record << endl;}
-    success = getVariantGroup(vc, refFa);
-  }
-
-  return success;
-}
-
-// Write a variant to the output stream.  Depending on the number of
-// variants at this locus, different options for writing out are
-// available.
-void vcf::writeRecord(ostream* output) {
-  if (variantsIter->second.size() == 1) {
-    *output << variantsIter->second[0].record << endl;
-  } else {
-    for (vector<variantDescription>::iterator iter = variantsIter->second.begin(); iter != variantsIter->second.end(); iter++) {
-      *output << iter->record << endl;
-    }
-  }
 }

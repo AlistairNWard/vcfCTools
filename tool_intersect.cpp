@@ -25,6 +25,10 @@ intersectTool::intersectTool(void)
   findUnion                = false;
   findUnique               = false;
   sitesOnly                = false;
+  processComplex           = false;
+  processIndels            = false;
+  processMnps              = false;
+  processSnps              = false;
   whollyWithin             = false;
   currentReferenceSequence = "";
 }
@@ -68,6 +72,8 @@ int intersectTool::Help(void) {
   cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
   cout << "	analyse indels." << endl;
+  cout << "  -4, --complex" << endl;
+  cout << "	analyse complex events." << endl;
   cout << endl;
   cout << "Additional information:" << endl;
   cout << "  The -c, -u and -q options require either 'a', 'b' or 'q' (not valid for -q) as an argument." << endl;
@@ -108,13 +114,14 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
+    {"complex", no_argument, 0, '4'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:dmpc:u:q:sw123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:dmpc:u:q:sw1234", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -196,6 +203,11 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       case '3':
         processIndels = true;
         break;
+
+      // Analyse complex events.
+      case '4':
+        processComplex = true;
+        break;
       
       //
       case '?':
@@ -260,7 +272,7 @@ int intersectTool::Run(int argc, char* argv[]) {
   if (bedFile != "") {
     vcf v; // Create a vcf object.
     variant var; // Create a variant object.
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
+    var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
 
     bed b; // Create a bed object.
     bedStructure bs; // Create a bed structure.
@@ -313,11 +325,11 @@ int intersectTool::Run(int argc, char* argv[]) {
   } else {
     vcf v1; // Create a vcf object.
     variant var1; // Create a variant object.
-    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
+    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
 
     vcf v2; // Create a vcf object.
     variant var2;
-    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, true);
+    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
     
     // Open the vcf files.
     v1.openVcf(vcfFiles[0]);
@@ -326,8 +338,6 @@ int intersectTool::Run(int argc, char* argv[]) {
     // Read in the header information.
     v1.parseHeader(var1.headerInfoFields, var1.headerFormatFields, var1.samples);
     v2.parseHeader(var2.headerInfoFields, var2.headerFormatFields, var2.samples);
-
-    checkDataSets(v1, v2); // tools.cpp
 
     // Check that the header for the two files contain the same samples.
     if (v1.samples != v2.samples) {

@@ -17,11 +17,15 @@ using namespace vcfCTools;
 distributionsTool::distributionsTool(void)
   : AbstractTool()
 {
-  usePrimary = false;
-  secondaryQuality = false;
-  useDistributions = false;
-  useDistQ = false;
+  usePrimary               = false;
+  secondaryQuality         = false;
+  useDistributions         = false;
+  useDistQ                 = false;
   currentReferenceSequence = "";
+  processComplex           = false;
+  processIndels            = false;
+  processMnps              = false;
+  processSnps              = false;
 }
 
 // Destructor.
@@ -51,6 +55,8 @@ int distributionsTool::Help(void) {
   cout << "     analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
   cout << "     analyse indels." << endl;
+  cout << "  -4, --complex" << endl;
+  cout << "     analyse complex events." << endl;
   return 0;
 }
 
@@ -74,13 +80,14 @@ int distributionsTool::parseCommandLine(int argc, char* argv[]) {
     {"snps", no_argument, 0, '1'},
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
+    {"complex", no_argument, 0, '4'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:p:s:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:d:p:s:1234", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -130,6 +137,11 @@ int distributionsTool::parseCommandLine(int argc, char* argv[]) {
       // Analyse indels.
       case '3':
         processIndels = true;
+        break;
+
+      // Analyse complex events.
+      case '4':
+        processComplex = true;
         break;
       
       //
@@ -304,7 +316,7 @@ int distributionsTool::Run(int argc, char* argv[]) {
 
   vcf v; // Create a vcf object.
   variant var; // Create a variant object;
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, true, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
 
   v.openVcf(vcfFile);
   output = openOutputFile(outputFile);

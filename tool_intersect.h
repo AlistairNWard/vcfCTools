@@ -54,6 +54,7 @@ class intersectTool : public AbstractTool {
     bool findCommon;
     bool findUnion;
     bool findUnique;
+    bool processComplex;
     bool processSnps;
     bool processMnps;
     bool processIndels;

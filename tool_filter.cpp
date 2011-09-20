@@ -31,6 +31,10 @@ filterTool::filterTool(void)
   removeGenotypes          = false;
   removeInfo               = false;
   stripRecords             = false;
+  processComplex           = false;
+  processIndels            = false;
+  processMnps              = false;
+  processSnps              = false;
   conditionalFilter        = false;
   filterString             = "";
   currentReferenceSequence = "";
@@ -80,6 +84,8 @@ int filterTool::Help(void) {
   cout << "	analyse MNPs." << endl;
   cout << "  -3, --indels" << endl;
   cout << "	analyse indels." << endl;
+  cout << "  -4, --complex" << endl;
+  cout << "	analyse complex events." << endl;
   cout << endl;
   exit(0);
 
@@ -116,12 +122,13 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"snps", no_argument, 0, '1'},
       {"mnps", no_argument, 0, '2'},
       {"indels", no_argument, 0, '3'},
+      {"complex", no_argument, 0, '4'},
 
       {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:cd:k:elpq:mrs:t:123", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:cd:k:elpq:mrs:t:1234", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -214,6 +221,11 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       // Analyse indels.
       case '3':
         processIndels = true;
+        break;
+
+      // Analyse complex.
+      case '4':
+        processComplex = true;
         break;
 
       // Help.
@@ -548,7 +560,7 @@ int filterTool::Run(int argc, char* argv[]) {
 
   vcf v; // Define vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, splitMnps, processAlleles, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, splitMnps, processAlleles, false);
   v.openVcf(vcfFile); // Open the vcf file.
 
   // Read in the header information.

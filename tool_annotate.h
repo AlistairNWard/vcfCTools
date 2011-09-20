@@ -51,6 +51,7 @@ class annotateTool : public AbstractTool {
     bool annotateDbsnp;
     bool annotateVcf;
     bool annotateBed;
+    bool processComplex;
     bool processSnps;
     bool processMnps;
     bool processIndels;

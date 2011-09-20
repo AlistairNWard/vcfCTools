@@ -308,50 +308,47 @@ void CSmithWatermanGotoh::Align(unsigned int& referenceAl, string& refAl, string
 	bool dashRegion = false;
 	ostringstream oCigar (ostringstream::out);
 	
-	// Do not determine the CIGAR string, just return the reference and query
-	// strings.
+        // Determine the CIGAR string.
         refAl = mReversedAnchor;
         queryAl = mReversedQuery;
-	//if ( cj != 0 )
-	//	oCigar << cj << 'S';
-	
-	//for ( unsigned int j = 0; j < alLength; j++ ) {
-	//	// m
-	//	if ( ( mReversedAnchor[j] != GAP ) && ( mReversedQuery[j] != GAP ) ) {
-	//		if ( dashRegion ) {
-	//			if ( d != 0 ) oCigar << d << 'D';
-	//			else          oCigar << i << 'I';
-	//		}
-	//		dashRegion = false;
-	//		m++;
-	//		d = 0;
-	//		i = 0;
-	//	}
-	//	else {
-	//		if ( !dashRegion )
-	//			oCigar << m << 'M';
-	//		dashRegion = true;
-	//		m = 0;
-	//		if ( mReversedAnchor[j] == GAP ) {
-	//			if ( d != 0 ) oCigar << d << 'D';
-	//			i++;
-	//			d = 0;
-	//		}
-	//		else {
-	//			if ( i != 0 ) oCigar << i << 'I';
-	//			d++;
-	//			i = 0;
-	//		}
-	//	}
-	//}
-	//if      ( m != 0 ) oCigar << m << 'M';
-	//else if ( d != 0 ) oCigar << d << 'D';
-	//else if ( i != 0 ) oCigar << i << 'I';
-
-	//if ( BestColumn != s2Length )
-	//	oCigar << s2Length - BestColumn << 'S';
-
-	//string cigarAl = oCigar.str();
+//	if ( cj != 0 )
+//		oCigar << cj << 'S';
+//	
+//	for ( unsigned int j = 0; j < alLength; j++ ) {
+//		if ( ( mReversedAnchor[j] != GAP ) && ( mReversedQuery[j] != GAP ) ) {
+//			if ( dashRegion ) {
+//				if ( d != 0 ) oCigar << d << 'D';
+//				else          oCigar << i << 'I';
+//			}
+//			dashRegion = false;
+//			m++;
+//			d = 0;
+//			i = 0;
+//		} else {
+//			if ( !dashRegion )
+//				oCigar << m << 'M';
+//			dashRegion = true;
+//			m = 0;
+//			if ( mReversedAnchor[j] == GAP ) {
+//				if ( d != 0 ) oCigar << d << 'D';
+//				i++;
+//				d = 0;
+//			}
+//			else {
+//				if ( i != 0 ) oCigar << i << 'I';
+//				d++;
+//				i = 0;
+//			}
+//		}
+//	}
+//	if      ( m != 0 ) oCigar << m << 'M';
+//	else if ( d != 0 ) oCigar << d << 'D';
+//	else if ( i != 0 ) oCigar << i << 'I';
+//
+//	if ( BestColumn != s2Length )
+//		oCigar << s2Length - BestColumn << 'S';
+//
+//	string cigarAl = oCigar.str();
 	
 	// fix the gap order
 	CorrectHomopolymerGapOrder(alLength, numMismatches);

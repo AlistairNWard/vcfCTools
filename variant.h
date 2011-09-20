@@ -24,9 +24,10 @@
 #include "bedStructure.h"
 #include "genotype_info.h"
 #include "info.h"
+#include "modify_alleles.h"
 #include "output.h"
+#include "structures.h"
 #include "tools.h"
-#include "trim_alleles.h"
 #include "vcf.h"
 
 using namespace std;
@@ -43,17 +44,6 @@ struct intFlags {
   bool writeFromFirst;
   bool sitesOnly;
   bool whollyWithin;
-};
-
-// Define a structure containing the different variant
-// types.
-struct variantType {
-  bool isBiallelicSnp;
-  bool isTriallelicSnp;
-  bool isQuadallelicSnp;
-  bool isMnp;
-  bool isInsertion;
-  bool isDeletion;
 };
 
 // Define a structure that contains information about a
@@ -104,7 +94,6 @@ struct reducedVariants {
   // If there are multiple records at this locus, the recordNumber
   // indicates which record this variant comes from.
   unsigned int recordNumber;
-
   int originalPosition;
   int altID; // If alts were A,G, this will indicate 1 for A and 2 for G etc.
   string ref;
@@ -118,7 +107,9 @@ struct variantsAtLocus {
   string referenceSequence;
   vector<reducedVariants> snps;
   vector<reducedVariants> mnps;
-  vector<reducedVariants> indels;
+  vector<reducedVariants> insertions;
+  vector<reducedVariants> deletions;
+  vector<reducedVariants> complexVariants;
 };
 
 // Define a structure that contains information about the different reference
@@ -147,7 +138,7 @@ class variant {
     void clearType(variantType&);
     void compareVariantsSameLocus(variant&, intFlags);
     void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags, variant&);
-    void determineVariantsToProcess(bool, bool, bool, bool, bool, bool);
+    void determineVariantsToProcess(bool, bool, bool, bool, bool, bool, bool);
     void determineVariantType(string, int, string, string, variantType&, int, originalVariants&);
     void filterUnique();
     void updateVariantMaps(string, variantType, string, string, int, string, originalVariants&);
@@ -181,6 +172,10 @@ class variant {
     map<string, refSeqInfo> referenceSequenceInfo;
     map<string, refSeqInfo>::iterator refSeqIter;
 
+    // Variables for handling realigning with the Smith Waterman algorithm.
+    string originalRef;
+    string originalAlt;
+
     // Boolean flags.
     bool assessAlts;
     bool isDbsnp;
@@ -190,6 +185,7 @@ class variant {
     bool processSnps;
     bool processMnps;
     bool processIndels;
+    bool processComplex;
     bool processAll;
     bool splitMnps;
     bool removeGenotypes;

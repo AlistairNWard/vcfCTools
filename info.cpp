@@ -19,7 +19,7 @@ variantInfo::variantInfo(string& info, map<string, headerInfoStruct>& header) {
   headerInfo = header;
 };
 
-// Desctructor.
+// Destructor.
 variantInfo::~variantInfo(void) {};
 
 // If alleles have been removed, modify the info field so that all

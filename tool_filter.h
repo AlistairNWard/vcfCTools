@@ -63,6 +63,7 @@ class filterTool : public AbstractTool {
     // Boolean flags.
     bool splitMnps;
     bool appliedFilters;
+    bool processComplex;
     bool processSnps;
     bool processMnps;
     bool processIndels;

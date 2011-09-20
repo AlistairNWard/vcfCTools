@@ -65,6 +65,7 @@ class distributionsTool : public AbstractTool {
     map<string, distributionsStruct> distributionsdInfo;
 
     // Boolean flags.
+    bool processComplex;
     bool processSnps;
     bool processMnps;
     bool processIndels;

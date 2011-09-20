@@ -111,7 +111,7 @@ int validateTool::Run(int argc, char* argv[]) {
   // ensure that there are no errors.
   vcf v; // Create a vcf object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(true, true, true, false, true, false);
+  var.determineVariantsToProcess(true, true, true, true, false, true, false);
   v.openVcf(vcfFile); // Open the vcf file.
 
   // Read in the header information.

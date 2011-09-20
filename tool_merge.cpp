@@ -129,7 +129,7 @@ int mergeTool::Run(int argc, char* argv[]) {
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
     vcf v; // Create a vcf object.
     variant var; // Create variant object.
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels, false, false, false);
+    var.determineVariantsToProcess(true, true, true, true, false, false, false);
     v.openVcf(vcfFiles[index]);
 
     // Read in the header information.
