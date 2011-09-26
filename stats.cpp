@@ -143,6 +143,9 @@ void statistics::generateStatistics(variant& var, bool useAnnotations, vector<st
         hasDeletion      = true;
         locusHasDeletion = true;
   
+      // Complex variants. - NOT YET HANDLED.
+      } else if (typeIter->isComplex) {
+
       // Unknown variant type.
       } else {
         cerr << "ERROR: Unknown variant type." << endl;
