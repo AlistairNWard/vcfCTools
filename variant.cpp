@@ -589,8 +589,9 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
   // Start with the first file.
   iter  = alleles1.begin();
   aIter = commonA.begin();
+  bIter = commonB.begin();
   for (; iter != alleles1.end(); iter++) {
-    if (*aIter) {
+    if (*aIter && *bIter) {
       if (flags.annotate) {
         annotateRecordVcf(iter->originalPosition, iter->recordNumber - 1, var.isDbsnp, rsid, infoAdd);
       } else {
@@ -610,14 +611,16 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
       originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
     }
     aIter++;
+    bIter++;
   }
 
   // Then the second file.
   if (!flags.writeFromFirst || flags.findUnion) {
     iter  = alleles2.begin();
-    aIter = commonB.begin();
+    aIter = commonA.begin();
+    bIter = commonB.begin();
     for (; iter != alleles2.end(); iter++) {
-      if (*aIter) {
+      if (*aIter && *bIter) {
         write = (flags.findUnique) ? true : flags.writeFromFirst;
         var.originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
       } else {
@@ -633,6 +636,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
         var.originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
       }
       aIter++;
+      bIter++;
     }
   }
 }
@@ -690,8 +694,8 @@ void variant::filterUnique() {
 // breaking up the genotypes and info string.  Also, if the locus had multiple
 // records in the input vcf, output the same multiple records.
 void variant::buildOutputRecord(output& ofile) {
-  bool hasAltAlleles = false;
-  bool removedAllele = false;
+  bool hasAltAlleles;
+  bool removedAllele;
   int alleleID;
   int position;  
   string altAlleles;
@@ -708,6 +712,8 @@ void variant::buildOutputRecord(output& ofile) {
     altAlleles = "";
     modifiedAlleles.clear();
     modifiedAlleles.push_back(0);
+    hasAltAlleles = false;
+    removedAllele = false;
 
     vector<string>::iterator aIter = ovIter->alts.begin();
 
