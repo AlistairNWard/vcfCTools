@@ -41,8 +41,10 @@ class modifyAlleles {
     void extendAlleles();
     void generateCigar();
     void getFlankingReference();
+    void leftAlign();
     void processAlignment();
     void smithWaterman();
+    void stepAlleles();
     void trim();
     void updateWorkingAlleles();
 
@@ -75,8 +77,19 @@ class modifyAlleles {
     unsigned int insertionGroups;
     unsigned int deletionGroups;
     string cigar;
+    string flank;
     string flankFront;
     string flankEnd;
+
+    // Variables for finding repeat structure and stepping
+    // alleles.
+    bool hasRepetition;
+    bool keepSplitting;
+    unsigned int minRepeatLength;
+    string deleted;
+    string repeatElement;
+    string sequence;
+    string strippedBase;
 };
 
 } // namespace vcfCTools

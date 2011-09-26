@@ -547,10 +547,10 @@ void filterTool::performFilter(vcf& v, int position, variantDescription& varIter
 int filterTool::Run(int argc, char* argv[]) {
   int getOptions = filterTool::parseCommandLine(argc, argv);
 
-// Depending on the filtering being performed, it may or may not be necessary
-// to look at each individual allele.  For example, if the only action is to
-// filter out genotypes, the different alternate alleles do not need to be
-// interrogated.
+  // Depending on the filtering being performed, it may or may not be necessary
+  // to look at each individual allele.  For example, if the only action is to
+  // filter out genotypes, the different alternate alleles do not need to be
+  // interrogated.
   //bool processAlleles = (stripRecords || findHets || keepRecords || splitMnps || useSampleList) ? true : false;
   bool processAlleles = true;
 

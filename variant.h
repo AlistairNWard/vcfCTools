@@ -22,6 +22,7 @@
 
 #include "bed.h"
 #include "bedStructure.h"
+#include "Fasta.h"
 #include "genotype_info.h"
 #include "info.h"
 #include "modify_alleles.h"
@@ -146,6 +147,7 @@ class variant {
   public:
     unsigned int recordsInMemory;
     string referenceSequence;
+    //string fasta;
 
     // Structure containing variant information at a particular locus
     // after the variants have been deconstructed.  For example a variant

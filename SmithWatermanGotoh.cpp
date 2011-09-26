@@ -39,7 +39,6 @@ CSmithWatermanGotoh::~CSmithWatermanGotoh(void) {
 }
 
 // aligns the query sequence to the reference using the Smith Waterman Gotoh algorithm
-//void CSmithWatermanGotoh::Align(unsigned int& referenceAl, string& cigarAl, const char* s1, const unsigned int s1Length, const char* s2, const unsigned int s2Length) {
 void CSmithWatermanGotoh::Align(unsigned int& referenceAl, string& refAl, string& queryAl, const char* s1, const unsigned int s1Length, const char* s2, const unsigned int s2Length) {
 
 	if((s1Length == 0) || (s2Length == 0)) {

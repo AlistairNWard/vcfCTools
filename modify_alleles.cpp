@@ -86,7 +86,7 @@ void modifyAlleles::extendAlleles() {
   unsigned int variantLength;
 
   // Determine the length of the flanks to add to the alleles.
-
+  //
   // SNPs.
   if (type.isBiallelicSnp || type.isTriallelicSnp || type.isQuadallelicSnp) {
 
@@ -109,8 +109,8 @@ void modifyAlleles::extendAlleles() {
   getFlankingReference();
 
   // Build the alleles to align.
-  workingRef = "ZZZZZZZZZZ" + flankFront + modifiedRef + flankEnd + "ZZZZZZZZZZ";
-  workingAlt = "ZZZZZZZZZZ" + flankFront + modifiedAlt + flankEnd + "ZZZZZZZZZZ";
+  workingRef = "ZZZZZZZZZZZZZZZ" + flankFront + modifiedRef + flankEnd + "ZZZZZZZZZZZZZZZ";
+  workingAlt = "ZZZZZZZZZZZZZZZ" + flankFront + modifiedAlt + flankEnd + "ZZZZZZZZZZZZZZZ";
 }
 
 // Align the alleles to each other.
@@ -130,7 +130,8 @@ void modifyAlleles::alignAlleles() {
 
     // Determine if the allele is fully left aligned and realign if not.  Find
     // the genomic coordinate of the new alleles.
-    processAlignment();
+    //processAlignment();
+    leftAlign();
   }
 }
 
@@ -144,7 +145,8 @@ void modifyAlleles::getFlankingReference() {
   if (frontPos <= 0) {frontPos = 1;}
 
   FastaReference* fr = new FastaReference(fasta);
-  string flank = fr->getSubSequence(referenceSequence, frontPos, length);
+  flank = fr->getSubSequence(referenceSequence, frontPos, length);
+  delete fr;
 
   flankFront = flank.substr(0, flankLength);
   flankEnd   = flank.substr(flankLength + modifiedRef.length(), flankLength);
@@ -190,8 +192,8 @@ void modifyAlleles::generateCigar() {
   unsigned int m = 0, x = 0, i = 0, d = 0;
 
   // Strip the leading and lagging Z's.
-  workingRef = workingRef.substr(10, workingRef.size() - 20);
-  workingAlt = workingAlt.substr(10, workingAlt.size() - 20);
+  workingRef = workingRef.substr(15, workingRef.size() - 30);
+  workingAlt = workingAlt.substr(15, workingAlt.size() - 30);
 
   string::iterator refIter = workingRef.begin();
   string::iterator altIter = workingAlt.begin();
@@ -307,7 +309,7 @@ void modifyAlleles::checkAlignment() {
 
   // SNPs.
   if (type.isBiallelicSnp || type.isTriallelicSnp || type.isQuadallelicSnp) {
-    if ( (numberInsertion + numberDeletion) != 0 && numberMismatch == 1) {
+    if ( (numberInsertion + numberDeletion) != 0 || numberMismatch != 1) {
       cerr << "ERROR: Alignment of SNP failed.  CIGAR: " << cigar << endl;
       exit(1);
     }
@@ -321,20 +323,105 @@ void modifyAlleles::checkAlignment() {
 
   // Insertions.
   } else if (type.isInsertion) {
-    if ( (numberMismatch + numberDeletion) != 0 && insertionGroups == 1) {
+    if ( (numberMismatch + numberDeletion) != 0 || insertionGroups != 1) {
       cerr << "ERROR: Alignment of insertion failed.  CIGAR: " << cigar << endl;
       exit(1);
     }
 
   // Deletions.
   } else if (type.isDeletion) {
-    if ( (numberMismatch + numberInsertion) != 0 && deletionGroups == 1) {
-      cerr << "ERROR: Alignment of deletion failed.  CIGAR: " << cigar << endl;
+    if ( (numberMismatch + numberInsertion) != 0 || deletionGroups != 1) {
+      cerr << "ERROR: Alignment of deletion failed at " << referenceSequence << ":";
+      cerr << originalPosition << ".  CIGAR: " << cigar << endl;
       exit(1);
     }
 
   // Complex events.
   } else if (type.isComplex) {
+  }
+}
+
+// Left align the allele.
+void modifyAlleles::leftAlign() {
+  int altpos = 0;
+  int refpos = 0;
+  int len;
+  string slen;
+  vector<pair<int, char> > cigarData;
+
+  cerr << "START: " << endl << workingRef << endl << workingAlt << endl << cigar << endl;
+
+  for (string::iterator c = cigar.begin(); c != cigar.end(); ++c) {
+  cerr << *c << endl;
+  switch (*c) {
+    case 'I':
+      len = atoi(slen.c_str());
+      slen.clear();
+      cigarData.push_back(make_pair(len, *c));
+      cerr << "CASE I: " << workingAlt.substr(altpos, len) << " " <<  refpos + workingPosition << endl;
+      //variants.push_back(VariantAllele("", alternateQuery.substr(altpos, len), refpos - paddingLen + position));
+      altpos += len;
+      break;
+    case 'D':
+      len = atoi(slen.c_str());
+      slen.clear();
+      cigarData.push_back(make_pair(len, *c));
+      cerr << "CASE D: " << workingRef.substr(refpos, len) << " " << refpos + workingPosition << endl;
+      //variants.push_back(VariantAllele(reference.substr(refpos, len), "", refpos - paddingLen + position));
+      refpos += len;
+      break;
+    case '=':
+      cerr << "MATCH" << endl;
+      {
+        len = atoi(slen.c_str());
+        cerr << "LEN=" << len << endl;
+        slen.clear();
+        cigarData.push_back(make_pair(len, *c));
+        //string refmatch = reference.substr(refpos, len);
+        //string altmatch = alternateQuery.substr(altpos, len);
+        string refmatch = workingRef.substr(refpos, len);
+        string altmatch = workingAlt.substr(altpos, len);
+        cerr << refmatch << " " << altmatch << endl;
+        bool inmismatch = false;
+        int mismatchStart = 0;
+        for (int i = 0; i < refmatch.size(); ++i) {
+          cerr << "COMPARE: " << refmatch.at(i) << " " << altmatch.at(i) << endl;
+          if (refmatch.at(i) == altmatch.at(i)) {
+            cerr << "EQUAL " << inmismatch << endl;
+            if (inmismatch) {
+              //variants.push_back(VariantAllele(
+                //refmatch.substr(mismatchStart, i - mismatchStart),
+                //altmatch.substr(mismatchStart, i - mismatchStart),
+                //mismatchStart - paddingLen + position));
+              cerr << "CASE M: " << refmatch.substr(mismatchStart, i - mismatchStart) << " ";
+              cerr << altmatch.substr(mismatchStart, i - mismatchStart) << " ";
+              cerr << mismatchStart + workingPosition << endl;
+            }
+            inmismatch = false;
+          } else {
+            cerr << "NOT EQUAL" << endl;
+            if (!inmismatch) {
+              mismatchStart = i;
+              inmismatch = true;
+            }
+          }
+          ++refpos;
+          ++altpos;
+        }
+      }
+      break;
+    case 'S':
+      len = atoi(slen.c_str());
+      slen.clear();
+      cigarData.push_back(make_pair(len, *c));
+      refpos += len;
+      altpos += len;
+      break;
+    default:
+      len = 0;
+      slen += *c;
+      break;
+    }
   }
 }
 
@@ -422,6 +509,91 @@ void modifyAlleles::updateWorkingAlleles() {
   getFlankingReference();
 
   // Build the alleles to align.
-  workingRef = "ZZZZZZZZZZ" + flankFront + modifiedRef + flankEnd + "ZZZZZZZZZZ";
-  workingAlt = "ZZZZZZZZZZ" + flankFront + modifiedAlt + flankEnd + "ZZZZZZZZZZ";
+  workingRef = "ZZZZZZZZZZZZZZZ" + flankFront + modifiedRef + flankEnd + "ZZZZZZZZZZZZZZZ";
+  workingAlt = "ZZZZZZZZZZZZZZZ" + flankFront + modifiedAlt + flankEnd + "ZZZZZZZZZZZZZZZ";
+}
+
+// Attempt to place the indel further left than reported in the vcf file.
+// Use fastahack to get flanking reference sequence.
+void modifyAlleles::stepAlleles() {
+  bool leftAligned = false;
+  bool reset;
+  unsigned int count;
+  unsigned int refPosition;
+  unsigned int indelPosition;
+  string anchor;
+  string laggingBase;
+
+  // Get the flanking reference sequence.  The variable sequence is
+  // populated with the inserted/deleted bases.
+  FastaReference* fr = new FastaReference(fasta);
+  if (type.isInsertion) {
+    flankLength = 30 * modifiedAlt.length();
+    sequence    = modifiedAlt.substr(1, modifiedAlt.length());
+    flank       = fr->getSubSequence(referenceSequence, originalPosition - 1 - flankLength, flankLength);
+    flank      += modifiedAlt;
+    laggingBase = fr->getSubSequence(referenceSequence, originalPosition, 1);
+  } else if (type.isDeletion) {
+    flankLength = 30 * modifiedRef.length();
+    sequence    = modifiedRef.substr(1, modifiedRef.length());
+    flank       = fr->getSubSequence(referenceSequence, originalPosition - 1 - flankLength, flankLength);
+    flank      += modifiedRef;
+    laggingBase = fr->getSubSequence(referenceSequence, originalPosition + sequence.length(), 1);
+  }
+
+  // Try stepping the inserted/deleted alleles backwards through the
+  // reference sequence.  The first base is an anchor base and may be
+  // permitted to change.  For example, consider the deletion of an
+  // AC in a dinucleotide repeat.  If the alleles are represented as
+  // CAC -> C, the starting C in the ref allele may be subject to
+  // change.  If the context is ACGACAC and the coordinate referes to
+  // deletion of the second AC, this can be replaced by GAC -> G and
+  // thus the starting C is not preserved.
+  count           = 0;
+  refPosition     = flank.length() - sequence.length() - 1;
+  workingPosition = modifiedPosition;
+  while (count < sequence.length()) {
+    indelPosition = 0;
+    while (sequence[indelPosition] == flank[refPosition + indelPosition] && indelPosition < sequence.length()) {
+
+      // If the whole sequence matches the reference then the sequence
+      // can be moved to this position.
+      if (indelPosition == sequence.length() - 1) {
+        workingPosition  = workingPosition - count - 1;
+        count            = 0;
+        anchor           = flank[refPosition - 1];
+
+        // Ensure that replacing the reported allele representation with
+        // the left-aligned one results in the same alleles.
+        string oldAllele, newAllele;
+        if (type.isInsertion) {
+          oldAllele = flank.substr(refPosition - 1, flankLength - refPosition + 2) + sequence + laggingBase;
+          newAllele = anchor[0] + flank.substr(refPosition - 1 + sequence.length() - 1, flankLength - refPosition + 1) + sequence + laggingBase;
+        } else if (type.isDeletion) {
+          oldAllele = flank.substr(refPosition - 1, flankLength - refPosition + 2) + laggingBase;
+          newAllele = anchor[0] + flank.substr(refPosition - 1 + sequence.length() - 1, flankLength - refPosition + 1) + laggingBase;
+        }
+        if (oldAllele == newAllele) {
+          leftAligned = true;
+          reset       = true;
+        }
+      }
+      indelPosition++;
+    }
+    refPosition--;
+    if (reset) {reset = false;}
+    else {count++;}
+  }
+
+  if (leftAligned) {
+
+    // Change the first base in the reference and alternate alleles to
+    // the anchor base.  This is the leftmost base that both alleles
+    // share.
+    modifiedRef[0]   = anchor[0];
+    modifiedAlt[0]   = anchor[0];
+    modifiedPosition = workingPosition;
+  }
+
+  delete fr;
 }

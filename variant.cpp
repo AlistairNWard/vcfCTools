@@ -204,7 +204,6 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
 
     // MNPs, insertions and deletions.
     } else {
-  
       // Keep track of the number of SNPs.  If the locus contains a multiallelic
       // SNP as well as a different variant type, the following loop will identify
       // multiple biallelic SNPs but not acknowledge that it is tri- or quad
@@ -278,9 +277,6 @@ void variant::clearType(variantType& type) {
 //void variant::determineVariantType(int position, string ref, string alt, variantDescription& variant, bool isDbsnp) {
 void variant::determineVariantType(string refSeq, int position, string ref, string alt, variantType& type, int ID, originalVariants& ov) {
   reducedVariants rVar;
-  int start;
-  bool doSmithWaterman = false;
-  bool doTrimAlleles   = true;
 
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
@@ -309,19 +305,10 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
     // PATH SHOULD BE ALLOWED FOR THIS***
     mod.fasta = "/d2/data/references/build_37/human_reference_v37.fa";
 
-    if (doSmithWaterman) {
-      //int pos = position;
-      //start = alignAlternate(refSeq, pos, ref, alt, alRef, alAlt, refFa); // vcf_aux.cpp
-      //if (pos != start) {
-      //  cerr << "WARNING: Modified variant position from " << refSeq;
-      //  cerr << ":" << pos << " to " << refSeq << ":" << start << endl;
-      //}
-    } else if (doTrimAlleles) {
-      mod.trim();
-      if (mod.modifiedPosition != mod.originalPosition) {
-        cerr << "WARNING: Modified variant position from " << refSeq;
-        cerr << ":" << mod.originalPosition << " to " << refSeq << ":" << mod.modifiedPosition << endl;
-      }
+    mod.trim();
+    if (mod.modifiedPosition != mod.originalPosition) {
+      cerr << "WARNING: Modified variant position from " << refSeq;
+      cerr << ":" << mod.originalPosition << " to " << refSeq << ":" << mod.modifiedPosition << endl;
     }
 
     // Populate the structure rVar with the modified variant.
@@ -353,54 +340,49 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
 
       // Update the structures.
       updateVariantMaps(alt, type, mod.modifiedRef, mod.modifiedAlt, mod.modifiedPosition, refSeq, ov);
-      if (storeReducedAlts) {variantMap[start].snps.push_back(rVar);}
+      if (storeReducedAlts) {variantMap[position].snps.push_back(rVar);}
 
     // MNP.
     } else if (mod.modifiedRef.size() != 1 && (mod.modifiedRef.size() - mod.modifiedAlt.size()) == 0) {
       type.isMnp = true;
       updateVariantMaps(alt, type, mod.modifiedRef, mod.modifiedAlt, mod.modifiedPosition, refSeq, ov);
-      if (storeReducedAlts) {variantMap[start].mnps.push_back(rVar);}
+      if (storeReducedAlts) {variantMap[position].mnps.push_back(rVar);}
 
-    // Left align the indel using the Smith Waterman algorithm.  Begin
-    // by adding some extra reference bases to the beginning of the
-    // alleles.  This should be a multiple of the length of the deletion.
-    // If the new position is at the far left of the added region, add
-    // more bases to the alleles and realign until an unambiguous
-    // position is found.  Also add a string of 'Z' to the beginning and
-    // end of the alleles to stabilise the alignment.
+    // Indels are checked to ensure that they are left aligned.  A variant
+    // is considered to be an insertion if the reference allele is a
+    // single base, the alternate allele is greater that one base and both
+    // alleles share the first base.
     //
     // Insertion.
-    } else if (mod.modifiedRef.size() == 1) {
+    } else if (mod.modifiedRef.size() == 1 && mod.modifiedRef[0] == mod.modifiedAlt[0]) {
       type.isInsertion = true;
       mod.type = type;
-      mod.extendAlleles();
-      mod.alignAlleles();
+      mod.stepAlleles();
       updateVariantMaps(alt, type, mod.modifiedRef, mod.modifiedAlt, mod.modifiedPosition, refSeq, ov);
       if (mod.originalPosition != mod.modifiedPosition) {
-        cerr << "WARNING: Modified variant position from " << refSeq;
+        cerr << "WARNING: Modified insertion locus from " << refSeq;
         cerr << ":" << mod.originalPosition << " to " << refSeq << ":" << mod.modifiedPosition << endl;
       }
-      if (storeReducedAlts) {variantMap[start].insertions.push_back(rVar);}
+      if (storeReducedAlts) {variantMap[mod.modifiedPosition].insertions.push_back(rVar);}
 
     // Deletion.
-    } else if (mod.modifiedAlt.size() == 1) {
+    } else if (mod.modifiedAlt.size() == 1 && mod.modifiedRef[0] == mod.modifiedAlt[0]) {
       type.isDeletion = true;
       mod.type = type;
-      mod.extendAlleles();
-      mod.alignAlleles();
+      mod.stepAlleles();
       if (mod.originalPosition != mod.modifiedPosition) {
-        cerr << "WARNING: Modified variant position from " << refSeq;
+        cerr << "WARNING: Modified deletion locus from " << refSeq;
         cerr << ":" << mod.originalPosition << " to " << refSeq << ":" << mod.modifiedPosition << endl;
       }
 
       updateVariantMaps(alt, type, mod.modifiedRef, mod.modifiedAlt, mod.modifiedPosition, refSeq, ov);
-      if (storeReducedAlts) {variantMap[start].deletions.push_back(rVar);}
+      if (storeReducedAlts) {variantMap[mod.modifiedPosition].deletions.push_back(rVar);}
 
     // Remaining variants are in the complex class.
     } else {
       type.isComplex = true;
       updateVariantMaps(alt, type, mod.modifiedRef, mod.modifiedAlt, mod.modifiedPosition, refSeq, ov);
-      if (storeReducedAlts) {variantMap[start].complexVariants.push_back(rVar);}
+      if (storeReducedAlts) {variantMap[mod.modifiedPosition].complexVariants.push_back(rVar);}
     }
   }
 }
