@@ -752,6 +752,7 @@ void variant::buildOutputRecord(output& ofile) {
         if (typeIter->isBiallelicSnp || typeIter->isTriallelicSnp || typeIter->isQuadallelicSnp) {if (!processSnps) {*fIter = true;}}
         else if (typeIter->isMnp) {if (!processMnps) {*fIter = true;}}
         else if (typeIter->isInsertion || typeIter->isDeletion) {if (!processIndels) {*fIter = true;}}
+        else if (typeIter->isComplex) {if (!processComplex) {*fIter = true;}}
 
         if (!*fIter) {
           hasAltAlleles = true;
