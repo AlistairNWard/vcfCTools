@@ -127,25 +127,31 @@ int mergeTool::Run(int argc, char* argv[]) {
 
   unsigned int index = 0;
   for (vector<string>::iterator iter = vcfFiles.begin(); iter != vcfFiles.end(); iter++) {
-    vcf v; // Create a vcf object.
-    variant var; // Create variant object.
-    var.determineVariantsToProcess(true, true, true, true, false, false, false);
+
+    // Create a vcf object.
+    vcf v;
     v.openVcf(vcfFiles[index]);
 
-    // Read in the header information.
-    v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
+    // Create variant object.
+    variant var;
+    var.determineVariantsToProcess(true, true, true, true, false, false, false);
+
+    // Define a header object and parse the header information.
+    vcfHeader header;
+    header.parseHeader(v.input);
 
 // Store the samples list from the first vcf file.  The samplesList from 
 // all other vcf files being merged will be checked against this.
 // Also, print out the header.
     if (index == 0) {
-      samples = v.samples;
-      writeHeader(ofile.outputStream, v, false, taskDescription); // tools.py
+      samples = header.samples;
+      header.writeHeader(ofile.outputStream, false, taskDescription);
     } else {
-      if (v.samples != samples) {cerr << "WARNING: Different samples in file: " << v.vcfFilename << endl;}
+      if (header.samples != samples) {cerr << "WARNING: Different samples in file: " << v.vcfFilename << endl;}
     }
 
 // Print out the records.
+    v.success = v.getRecord();
     while (v.success) {
 
       // Build the variant structure for this reference sequence.
@@ -153,6 +159,7 @@ int mergeTool::Run(int argc, char* argv[]) {
         currentReferenceSequence = v.variantRecord.referenceSequence;
         v.success = var.buildVariantStructure(v);
       }
+
       // For merging, the vcf records are not interrogated and reduced to
       // the shortest unambiguous description.  As such, loop over the
       // originalVariants structure writing out each position in order until
@@ -164,7 +171,7 @@ int mergeTool::Run(int argc, char* argv[]) {
           v.success = v.getRecord();
         }
         var.ovmIter = var.originalVariantsMap.begin();
-        var.buildOutputRecord(ofile);
+        var.buildOutputRecord(ofile, header);
         var.originalVariantsMap.erase(var.ovmIter);
       }
     }

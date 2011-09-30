@@ -42,17 +42,13 @@ class modifyAlleles {
     void generateCigar();
     void getFlankingReference();
     void leftAlign();
-    void processAlignment();
     void smithWaterman();
     void stepAlleles();
     void trim();
     void updateWorkingAlleles();
 
   public:
-    bool aligned;
     bool leftAligned;
-    unsigned int numberAlignments;
-    unsigned int maxAllowedAlignments;
     int originalPosition;
     int modifiedPosition;
     int workingPosition;

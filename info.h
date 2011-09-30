@@ -20,6 +20,7 @@
 #include <map>
 #include <vector>
 
+#include "header.h"
 #include "split.h"
 #include "vcf.h"
 
@@ -36,16 +37,15 @@ struct infoStruct {
 
 class variantInfo {
   public:
-    variantInfo(string&, map<string, headerInfoStruct>&);
+    variantInfo(string&);
     ~variantInfo(void);
     void checkTypes(string&, int&, bool&);
-    void modifyInfo(vector<int>&);
-    void retrieveFields();
-    void validateInfo(string&, int&, unsigned int&, bool&);
+    void modifyInfo(vector<int>&, vcfHeader&);
+    void retrieveFields(vcfHeader&);
+    void validateInfo(vcfHeader&, string&, int&, unsigned int&, bool&);
 
   public:
     string infoString;
-    map<string, headerInfoStruct> headerInfo;
     map<string, infoStruct> infoFields;
     map<string, infoStruct>::iterator infoIter;
 };

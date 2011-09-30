@@ -19,6 +19,7 @@
 
 #include "bed.h"
 #include "bedStructure.h"
+#include "header.h"
 #include "output.h"
 #include "tools.h"
 #include "variant.h"
@@ -35,8 +36,8 @@ class intersect {
     intersect(void);
     ~intersect(void);
     void checkReferenceSequences(variant&, variant&);
-    void intersectVcf(vcf&, variant&, vcf&, variant&, output&);
-    void intersectVcfBed(vcf&, variant&, bed&, bedStructure&, output&);
+    void intersectVcf(vcfHeader&, vcfHeader&, vcf&, variant&, vcf&, variant&, output&);
+    void intersectVcfBed(vcfHeader& header, vcf&, variant&, bed&, bedStructure&, output&);
     void setBooleanFlags(bool, bool, bool, bool, bool, bool);
 
   public:

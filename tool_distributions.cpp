@@ -314,17 +314,25 @@ void distributionsTool::writeDistributions() {
 int distributionsTool::Run(int argc, char* argv[]) {
   int getOptions = distributionsTool::parseCommandLine(argc, argv);
 
-  vcf v; // Create a vcf object.
-  variant var; // Create a variant object;
+  // Define an output object.
+  output ofile;
+  ofile.outputStream = ofile.openOutputFile(outputFile);
+
+  // Create a vcf object.
+  vcf v;
+  v.openVcf(vcfFile);
+
+   // Create a variant object.
+  variant var;
   var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
 
-  v.openVcf(vcfFile);
-  output = openOutputFile(outputFile);
-  v.parseHeader();
+  // Define the header object and read in the header information.
+  vcfHeader header;
+  header.parseHeader(v.input);
 
-// Check that the primary and all secondary information appear in the header.
-// First break up the comma separate list and populate the vector 
-// secondaryInfo. "Q" is allowed for variant quality.
+  // Check that the primary and all secondary information appear in the header.
+  // First break up the comma separate list and populate the vector 
+  // secondaryInfo. "Q" is allowed for variant quality.
   if (!usePrimary && secondaryInfoString != "") {
     cerr << "Cannot provide secondary information fields without a primary field." << endl;
     exit(1);
@@ -345,9 +353,9 @@ int distributionsTool::Run(int argc, char* argv[]) {
     }
   }
 
-// If distributions are to be generated, break up the comma separated list of
-// fields to generate distributions for and add to the vector distFields.  If
-// the quality distribution is required, set distQ to true.
+  // If distributions are to be generated, break up the comma separated list of
+  // fields to generate distributions for and add to the vector distFields.  If
+  // the quality distribution is required, set distQ to true.
   if (useDistributions) {
     distFields = split(distString, ",");
     vector<string>::iterator iter = distFields.begin();
@@ -362,27 +370,30 @@ int distributionsTool::Run(int argc, char* argv[]) {
     }
   }
 
-// Read through all the entries in the file.  First construct the
-// structure to contain the variants in memory and populate.
-  v.update = true;
+  // Read through all the entries in the file.  First construct the
+  // structure to contain the variants in memory and populate.
+  v.success = v.getRecord();
   while (v.success) {
+
     // Build the variant structure for this reference sequence.
-    if (var.variantMap.size() == 0) {
+    if (var.originalVariantsMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;
-      v.success = var.buildVariantStructure(v);
+      v.success                = var.buildVariantStructure(v);
     }
 
     // Loop over the variant structure until it is empty.  While v.update is true,
     // i.e. when the reference sequence is still the current reference sequence,
-    // keep adding variants to the structre.
-    while (var.variantMap.size() != 0) {
+    // keep adding variants to the structure.
+    while (var.originalVariantsMap.size() != 0) {
       if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
-        var.addVariantToStructure(v.position, v.variantRecord, false);
+        var.addVariantToStructure(v.position, v.variantRecord);
         v.success = v.getRecord();
       }
-      var.vmIter = var.variantMap.begin();
+      var.ovmIter = var.variantMap.begin();
+
+      // Perform all required tasks.
       distributions(v, var);
-      var.variantMap.erase(var.vmIter);
+      var.originalVariantsMap.erase(var.ovmIter);
     }
   }
 

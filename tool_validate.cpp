@@ -107,26 +107,28 @@ int validateTool::parseCommandLine(int argc, char* argv[]) {
 int validateTool::Run(int argc, char* argv[]) {
   int getOptions = validateTool::parseCommandLine(argc, argv);
 
-  // The info/format fields and the genotypes need to be processed to
-  // ensure that there are no errors.
+  // Create a vcf object.
   vcf v; // Create a vcf object.
+  v.openVcf(vcfFile);
+
+  // Define a variant object.
   variant var; // Define variant object.
   var.determineVariantsToProcess(true, true, true, true, false, true, false);
-  v.openVcf(vcfFile); // Open the vcf file.
 
-  // Read in the header information.
-  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
+  // Define a header object and parse the header information.
+  vcfHeader header;
+  header.parseHeader(v.input);
 
   // Check that all of the info descriptions in the header are in the correct form.
-  map<string, headerInfoStruct>::iterator iter;
-  for (iter = var.headerInfoFields.begin(); iter != var.headerInfoFields.end(); iter++) {
+  map<string, headerInfo>::iterator iter;
+  for (iter = header.infoFields.begin(); iter != header.infoFields.end(); iter++) {
     if ( !(iter->second.success) ) {
       cerr << "ERROR: Malformed info string in the header: " << iter->first << endl;
       exit(1);
     }
   }
 
-  for (iter = var.headerFormatFields.begin(); iter != var.headerFormatFields.end(); iter++) {
+  for (iter = header.formatFields.begin(); iter != header.formatFields.end(); iter++) {
     if ( !(iter->second.success) ) {
       cerr << "ERROR: Malformed format string in the header: " << iter->first << endl;
       exit(1);
@@ -134,6 +136,7 @@ int validateTool::Run(int argc, char* argv[]) {
   }
 
   // Read through all the entries in the file.
+  v.success = v.getRecord();
   while (v.success) {
 
     // Build the variant structure for this reference sequence.
@@ -157,13 +160,13 @@ int validateTool::Run(int argc, char* argv[]) {
       for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
 
         // Check the info string for inconsistencies.
-        variantInfo info(var.ovIter->info, var.headerInfoFields);
-        info.validateInfo(var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, error);
+        variantInfo info(var.ovIter->info);
+        info.validateInfo(header, var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, error);
 
         // Check the genotypes for inconsistencies.
         if (var.ovIter->hasGenotypes) {
-          genotypeInfo gen(var.ovIter->genotypeFormat, var.ovIter->genotypes, var.headerFormatFields);
-          gen.validateGenotypes(var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, var.samples, error);
+          genotypeInfo gen(var.ovIter->genotypeFormat, var.ovIter->genotypes);
+          gen.validateGenotypes(header, var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, var.samples, error);
         }
       }
       var.originalVariantsMap.erase(var.ovmIter);

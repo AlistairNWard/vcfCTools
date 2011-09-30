@@ -14,10 +14,9 @@ using namespace std;
 using namespace vcfCTools;
 
 // Constructor
-genotypeInfo::genotypeInfo(string format, string gen, map<string, headerInfoStruct>& header) {
+genotypeInfo::genotypeInfo(string format, string gen) {
   genotypeFormat  = format;
   genotypeString  = gen;
-  headerInfo      = header;
   genotypeFormats = split(genotypeFormat, ":");
   genotypes       = split(gen, "\t");
   genotypeFields.clear();
@@ -28,7 +27,7 @@ genotypeInfo::~genotypeInfo(void) {};
 
 // Modify the genotypes to reflect modifications to the alleles
 // present in this record.
-void genotypeInfo::modifyGenotypes(vector<int>& alleleIDs) {
+void genotypeInfo::modifyGenotypes(vcfHeader& header, vector<int>& alleleIDs) {
   bool success;
   int gtInt;
   string connector;
@@ -98,7 +97,7 @@ void genotypeInfo::modifyGenotypes(vector<int>& alleleIDs) {
             modifiedGenotype += modifiedGT + ":";
 
           // Only retain the fields for the retained alleles.
-          } else if (headerInfo[*fIter].number == "A") {
+          } else if (header.formatFields[*fIter].number == "A") {
             fields = split(*gIter, ",");
             fieldsIter = fields.begin();
             modifiedField = "";
@@ -120,9 +119,9 @@ void genotypeInfo::modifyGenotypes(vector<int>& alleleIDs) {
             modifiedField = modifiedField.substr(0, modifiedField.size() - 1);
             modifiedGenotype += modifiedField + ":";
 
-          } else if (headerInfo[*fIter].number == "G") {
+          } else if (header.formatFields[*fIter].number == "G") {
             modifiedGenotype += ".:";
-          } else if (headerInfo[*fIter].number == ".") {
+          } else if (header.formatFields[*fIter].number == ".") {
             modifiedGenotype += *gIter + ":";
           } else {
             modifiedGenotype += *gIter + ":";
@@ -145,7 +144,7 @@ void genotypeInfo::modifyGenotypes(vector<int>& alleleIDs) {
 
 // Parse all of the sample information and determine whether this person is
 // homozygous reference, heterozygous, homozygous non-reference or unknown.
-void genotypeInfo::processFormats() {
+void genotypeInfo::processFormats(vcfHeader& header) {
   unsigned int formatID = 0;
   genotypeFormats = split(genotypeFormat, ":");
   vector<string>::iterator formatIter = genotypeFormats.begin();
@@ -155,13 +154,13 @@ void genotypeInfo::processFormats() {
 
     // In order to process the info field, the header information is
     // required.  If this does not exist, terminate the program.
-    if (headerInfo.count(*formatIter) == 0) {
+    if (header.formatFields.count(*formatIter) == 0) {
       cerr << "ERROR: No header description for format tag: " << *formatIter << endl;
       exit(1);
     }
 
-    geno.number = headerInfo[*formatIter].number;
-    geno.type   = headerInfo[*formatIter].type;
+    geno.number = header.formatFields[*formatIter].number;
+    geno.type   = header.formatFields[*formatIter].type;
     geno.ID     = formatID;
     genotypeFields[*formatIter] = geno;
     formatID++;
@@ -169,13 +168,13 @@ void genotypeInfo::processFormats() {
 }
 
 // Extract information about a specified tag.
-void genotypeInfo::validateGenotypes(string& referenceSequence, int& position, unsigned int& noAlts, vector<string>& samples, bool& error) {
+void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequence, int& position, unsigned int& noAlts, vector<string>& samples, bool& error) {
   bool success;
   int integerValue;
   unsigned int sampleID = 0;
 
   // Read the format string and check that all of the entries are defined.
-  processFormats();
+  processFormats(header);
 
   // Loop through each of the samples and check that the genotype information is
   // consistent with the alternate alleles and the format string.

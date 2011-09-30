@@ -20,8 +20,9 @@
 #include <getopt.h>
 #include <stdlib.h>
 
-#include "info.h"
 #include "genotype_info.h"
+#include "header.h"
+#include "info.h"
 #include "variant.h"
 #include "vcf.h"
 #include "vcfCTools_tool.h"

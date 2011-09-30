@@ -20,6 +20,7 @@
 #include <map>
 #include <vector>
 
+#include "header.h"
 #include "split.h"
 #include "tools.h"
 #include "vcf.h"
@@ -37,13 +38,13 @@ struct genoStruct {
 
 class genotypeInfo {
   public:
-    genotypeInfo(string, string, map<string, headerInfoStruct>&);
+    genotypeInfo(string, string);
     ~genotypeInfo(void);
     void checkTypes(string&, int&, bool&);
     bool getAlleles();
-    void modifyGenotypes(vector<int>&);
-    void processFormats();
-    void validateGenotypes(string&, int&, unsigned int&, vector<string>&, bool&);
+    void modifyGenotypes(vcfHeader&, vector<int>&);
+    void processFormats(vcfHeader&);
+    void validateGenotypes(vcfHeader&, string&, int&, unsigned int&, vector<string>&, bool&);
 
   public:
     bool phased;
@@ -59,7 +60,6 @@ class genotypeInfo {
     vector<string> values;
     map<string, genoStruct> genotypeFields;
     map<string, genoStruct>::iterator genoIter;
-    map<string, headerInfoStruct> headerInfo;
 };
 
 } // namespace vcfCTools

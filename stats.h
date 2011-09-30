@@ -11,6 +11,7 @@
 #ifndef STATS_H
 #define STATS_H
 
+#include "header.h"
 #include "info.h"
 #include "output.h"
 #include "stats.h"
@@ -35,27 +36,10 @@ struct indel {
   unsigned int deletions;
 };
 
-struct snpTypes {
-  unsigned int novelTransitions;
-  unsigned int knownTransitions;
-  unsigned int novelTransversions;
-  unsigned int knownTransversions;
-};
+// Define structures for use with the statistics.
 
-struct sampleSnpStats {
-  unsigned int het;
-  unsigned int homRef;
-  unsigned int homAlt;
-  unsigned int knownTransitions;
-  unsigned int knownTransversions;
-  unsigned int novelTransitions;
-  unsigned int novelTransversions;
-  unsigned int singletons;
-  unsigned int totalDepth;
-  unsigned int totalAltDepth;
-  unsigned int unknown;
-};
-
+// Define a structure to hold counts of all the different variant types
+// and annotations etc.  This also includes overloaded '+' operation.
 struct variantStruct {
   unsigned int novelTransitions;
   unsigned int knownTransitions;
@@ -64,12 +48,16 @@ struct variantStruct {
   unsigned int knownTransversions;
   unsigned int diffKnownTransversions;
   unsigned int multiAllelic;
+  unsigned int novelAminations;
+  unsigned int novelDeaminations;
+  unsigned int knownAminations;
+  unsigned int knownDeaminations;
 
   map<unsigned int, unsigned int> mnps;
 
   map<unsigned int, indel> indels;
-  map<unsigned int, snpTypes> acs;
-  map<double, snpTypes> afs;
+  //map<unsigned int, snpTypes> acs;
+  //map<double, snpTypes> afs;
   map<string, unsigned int> annotationsTs;
   map<string, unsigned int> annotationsTv;
   map<string, unsigned int> annotationsTriallelicSnp;
@@ -83,17 +71,21 @@ struct variantStruct {
   variantStruct operator+(variantStruct& vs) {
     variantStruct result = *this;
     map<unsigned int, indel>::iterator indelIter;
-    map<unsigned int, snpTypes>::iterator acsIter;
-    map<double, snpTypes>::iterator afsIter;
+    //map<unsigned int, snpTypes>::iterator acsIter;
+    //map<double, snpTypes>::iterator afsIter;
     map<unsigned int, unsigned int>::iterator iter;
     map<string, unsigned int>::iterator sIter;
 
     result.novelTransitions       = this->novelTransitions       + vs.novelTransitions;
+    result.novelTransversions     = this->novelTransversions     + vs.novelTransversions;
+    result.novelAminations        = this->novelAminations        + vs.novelAminations;
+    result.novelDeaminations      = this->novelDeaminations      + vs.novelDeaminations;
     result.knownTransitions       = this->knownTransitions       + vs.knownTransitions;
     result.diffKnownTransitions   = this->diffKnownTransitions   + vs.diffKnownTransitions;
-    result.novelTransversions     = this->novelTransversions     + vs.novelTransversions;
     result.knownTransversions     = this->knownTransversions     + vs.knownTransversions;
     result.diffKnownTransversions = this->diffKnownTransversions + vs.diffKnownTransversions;
+    result.knownAminations        = this->knownAminations        + vs.knownAminations;
+    result.knownDeaminations      = this->knownDeaminations      + vs.knownAminations;
     result.multiAllelic           = this->multiAllelic           + vs.multiAllelic;
 
     // MNPs
@@ -108,20 +100,20 @@ struct variantStruct {
     }
 
     // Allele frequency spectrum.
-    for (afsIter = vs.afs.begin(); afsIter != vs.afs.end(); afsIter++) {
-      result.afs[afsIter->first].novelTransitions = this->afs[afsIter->first].novelTransitions + vs.afs[afsIter->first].novelTransitions;
-      result.afs[afsIter->first].knownTransitions = this->afs[afsIter->first].knownTransitions + vs.afs[afsIter->first].knownTransitions;
-      result.afs[afsIter->first].novelTransversions = this->afs[afsIter->first].novelTransversions + vs.afs[afsIter->first].novelTransversions;
-      result.afs[afsIter->first].knownTransversions = this->afs[afsIter->first].knownTransversions + vs.afs[afsIter->first].knownTransversions;
-    }
+//    for (afsIter = vs.afs.begin(); afsIter != vs.afs.end(); afsIter++) {
+//      result.afs[afsIter->first].novelTransitions = this->afs[afsIter->first].novelTransitions + vs.afs[afsIter->first].novelTransitions;
+//      result.afs[afsIter->first].knownTransitions = this->afs[afsIter->first].knownTransitions + vs.afs[afsIter->first].knownTransitions;
+//      result.afs[afsIter->first].novelTransversions = this->afs[afsIter->first].novelTransversions + vs.afs[afsIter->first].novelTransversions;
+//      result.afs[afsIter->first].knownTransversions = this->afs[afsIter->first].knownTransversions + vs.afs[afsIter->first].knownTransversions;
+//    }
 
     // Allele count spectrum.
-    for (acsIter = vs.acs.begin(); acsIter != vs.acs.end(); acsIter++) {
-      result.acs[acsIter->first].novelTransitions = this->acs[acsIter->first].novelTransitions + vs.acs[acsIter->first].novelTransitions;
-      result.acs[acsIter->first].knownTransitions = this->acs[acsIter->first].knownTransitions + vs.acs[acsIter->first].knownTransitions;
-      result.acs[acsIter->first].novelTransversions = this->acs[acsIter->first].novelTransversions + vs.acs[acsIter->first].novelTransversions;
-      result.acs[acsIter->first].knownTransversions = this->acs[acsIter->first].knownTransversions + vs.acs[acsIter->first].knownTransversions;
-    }
+//    for (acsIter = vs.acs.begin(); acsIter != vs.acs.end(); acsIter++) {
+//      result.acs[acsIter->first].novelTransitions = this->acs[acsIter->first].novelTransitions + vs.acs[acsIter->first].novelTransitions;
+//      result.acs[acsIter->first].knownTransitions = this->acs[acsIter->first].knownTransitions + vs.acs[acsIter->first].knownTransitions;
+//      result.acs[acsIter->first].novelTransversions = this->acs[acsIter->first].novelTransversions + vs.acs[acsIter->first].novelTransversions;
+//      result.acs[acsIter->first].knownTransversions = this->acs[acsIter->first].knownTransversions + vs.acs[acsIter->first].knownTransversions;
+//    }
 
     // Annotations (transitions).
     for (sIter = vs.annotationsTs.begin(); sIter != vs.annotationsTs.end(); sIter++) {
@@ -162,30 +154,81 @@ struct variantStruct {
   }
 };
 
+// Define a structure to hold statistics for individual samples.
+struct sampleStats {
+
+  // SNPs.
+  unsigned int knownAminations;
+  unsigned int knownDeaminations;
+  unsigned int knownHetTransitions;
+  unsigned int knownHetTransversions;
+  unsigned int knownHomTransitions;
+  unsigned int knownHomTransversions;
+  unsigned int novelAminations;
+  unsigned int novelDeaminations;
+  unsigned int novelHetTransitions;
+  unsigned int novelHetTransversions;
+  unsigned int novelHomTransitions;
+  unsigned int novelHomTransversions;
+
+  // MNPs.
+  unsigned int hetMnps;
+
+  // Indels.
+  unsigned int hetDeletions;
+  unsigned int hetInsertions;
+  unsigned int homDeletions;
+  unsigned int homInsertions;
+
+  // Complex.
+  unsigned int hetComplex;
+  unsigned int homComplex;
+  unsigned int homMnps;
+  unsigned int homRef;
+
+  // Other.
+  unsigned unknown;
+};
+
+// Define a structure for holding boolean flags about a particular
+// variant.
+struct statsFlags {
+  bool het;
+  bool inDbsnp;
+  bool isAmination;
+  bool isDeamination;
+  bool isTransition;
+  bool isTransversion;
+};
+
+// Define the statistics class.
 class statistics {
   public:
     statistics(void);
     ~statistics(void);
     void countByFilter();
     void determineSnpType(variant&, string&, unsigned int);
-    void generateStatistics(variant&, bool, vector<string>&, bool, output&);
+    void generateStatistics(vcfHeader&, variant&, bool, vector<string>&, bool, output&);
     void getAnnotations(vector<string>&, variantInfo&, map<string, unsigned int>&);
+    void parseGenotypes(vcfHeader&, variant&, vector<unsigned int>);
     void printAcs(output&);
     void printAfs(output&);
     void printDetailedHeader(output&);
-    void printHeader(output&, string, bool, bool);
+    void printHeader(output&, string, bool, bool, bool);
     void printIndelStatistics(output&);
     void printMnpFilter(string&, output&);
     void printMnpStatistics(output&);
-    void printSampleSnps(vcf&, output&);
+    void printSampleSnps(vcfHeader&, vcf&, output&);
     void printSnpAnnotations(output&);
     void printSnpAnnotationStruct(output&, string&, variantStruct&, string&);
     void printSnpStatistics(output&);
     void printVariantStruct(output&, string, variantStruct&);
-    void updateSampleSnps(variant&, unsigned int);
+    void updateSampleLevelStats(statsFlags&, unsigned int, string&);
     void updateDetailedSnps(variant&, vcf&, unsigned int, output&);
 
   public:
+    bool isAmination;
+    bool isDeamination;
     bool isTransition;
     bool isTransversion;
     bool inDbsnp;
@@ -198,6 +241,8 @@ class statistics {
     bool hasAnnotations;
     bool splitMnps;
     string currentReferenceSequence;
+    int deletionSize;
+    int insertionSize;
     int lastSnpPosition;
     int lastMnpPosition;
     int lastIndelPosition;
@@ -210,10 +255,10 @@ class statistics {
 
     // Sample level statistics.
     bool generateDetailed;
+    bool generateSampleStats;
     double minDetailedGenotypeQuality;
-    bool processSampleSnps;
     double minGenotypeQuality;
-    map<string, sampleSnpStats> sampleSnps;
+    map<string, sampleStats> sampleLevelStats;
 };
 
 } // namespace vcfCTools

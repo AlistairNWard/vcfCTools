@@ -32,11 +32,13 @@ void intersect::setBooleanFlags(bool findCommon, bool findUnion, bool findUnique
 }
 
 // Intersect two vcf files.  Intersect by variant position only.
-void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, output& ofile) {
+void intersect::intersectVcf(vcfHeader& header1, vcfHeader& header2, vcf& v1, variant& var1, vcf& v2, variant& var2, output& ofile) {
   bool write;
 
   // Build the variant structures for each vcf file.
+  v1.success = v1.getRecord();
   v1.success = var1.buildVariantStructure(v1);
+  v2.success = v2.getRecord();
   v2.success = var2.buildVariantStructure(v2);
 
   // Set the pointers to the start of each variant map.  For comparison
@@ -115,11 +117,11 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
             // First clear out any variants left in the originalVariants structure for
             // the second file.
             write = (flags.annotate) ? false : !flags.writeFromFirst;
-            var2.clearOriginalVariants(flags, ofile, write);
+            var2.clearOriginalVariants(header2, flags, ofile, write);
 
             // Then clear the remaining variants from the first file.
             if (var1.originalVariantsMap.size() != 0) {
-              var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile, flags.writeFromFirst);
+              var1.clearReferenceSequence(header1, v1, flags, currentReferenceSequence, ofile, flags.writeFromFirst);
             }
           }
           
@@ -145,12 +147,12 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
 
             // First clear out any variants left in the originalVariants structure for
             // the first file.
-            var1.clearOriginalVariants(flags, ofile, flags.writeFromFirst);
+            var1.clearOriginalVariants(header1, flags, ofile, flags.writeFromFirst);
 
             // Then clear the remaining variants from the second file.
             if (var2.originalVariantsMap.size() != 0) {
               write = (flags.annotate) ? false : !flags.writeFromFirst;
-              var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile, write);
+              var2.clearReferenceSequence(header2, v2, flags, currentReferenceSequence, ofile, write);
             }
           }
         }
@@ -160,7 +162,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // be sent to the output and erased.
         if (var1.variantMap.size() != 0 && var1.originalVariantsMap.size() != 0) {
           while (var1.vmIter->first > var1.ovmIter->second.begin()->maxPosition && var1.originalVariantsMap.size() != 0) {
-            if (flags.writeFromFirst || flags.findUnion) {var1.buildOutputRecord(ofile);}
+            if (flags.writeFromFirst || flags.findUnion) {var1.buildOutputRecord(ofile, header1);}
             var1.originalVariantsMap.erase(var1.ovmIter);
             if (var1.originalVariantsMap.size() != 0) {var1.ovmIter = var1.originalVariantsMap.begin();}
           }
@@ -169,14 +171,14 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // If all of the records in the variantMap are exhausted there is nothing else to
         // compare.  If there are still records that haven't been sent to the output, these
         // should be sent now.
-        if (var1.variantMap.size() == 0) {var1.clearOriginalVariants(flags, ofile, flags.writeFromFirst);}
+        if (var1.variantMap.size() == 0) {var1.clearOriginalVariants(header1, flags, ofile, flags.writeFromFirst);}
 
         // In order to avoid large memory usage, also clear out the originalVariantsMap
         // for var2.  If this is an annotation task, no records from the second vcf file
         // should be sent to the output.
         if (var2.variantMap.size() != 0 && var2.originalVariantsMap.size() != 0) {
           while (var2.vmIter->first > var2.ovmIter->second.begin()->maxPosition && var2.originalVariantsMap.size() != 0) {
-            if (!flags.annotate && (!flags.writeFromFirst || flags.findUnion) ) {var2.buildOutputRecord(ofile);}
+            if (!flags.annotate && (!flags.writeFromFirst || flags.findUnion) ) {var2.buildOutputRecord(ofile, header2);}
             var2.originalVariantsMap.erase(var2.ovmIter);
             if (var2.originalVariantsMap.size() != 0) {var2.ovmIter = var2.originalVariantsMap.begin();}
           }
@@ -186,16 +188,18 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
         // compare.  If there are still records that haven't been sent to the output, these
         // should be sent now.
         write = (flags.annotate) ? false : !flags.writeFromFirst;
-        if (var2.variantMap.size() == 0) {var2.clearOriginalVariants(flags, ofile, write);}
+        if (var2.variantMap.size() == 0) {var2.clearOriginalVariants(header2, flags, ofile, write);}
       }
 
       // Having finished comparing, there may still be variants left from one of the two files.
       // Check that the two variant structures are empty and if not, finish processing the
       // remaining variants for this reference sequence.
-      if (var1.originalVariantsMap.size() != 0) {var1.clearReferenceSequence(v1, flags, currentReferenceSequence, ofile, flags.writeFromFirst);}
+      if (var1.originalVariantsMap.size() != 0) {
+        var1.clearReferenceSequence(header1, v1, flags, currentReferenceSequence, ofile, flags.writeFromFirst);
+      }
       if (var2.originalVariantsMap.size() != 0) {
         write = (flags.annotate) ? false : !flags.writeFromFirst;
-        var2.clearReferenceSequence(v2, flags, currentReferenceSequence, ofile, write);
+        var2.clearReferenceSequence(header2, v2, flags, currentReferenceSequence, ofile, write);
       }
 
       // Now both variant maps are exhausted, so rebuild the maps with the variants from the
@@ -214,7 +218,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
     } else {
       if (var2.variantMap.size() != 0) {
         write = (flags.annotate) ? false : !flags.writeFromFirst;
-        var2.clearReferenceSequence(v2, flags, var2.vmIter->second.referenceSequence, ofile, write);
+        var2.clearReferenceSequence(header2, v2, flags, var2.vmIter->second.referenceSequence, ofile, write);
       }
       var2.buildVariantStructure(v2);
       if (var2.variantMap.size() != 0) {var2.vmIter = var2.variantMap.begin();}
@@ -234,7 +238,7 @@ void intersect::intersectVcf(vcf& v1, variant& var1, vcf& v2, variant& var2, out
 // two files are sorted by genomic coordinates and the reference
 // sequences are in the same order.  Do not group together variants
 // in common reference sequence.
-void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, output& ofile) {
+void intersect::intersectVcfBed(vcfHeader& header, vcf& v, variant& var, bed& b, bedStructure& bs, output& ofile) {
   map<int, bedRecord>::iterator bmNext;
   unsigned int lastBedIntervalEnd = 0;
   unsigned int distanceToBed      = 0;
@@ -380,7 +384,7 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
 
         // Build the output record, removing unwanted alleles and modifying the
         // genotypes if necessary and send to the output buffer.
-        var.buildOutputRecord(ofile);
+        var.buildOutputRecord(ofile, header);
 
         // Update the originalVariants structure.
         var.originalVariantsMap.erase(var.ovmIter);
@@ -428,7 +432,7 @@ void intersect::intersectVcfBed(vcf& v, variant& var, bed& b, bedStructure& bs, 
           // If there are variants in the variant map, clear them out and set the current
           // reference sequence to the next reference sequence in the vcf file.
           if (var.originalVariantsMap.size() != 0) {
-            var.clearReferenceSequenceBed(v, flags, var.ovIter->referenceSequence, ofile);
+            var.clearReferenceSequenceBed(header, v, flags, var.ovIter->referenceSequence, ofile);
           }
           v.success = var.buildVariantStructure(v);
           if (var.originalVariantsMap.size() != 0) {var.ovmIter = var.originalVariantsMap.begin();}

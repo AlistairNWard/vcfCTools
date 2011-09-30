@@ -10,6 +10,14 @@
 
 #include "stats.h"
 
+#define SNP 1
+#define TRISNP 2
+#define QUADSNP 3
+#define MNP 4
+#define INSERTION 5
+#define DELETION 6
+#define COMPLEX 7
+
 using namespace std;
 using namespace vcfCTools;
 
@@ -29,9 +37,9 @@ statistics::statistics(void) {
   variants.clear();
 
   // Initialise sample level statistics.
-  processSampleSnps = false;
-  generateDetailed  = false;
-  sampleSnps.clear();
+  generateSampleStats = false;
+  generateDetailed    = false;
+  sampleLevelStats.clear();
 }
 
 // Destructor.
@@ -39,10 +47,11 @@ statistics::~statistics(void) {}
 
 // Parse the variants at this locus and generate statistics.
 //void statistics::generateStatistics(variant& var, vcf& v, int position, bool useAnnotations, vector<string>& annFlags, bool generateAfs, ostream* output) {
-void statistics::generateStatistics(variant& var, bool useAnnotations, vector<string>& annFlags, bool generateAfs, output& ofile) {
+void statistics::generateStatistics(vcfHeader& header, variant& var, bool useAnnotations, vector<string>& annFlags, bool generateAfs, output& ofile) {
   unsigned int ac;
   unsigned int variantID;
   string alleles;
+  vector<unsigned int> variantIDs;
 
   // Loop over all records at this locus.
   var.ovIter = var.ovmIter->second.begin();
@@ -62,8 +71,17 @@ void statistics::generateStatistics(variant& var, bool useAnnotations, vector<st
     vector<string>::iterator altIter       = var.ovIter->reducedAlts.begin();;
     vector<variantType>::iterator typeIter = var.ovIter->type.begin();;
     variantID = 0;
+    variantIDs.clear();
+    variantIDs.push_back(0);
     for (; refIter != var.ovIter->reducedRef.end(); refIter++) {
-   
+
+      // Reset some values.
+      inDbsnp        = false;
+      isAmination    = false;
+      isDeamination  = false;
+      isTransition   = false;
+      isTransversion = false;
+
       // Biallelic SNPs.
       if (typeIter->isBiallelicSnp) {
 
@@ -71,23 +89,18 @@ void statistics::generateStatistics(variant& var, bool useAnnotations, vector<st
         inDbsnp     = (var.ovIter->rsid == ".") ? false : true;
         hasSnp      = true;
         locusHasSnp = true;
-
-        // Determine if the SNP is a transition or transversion.
-        isTransition   = false;
-        isTransversion = false;
   
         // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
         // order.  A simple comparison can then be made to determine if the SNP is a 
         // transition or a transversion.
         alleles = *refIter + *altIter;
         for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
-        sort(alleles.begin(), alleles.end());
   
         // Retrieve information from the info fields if necessary.
         ac = 0;
-        if (generateAfs || processSampleSnps) {
-          variantInfo info(var.ovIter->info, var.headerInfoFields);
-          info.retrieveFields();
+        if (generateAfs || generateSampleStats) {
+          variantInfo info(var.ovIter->info);
+          info.retrieveFields(header);
           ac = atoi(info.infoFields["AC"].values[variantID].c_str());
           //info.getInfo(string("AF"), var.variantIter->referenceSequence, var.vmIter->first);
           //af = atof(info.values[0].c_str());
@@ -124,21 +137,20 @@ void statistics::generateStatistics(variant& var, bool useAnnotations, vector<st
             if ((*refIter).substr(i, 1) == (*altIter).substr(i, 1)) {continue;}
             alleles = (*refIter).substr(i, 1) + (*altIter).substr(i, 1);
             for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
-            sort(alleles.begin(), alleles.end());
             determineSnpType(var, alleles, ac);
           }
         }
 
       // Insertions.
       } else if (typeIter->isInsertion) {
-        int insertionSize = altIter->size() - refIter->size();
+        insertionSize = altIter->size() - refIter->size();
         variants[var.ovIter->referenceSequence][var.ovIter->filters].indels[insertionSize].insertions++;
         hasInsertion      = true;
         locusHasInsertion = true;
-  
+
       // Deletions.
       } else if (typeIter->isDeletion) {
-        int deletionSize = refIter->size() - altIter->size();
+        deletionSize = refIter->size() - altIter->size();
         variants[var.ovIter->referenceSequence][var.ovIter->filters].indels[deletionSize].deletions++;
         hasDeletion      = true;
         locusHasDeletion = true;
@@ -153,175 +165,72 @@ void statistics::generateStatistics(variant& var, bool useAnnotations, vector<st
         cerr << ":" << var.ovmIter->first << endl;
         exit(1);
       }
-  
+
+      // If sample level statistics are required, associate the variant ID (e.g.
+      // the position in the alternate allele string), with the variant type.
+      if (generateSampleStats) {
+        if (typeIter->isBiallelicSnp) {
+          variantIDs.push_back(SNP);
+        } else if (typeIter->isTriallelicSnp) {
+          variantIDs.push_back(TRISNP);
+        } else if (typeIter->isQuadallelicSnp) {
+          variantIDs.push_back(QUADSNP);
+        } else if (typeIter->isMnp) {
+          variantIDs.push_back(MNP);
+        } else if (typeIter->isInsertion) {
+          variantIDs.push_back(INSERTION);
+        } else if (typeIter->isDeletion) {
+          variantIDs.push_back(DELETION);
+        } else if (typeIter->isComplex) {
+          variantIDs.push_back(COMPLEX);
+        }
+      }
+
       // Iterate the alt allele and allele types.
       altIter++;
       typeIter++;
       variantID++;
     }
-
-//  unsigned int ac;
-//  double af;
-//  variantInfo info;
-
-// Deal with each alternate allele in turn.  Only generate statistics on the requested
-// variant classes.  By default, this is all classes.
-
-  // SNPs.
-//  if (var.processSnps) {
-//    unsigned int iterationNumber = 0;
-//    // Biallelic SNPs.
-//    for (var.variantIter = var.vmIter->second.biSnps.begin(); var.variantIter != var.vmIter->second.biSnps.end(); var.variantIter++) {
-//      iterationNumber++;
-//      info.processInfoFields(var.variantIter->info);
-//
-//
-//      // If this locus contains multiple SNPs, then the vcf file must contain at least two
-//      // SNPs at this locus.  In this case, treat the variant as a triallelic SNP.  If three
-//      // alternates come up, treat it as a quad-allelic.
-//      if (var.vmIter->second.biSnps.size() > 1) {
-//        if (iterationNumber == 1) {variants[var.variantIter->referenceSequence][var.variantIter->filters].multiAllelic++;}
-//  
-//      // If this is the only biallelic SNP at this locus, determine if it is a transition or a transversion
-//      // and update the statistics accordingly.
-//      } else {
-//        isTransition   = false;
-//        isTransversion = false;
-//  
-//        // Generate a string as a pair the pair of alleles, in lower case and in alphabetical
-//        // order.  A simple comparison can then be made to determine if the SNP is a 
-//        // transition or a transversion.
-//        string alleles = var.variantIter->ref + var.variantIter->altString;
-//        for (int i = 0; i < 2; i++) {alleles[i] = tolower(alleles[i]);}
-//        sort(alleles.begin(), alleles.end());
-//  
-//        // Transition:   A <-> G or C <-> T.
-//        if (alleles == "ag" || alleles == "ct") {
-//          isTransition = true;
-//
-//          // Sample level and detailed stats.
-//          if (processSampleSnps) {updateSampleSnps(var, v, ac);}
-//          if (generateDetailed) {updateDetailedSnps(var, v, ac, output);}
-//
-//          if (inDbsnp) {
-//            variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransitions++;
-//            if (info.infoTags.count("dbSNPX") != 0) {variants[var.variantIter->referenceSequence][var.variantIter->filters].diffKnownTransitions++;}
-//            if (generateAfs) {
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].knownTransitions++;
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].knownTransitions++;
-//            }
-//          } else {
-//            variants[var.variantIter->referenceSequence][var.variantIter->filters].novelTransitions++;
-//            if (generateAfs) {
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].novelTransitions++;
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].novelTransitions++;
-//            }
-//          }
-//
-//          // Annotations.
-//          if (useAnnotations) {getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTs);}
-//          
-//          // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
-//        } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
-//          isTransversion = true;
-//
-//          // Sample level stats.
-//          if (processSampleSnps) {updateSampleSnps(var, v, ac);}
-//          if (generateDetailed) {updateDetailedSnps(var, v, ac, output);}
-//
-//          if (inDbsnp) {
-//            variants[var.variantIter->referenceSequence][var.variantIter->filters].knownTransversions++;
-//            if (info.infoTags.count("dbSNPX") != 0) {variants[var.variantIter->referenceSequence][var.variantIter->filters].diffKnownTransversions++;}
-//            if (generateAfs) {
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].knownTransversions++;
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].knownTransversions++;
-//            }
-//          } else {
-//            variants[var.variantIter->referenceSequence][var.variantIter->filters].novelTransversions++;
-//            if (generateAfs) {
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].acs[ac].novelTransversions++; 
-//              variants[var.variantIter->referenceSequence][var.variantIter->filters].afs[af].novelTransversions++; 
-//            }
-//          }
-//
-//          // Annotations.
-//          if (useAnnotations) {getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTv);}
-//        }
-//      }
-//  
-//      // Keep track of the last SNP position, so that the distribution of 
-//      // the distance between SNPs can be maintained.
-//      if (var.variantIter->referenceSequence != currentReferenceSequence) {
-//        currentReferenceSequence = var.variantIter->referenceSequence;
-//        lastSnpPosition = -1;
-//      }
-//      if (lastSnpPosition != -1) {
-//        unsigned int distance = position - lastSnpPosition;
-//        snpDistribution[distance]++;
-//      }
-//    }
-//
-//    // Multiallelic SNPs.
-//    for (var.variantIter = var.vmIter->second.multiSnps.begin(); var.variantIter != var.vmIter->second.multiSnps.end(); var.variantIter++) {
-//      info.processInfoFields(var.variantIter->info);
-//      
-//      // Check for annotations.
-//      if (useAnnotations) {
-//        if (var.variantIter->isTriallelicSnp) {
-//          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsTriallelicSnp);
-//        } else if (var.variantIter->isQuadallelicSnp) {
-//          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsQuadallelicSnp);
-//        }
-//      }
-//      variants[var.variantIter->referenceSequence][var.variantIter->filters].multiAllelic++;
-//    }
-//  }
-//
-//  // MNPs.
-//  if (var.processMnps) {
-//    for (var.variantIter = var.vmIter->second.mnps.begin(); var.variantIter != var.vmIter->second.mnps.end(); var.variantIter++) {
-//      info.processInfoFields(var.variantIter->info);
-//      hasMnp = true;
-//
-//      // Check for annotations.
-//      if (useAnnotations) {getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsMnp);}
-//      variants[var.variantIter->referenceSequence][var.variantIter->filters].mnps[var.variantIter->altString.size()]++;
-//    }
-//  }
-//
-//  //Indels.
-//  if (var.processIndels) {
-//    for (var.variantIter = var.vmIter->second.indels.begin(); var.variantIter != var.vmIter->second.indels.end(); var.variantIter++) {
-//      info.processInfoFields(var.variantIter->info);
-//
-//      // Check for annotations.
-//      if (useAnnotations) {
-//        if (var.variantIter->isInsertion) {
-//          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsIns);
-//        } else if (var.variantIter->isDeletion) {
-//          getAnnotations(annFlags, info, variants[var.variantIter->referenceSequence][var.variantIter->filters].annotationsDel);
-//        }
-//      }
-//
-//      hasIndel = true;
-//      int indelSize = var.variantIter->ref.size() - var.variantIter->altString.size();
-//      if (var.variantIter->isDeletion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].indels[indelSize].deletions++;}
-//      if (var.variantIter->isInsertion) {variants[var.variantIter->referenceSequence][var.variantIter->filters].indels[abs(indelSize)].insertions++;}
-//    }
-//  }
+  
+    // If sample level statistics are required, parse the genotype fields and
+    // populate the relevant structures.  Parsing the genotypes should only
+    // happen once per record as this can be very expensive.  If there are
+    // multiple alleles in the record, each allele needs to be dealt with
+    // in the genotypes.
+    if (generateSampleStats) {parseGenotypes(header, var, variantIDs);}
   }
 }
 
 // Given the SNP alleles, determine if it is a transition/transversion and update
 // all necessary statistics.
 void statistics::determineSnpType(variant& var, string& alleles, unsigned int ac) {
+  string sortedAlleles = alleles;
+
+  // Sort the alleles in alphabetical order to aid in determining if the SNP is
+  // an transition or a transversion.
+  sort(sortedAlleles.begin(), sortedAlleles.end());
 
   // Transition:   A <-> G or C <-> T.
-  if (alleles == "ag" || alleles == "ct") {
+  if (sortedAlleles == "ag" || sortedAlleles == "ct") {
     isTransition = true;
 
-    // Update the structures for sample level statistics.
-    if (processSampleSnps) {updateSampleSnps(var, ac);}
+    // From the unsorted alleles, determine if the event is an amination (T->C or
+    // A->G) or deamination (C->T or G->A).
+    if (alleles == "ct" || alleles == "ga") {
+      isDeamination = true;
+      if (inDbsnp) {
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].knownDeaminations++;
+      } else {
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].novelDeaminations++;
+      }
+    } else {
+      isAmination = true;
+      if (inDbsnp) {
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].knownAminations++;
+      } else {
+        variants[var.ovIter->referenceSequence][var.ovIter->filters].novelAminations++;
+      }
+    }
 
     if (inDbsnp) {
       variants[var.ovIter->referenceSequence][var.ovIter->filters].knownTransitions++;
@@ -331,11 +240,8 @@ void statistics::determineSnpType(variant& var, string& alleles, unsigned int ac
     }
 
   // Transversion: A <-> C, A <-> T, C <-> G or G <-> T.
-  } else if (alleles == "ac" || alleles == "at" || alleles == "cg" || alleles == "gt") {
+  } else if (sortedAlleles == "ac" || sortedAlleles == "at" || sortedAlleles == "cg" || sortedAlleles == "gt") {
     isTransversion = true;
-
-    // Update the structures for sample level statistics.
-    if (processSampleSnps) {updateSampleSnps(var, ac);}
 
     if (inDbsnp) {
       variants[var.ovIter->referenceSequence][var.ovIter->filters].knownTransversions++;
@@ -346,16 +252,17 @@ void statistics::determineSnpType(variant& var, string& alleles, unsigned int ac
   }
 }
 
-// Update the map containing sample level statistics for SNPs.
-void statistics::updateSampleSnps(variant& var, unsigned int ac) {
+// Parse the genotypes for each sample and update the relevant
+// statistics structures.
+void statistics::parseGenotypes(vcfHeader& header, variant& var, vector<unsigned int> variantIDs) {
   unsigned int depth;
   unsigned int sampleID = 0;
   string entry;
   string geno;
   double quality;
   vector<string> sampleEntries;
-  genotypeInfo gen(var.ovIter->genotypeFormat, var.ovIter->genotypes, var.headerFormatFields);
-  gen.processFormats();
+  genotypeInfo gen(var.ovIter->genotypeFormat, var.ovIter->genotypes);
+  gen.processFormats(header);
 
   // Parse each sample in turn.
   vector<string>::iterator genoIter = gen.genotypes.begin();
@@ -364,53 +271,71 @@ void statistics::updateSampleSnps(variant& var, unsigned int ac) {
 
     // Check that the number of entries is consistent with the format string.
     if (sampleEntries.size() != gen.genotypeFormats.size() && sampleEntries.size() != 1) {
-      cerr << "ERROR: Number of fields in the genotype string is inconsistent with the format." << endl;
-      cerr << "Reference sequence: " << var.ovIter->referenceSequence << ", position: " << var.ovIter->position << "." << endl;
+      cerr << "ERROR: Number of fields in the genotype string is inconsistent with the format for sample ";
+      cerr << header.samples[sampleID] << " at " << var.ovIter->referenceSequence << ":" << var.ovIter->position << "." << endl;
       exit(1);
     } else if (sampleEntries.size() == 1 && sampleEntries[0] == ".") {
-      sampleSnps[var.samples[sampleID]].unknown++;
+      sampleLevelStats[header.samples[sampleID]].unknown++;
     } else {
       quality = (gen.genotypeFields.count("GQ") == 0) ? 0. : atof( (sampleEntries[gen.genotypeFields["GQ"].ID]).c_str() );
       if (quality >= minGenotypeQuality || gen.genotypeFields.count("GQ") == 0) {
         geno  = sampleEntries[gen.genotypeFields["GT"].ID];
-        depth = (gen.genotypeFields.count("GQ") == 0) ? 0 : atoi( (sampleEntries[gen.genotypeFields["DP"].ID]).c_str() );
+        //depth = (gen.genotypeFields.count("GQ") == 0) ? 0 : atoi( (sampleEntries[gen.genotypeFields["DP"].ID]).c_str() );
 
-        // Update the total depth for the sample.
-        sampleSnps[var.samples[sampleID]].totalDepth += depth;
-
-        // Homozygous alternate SNPs.
-        if (geno == "1/1" || geno == "1|1") {
-          sampleSnps[var.samples[sampleID]].homAlt++;
-          sampleSnps[var.samples[sampleID]].totalAltDepth += depth;
-          if (inDbsnp) {
-            if (isTransition) {sampleSnps[var.samples[sampleID]].knownTransitions++;}
-            if (isTransversion) {sampleSnps[var.samples[sampleID]].knownTransversions++;}
-          } else {
-            if (isTransition) {sampleSnps[var.samples[sampleID]].novelTransitions++;}
-            if (isTransversion) {sampleSnps[var.samples[sampleID]].novelTransversions++;}
-          }
-  
-          // If the SNP is a singleton, update the singletons stat.
-          if (ac == 1) {sampleSnps[var.samples[sampleID]].singletons++;}
-
-        // Heterozygous SNPs.
-        } else if (geno == "0/1" || geno == "1/0" || geno == "0|1" || geno == "1|0") {
-          sampleSnps[var.samples[sampleID]].het++;
-          sampleSnps[var.samples[sampleID]].totalAltDepth += depth;
-          if (inDbsnp) {
-            if (isTransition) {sampleSnps[var.samples[sampleID]].knownTransitions++;}
-            if (isTransversion) {sampleSnps[var.samples[sampleID]].knownTransversions++;}
-          } else {
-            if (isTransition) {sampleSnps[var.samples[sampleID]].novelTransitions++;}
-            if (isTransversion) {sampleSnps[var.samples[sampleID]].novelTransversions++;}
-          }
-  
-          // If the SNP is a singleton, update the singletons stat.
-          if (ac == 1) {sampleSnps[var.samples[sampleID]].singletons++;}
-        } else if (geno == "0/0" || geno == "0|0") {
-          sampleSnps[var.samples[sampleID]].homRef++;
+        // Find the allele IDs from the genotype string.  This can be 0 for
+        // reference and then any number up to the number of alternate alleles.
+        // Only do this if the genotype isn't '.'.
+        if (geno == ".") {
+          sampleLevelStats[header.samples[sampleID]].unknown++;
         } else {
-          sampleSnps[var.samples[sampleID]].unknown++;
+          size_t separator = geno.find('/');
+          if (separator == string::npos) {
+            separator = geno.find("|");
+            if (separator == string::npos) {
+              cerr << "ERROR: Unknown genotype separator in sample " << header.samples[sampleID];
+              cerr << " at " << var.ovIter->referenceSequence << ":" << var.ovIter->position << "." << endl;
+              exit(1);
+            }
+          }
+          unsigned int idA = atoi((geno.substr(0, separator)).c_str());
+          unsigned int idB = atoi((geno.substr(separator + 1, geno.length())).c_str());
+
+          // Define a structure to hold boolean flags.  This will be used in other called
+          // routines.
+          statsFlags flags;
+          flags.het            = false;
+          flags.isAmination    = isAmination;
+          flags.isDeamination  = isDeamination;
+          flags.inDbsnp        = inDbsnp;
+          flags.isTransition   = isTransition;
+          flags.isTransversion = isTransversion;
+  
+          // If the allele IDs are the same, the sample is homozygous.  If they are
+          // both '0', then they are homozygous reference and can be dealt with immediately.
+          // For non-reference alleles, the array variantIDs can be used to determine
+          // which alternate allele the ID corresponds to.
+          size_t dotInGeno = geno.find('.');
+          if (dotInGeno != string::npos) {
+            sampleLevelStats[header.samples[sampleID]].unknown++;
+          } else if (idA == idB && idA == 0) {
+            sampleLevelStats[header.samples[sampleID]].homRef++;
+  
+          // Homozygous non-reference.
+          } else if (idA == idB) {
+            updateSampleLevelStats(flags, variantIDs[idA], header.samples[sampleID]);
+  
+          // Heterozygous with a ref allele.
+          } else if (idA == 0 | idB == 0) {
+            flags.het = true;
+            unsigned int id = (idA == 0) ? variantIDs[idB] : variantIDs[idA];
+            updateSampleLevelStats(flags, id, header.samples[sampleID]);
+  
+          // Heterozygous with two non-reference alleles.
+          } else {
+          }
+  
+          // Update the total depth for the sample.
+          //sampleSnps[header.samples[sampleID]].totalDepth += depth;
         }
       }
     }
@@ -418,34 +343,77 @@ void statistics::updateSampleSnps(variant& var, unsigned int ac) {
   }
 }
 
-// Print the header for detailed statistics.
-void statistics::printDetailedHeader(output& ofile) {
-  *ofile.outputStream << "Detailed statistics for each variant position:" << endl;
-  *ofile.outputStream << setw(24) << "";
-  *ofile.outputStream << setw(48) << "    ----------Homozygous reference------------";
-  *ofile.outputStream << setw(48) << "    ---------------Heterozygous---------------";
-  *ofile.outputStream << setw(48) << "    --------Homozygous non-reference----------";
-  *ofile.outputStream << setw(12) << " -No genotype-";
-  *ofile.outputStream << endl;
-  *ofile.outputStream << setw(12) << "Ref._seq.";
-  *ofile.outputStream << setw(12) << "Position";
-  *ofile.outputStream << setw(12) << "Number";
-  *ofile.outputStream << setw(12) << "Mean_depth";
-  *ofile.outputStream << setw(12) << "Min_depth";
-  *ofile.outputStream << setw(12) << "Max_depth";
-  *ofile.outputStream << setw(12) << "Number";
-  *ofile.outputStream << setw(12) << "Mean_depth";
-  *ofile.outputStream << setw(12) << "Min_depth";
-  *ofile.outputStream << setw(12) << "Max_depth";
-  *ofile.outputStream << setw(12) << "Number";
-  *ofile.outputStream << setw(12) << "Mean_depth";
-  *ofile.outputStream << setw(12) << "Min_depth";
-  *ofile.outputStream << setw(12) << "Max_depth";
-  *ofile.outputStream << setw(12) << "Number";
-  *ofile.outputStream << setw(20) << "SNP_type";
-  *ofile.outputStream << setw(20) << "Het_samples";
-  *ofile.outputStream << setw(20) << "Hom_alt_samples";
-  *ofile.outputStream << endl;
+// Update the sample level statistics.
+void statistics::updateSampleLevelStats(statsFlags& flags, unsigned int id, string& sample) {
+
+  // Update the statistics for the correct variant type.
+  if (id == SNP) {
+ 
+    // Heterozygous SNPs.
+    if (flags.het) {
+
+      // Known SNPs.
+      if (flags.inDbsnp) {
+        if (flags.isTransition) {sampleLevelStats[sample].knownHetTransitions++;}
+        else if (flags.isTransversion) {sampleLevelStats[sample].knownHetTransversions++;}
+
+        // De/aminations.
+        if (flags.isAmination) {sampleLevelStats[sample].knownAminations++;}
+        else if (flags.isDeamination) {sampleLevelStats[sample].knownDeaminations++;}
+
+      // Novel SNPs.
+      } else {
+        if (flags.isTransition) {sampleLevelStats[sample].novelHetTransitions++;}
+        else if (flags.isTransversion) {sampleLevelStats[sample].novelHetTransversions++;}
+
+        // De/aminations.
+        if (flags.isAmination) {sampleLevelStats[sample].novelAminations++;}
+        else if (flags.isDeamination) {sampleLevelStats[sample].novelDeaminations++;}
+      }
+    } else {
+
+      // Known SNPs.
+      if (flags.inDbsnp) {
+        if (flags.isTransition) {sampleLevelStats[sample].knownHomTransitions++;}
+        else if (flags.isTransversion) {sampleLevelStats[sample].knownHomTransversions++;}
+
+        // De/aminations.
+        if (flags.isAmination) {sampleLevelStats[sample].knownAminations++;}
+        else if (flags.isDeamination) {sampleLevelStats[sample].knownDeaminations++;}
+
+      // Novel SNPs.
+      } else {
+        if (flags.isTransition) {sampleLevelStats[sample].novelHomTransitions++;}
+        else if (flags.isTransversion) {sampleLevelStats[sample].novelHomTransversions++;}
+
+        // De/aminations.
+        if (flags.isAmination) {sampleLevelStats[sample].novelAminations++;}
+        else if (flags.isDeamination) {sampleLevelStats[sample].novelDeaminations++;}
+      }
+    }
+  } else if (id == TRISNP) {
+  } else if (id == QUADSNP) {
+  } else if (id == MNP) {
+    if (flags.het) {sampleLevelStats[sample].hetMnps++;}
+    else {sampleLevelStats[sample].homMnps++;}
+  } else if (id == INSERTION) {
+    if (flags.het) {
+      sampleLevelStats[sample].hetInsertions++;
+    }
+    else {
+      sampleLevelStats[sample].homInsertions++;
+    }
+  } else if (id == DELETION) {
+    if (flags.het) {
+      sampleLevelStats[sample].hetDeletions++;
+    }
+    else {
+      sampleLevelStats[sample].homDeletions++;
+    }
+  } else if (id == COMPLEX) {
+    if (flags.het) {sampleLevelStats[sample].hetComplex++;}
+    else {sampleLevelStats[sample].homComplex++;}
+  }
 }
 
 // Search for annotations in the info string.  This will either involve searching
@@ -615,7 +583,7 @@ void statistics::printSnpStatistics(output& ofile) {
         if (!writtenHeader) {
           *ofile.outputStream << "Statistics on SNPs that pass filters (marked as PASS)." << endl;
           *ofile.outputStream << endl;
-          printHeader(ofile, string("reference_sequence"), true, true);
+          printHeader(ofile, string("reference_sequence"), true, true, false);
           *ofile.outputStream << endl;
           writtenHeader = true;
         }
@@ -625,32 +593,44 @@ void statistics::printSnpStatistics(output& ofile) {
   }
  
   *ofile.outputStream << endl;
-  *ofile.outputStream << "Total_statistics." << endl;
+  *ofile.outputStream << "Total_statistics (de/am_ratio is the deamination (C->T/G->A) amination (T->C/A->G) ratio)." << endl;
   *ofile.outputStream << endl;
-  printHeader(ofile, string("filter"), true, true);
+  printHeader(ofile, string("filter"), true, true, false);
   *ofile.outputStream << endl;
   for (map<string, variantStruct>::iterator iter = totalVariants["total"].begin(); iter != totalVariants["total"].end(); iter++) {
     if (iter->first != "all" && iter->first != "PASS") {printVariantStruct(ofile, string(iter->first), iter->second);}
   }
   *ofile.outputStream << setw(22) << "";
-  *ofile.outputStream << "---------------------------------------------------------------------------------------------------------";
+  string buf;
+  buf.assign(152, '-');
+  *ofile.outputStream << buf;
   *ofile.outputStream << endl;
   string filter = "PASS";
   printVariantStruct(ofile, filter, totalVariants["total"]["PASS"]);
   filter = "Total";
   printVariantStruct(ofile, filter, totalVariants["total"]["all"]);
   *ofile.outputStream << setw(22) << "";
-  *ofile.outputStream << "---------------------------------------------------------------------------------------------------------";
+  *ofile.outputStream << buf;
   *ofile.outputStream << endl;
 }
 
 // Print out a header line.
-void statistics::printHeader(output& ofile, string text, bool dbsnpDiff, bool multi) {
+void statistics::printHeader(output& ofile, string text, bool dbsnpDiff, bool multi, bool sampleLevel) {
   *ofile.outputStream << setw(22) << "";
-  *ofile.outputStream << setw(60) << "--------------------------#SNPs---------------------------";
-  if (dbsnpDiff) {*ofile.outputStream << setw(18) << "";}
-  else {*ofile.outputStream << setw(12) << "";}
+  *ofile.outputStream << setw(84) << "--------------------------------------#SNPs---------------------------------------";
+  //if (dbsnpDiff) {*ofile.outputStream << setw(18) << "";}
+  //else {*ofile.outputStream << setw(12) << "";}
+  *ofile.outputStream << setw(12) << "";
   *ofile.outputStream << setw(24) << "------ts/tv_ratio-----";
+  *ofile.outputStream << setw(24) << "------de/am_ratio-----";
+  if (sampleLevel) {
+    *ofile.outputStream << setw(12) << "";
+    *ofile.outputStream << setw(48) << "--------------------SNPs----------------------";
+    *ofile.outputStream << setw(24) << "---------MNPs---------";
+    *ofile.outputStream << setw(24) << "------Insertions------";
+    *ofile.outputStream << setw(24) << "------Deletions-------";
+    *ofile.outputStream << setw(24) << "----Complex Events----";
+  }
   *ofile.outputStream << endl;
   *ofile.outputStream << setw(22) << text;
   *ofile.outputStream << setw(12) << "total";
@@ -658,12 +638,48 @@ void statistics::printHeader(output& ofile, string text, bool dbsnpDiff, bool mu
   *ofile.outputStream << setw(12) << "novel_tv";
   *ofile.outputStream << setw(12) << "known_ts";
   *ofile.outputStream << setw(12) << "known_tv";
-  if (dbsnpDiff) {*ofile.outputStream << setw(18) << setprecision(6) << "%dbsnp (%diff)";}
-  else {*ofile.outputStream << setw(12) << "%dbsnp";}
+  *ofile.outputStream << setw(12) << "amination";
+  *ofile.outputStream << setw(12) << "deamination";
+  //if (dbsnpDiff) {*ofile.outputStream << setw(18) << setprecision(6) << "%dbsnp (%diff)";}
+  //else {*ofile.outputStream << setw(12) << "%dbsnp";}
+  *ofile.outputStream << setw(12) << "%dbsnp";
+  *ofile.outputStream << setw(8) << setprecision(6) << "total";
+  *ofile.outputStream << setw(8) << setprecision(6) << "novel";
+  *ofile.outputStream << setw(8) << setprecision(6) << "known";
   *ofile.outputStream << setw(8) << setprecision(6) << "total";
   *ofile.outputStream << setw(8) << setprecision(6) << "novel";
   *ofile.outputStream << setw(8) << setprecision(6) << "known";
   if (multi) {*ofile.outputStream << setw(8) << "multi";}
+}
+
+// Print the header for detailed statistics.
+void statistics::printDetailedHeader(output& ofile) {
+  *ofile.outputStream << "Detailed statistics for each variant position:" << endl;
+  *ofile.outputStream << setw(24) << "";
+  *ofile.outputStream << setw(48) << "    ----------Homozygous reference------------";
+  *ofile.outputStream << setw(48) << "    ---------------Heterozygous---------------";
+  *ofile.outputStream << setw(48) << "    --------Homozygous non-reference----------";
+  *ofile.outputStream << setw(12) << " -No genotype-";
+  *ofile.outputStream << endl;
+  *ofile.outputStream << setw(12) << "Ref._seq.";
+  *ofile.outputStream << setw(12) << "Position";
+  *ofile.outputStream << setw(12) << "Number";
+  *ofile.outputStream << setw(12) << "Mean_depth";
+  *ofile.outputStream << setw(12) << "Min_depth";
+  *ofile.outputStream << setw(12) << "Max_depth";
+  *ofile.outputStream << setw(12) << "Number";
+  *ofile.outputStream << setw(12) << "Mean_depth";
+  *ofile.outputStream << setw(12) << "Min_depth";
+  *ofile.outputStream << setw(12) << "Max_depth";
+  *ofile.outputStream << setw(12) << "Number";
+  *ofile.outputStream << setw(12) << "Mean_depth";
+  *ofile.outputStream << setw(12) << "Min_depth";
+  *ofile.outputStream << setw(12) << "Max_depth";
+  *ofile.outputStream << setw(12) << "Number";
+  *ofile.outputStream << setw(20) << "SNP_type";
+  *ofile.outputStream << setw(20) << "Het_samples";
+  *ofile.outputStream << setw(20) << "Hom_alt_samples";
+  *ofile.outputStream << endl;
 }
 
 // Print the contents of the structure variantStruct to screen in a standard format.
@@ -675,12 +691,17 @@ void statistics::printVariantStruct(output& ofile, string filter, variantStruct&
   int transversions = var.novelTransversions + var.knownTransversions;
   int multiAllelic  = var.multiAllelic;
   int totalSnp      = novel + known + multiAllelic;
+  int aminations    = var.novelAminations + var.knownAminations;
+  int deaminations  = var.novelDeaminations + var.knownDeaminations;
 
   double dbsnp     = (totalSnp == 0) ? 0. : (100. * double(known) / double(totalSnp));
-  double dbsnpX    = (totalSnp == 0) ? 0. : (100. * double(diffKnown) / double(totalSnp));
+  //double dbsnpX    = (totalSnp == 0) ? 0. : (100. * double(diffKnown) / double(totalSnp));
   double tstv      = (transversions == 0) ? 0. : (double(transitions) / double(transversions));
   double noveltstv = (var.novelTransversions == 0) ? 0. : (double(var.novelTransitions) / double(var.novelTransversions));
   double knowntstv = (var.knownTransversions == 0) ? 0. : (double(var.knownTransitions) / double(var.knownTransversions));
+  double totalad   = (aminations == 0) ? 0. : (double(deaminations) / double(aminations));
+  double novelad   = (var.novelAminations == 0) ? 0. : (double(var.novelDeaminations) / double(var.novelAminations));
+  double knownad   = (var.knownAminations == 0) ? 0. : (double(var.knownDeaminations) / double(var.knownAminations));
 
   *ofile.outputStream << setw(22) << filter;
   *ofile.outputStream << setw(12) << setprecision(10) << totalSnp;
@@ -688,13 +709,18 @@ void statistics::printVariantStruct(output& ofile, string filter, variantStruct&
   *ofile.outputStream << setw(12) << var.novelTransversions;
   *ofile.outputStream << setw(12) << var.knownTransitions;
   *ofile.outputStream << setw(12) << var.knownTransversions;
-  *ofile.outputStream << setw(9) << setprecision(3) << dbsnp;
-  *ofile.outputStream << setw(2) << " (";
-  *ofile.outputStream << setw(5) << setprecision(3) << dbsnpX;
-  *ofile.outputStream << setw(2) << ") ";
+  *ofile.outputStream << setw(12) << var.novelAminations + var.knownAminations;;
+  *ofile.outputStream << setw(12) << var.novelDeaminations + var.knownDeaminations;;
+  *ofile.outputStream << setw(12) << setprecision(3) << dbsnp;
+  //*ofile.outputStream << setw(2) << " (";
+  //*ofile.outputStream << setw(5) << setprecision(3) << dbsnpX;
+  //*ofile.outputStream << setw(2) << ") ";
   *ofile.outputStream << setw(8) << setprecision(3) << tstv;
   *ofile.outputStream << setw(8) << setprecision(3) << noveltstv;
   *ofile.outputStream << setw(8) << setprecision(3) << knowntstv;
+  *ofile.outputStream << setw(8) << setprecision(3) << totalad;
+  *ofile.outputStream << setw(8) << setprecision(3) << novelad;
+  *ofile.outputStream << setw(8) << setprecision(3) << knownad;
   *ofile.outputStream << setw(8) << multiAllelic;
   *ofile.outputStream << endl;
 }
@@ -747,102 +773,102 @@ void statistics::printSnpAnnotationStruct(output& ofile, string& filter, variant
 
 // Print out allele count information.
 void statistics::printAcs(output& ofile) {
-  map<unsigned int, snpTypes>::iterator acsIter;
-  unsigned int transitions, transversions, novel, known;
-  double dbsnp, tstv, novelTstv, knownTstv;
-
-  *ofile.outputStream << "Statistics_by_allele_count:";
-  *ofile.outputStream << endl;
-  *ofile.outputStream << endl;
-  *ofile.outputStream << setw(18) << "";
-  *ofile.outputStream << setw(60) << "--------------------------#SNPs---------------------------";
-  *ofile.outputStream << setw(10) << "";
-  *ofile.outputStream << setw(24) << "-----ts/tv_ratio-----";
-  *ofile.outputStream << endl;
-  *ofile.outputStream << setw(16) << "allele_count";
-  *ofile.outputStream << setw(12) << "total";
-  *ofile.outputStream << setw(12) << "novel_ts";
-  *ofile.outputStream << setw(12) << "novel_tv";
-  *ofile.outputStream << setw(12) << "known_ts";
-  *ofile.outputStream << setw(12) << "known_tv";
-  *ofile.outputStream << setw(12) << "%dbsnp";
-  *ofile.outputStream << setw(8) << "total";
-  *ofile.outputStream << setw(8) << "novel";
-  *ofile.outputStream << setw(8) << "known";
-  *ofile.outputStream << endl;
-  for (acsIter = totalVariants["total"]["PASS"].acs.begin(); acsIter != totalVariants["total"]["PASS"].acs.end(); acsIter++) {
-    novel = acsIter->second.novelTransitions + acsIter->second.novelTransversions;
-    known = acsIter->second.knownTransitions + acsIter->second.knownTransversions;
-    transitions = acsIter->second.novelTransitions + acsIter->second.knownTransitions;
-    transversions = acsIter->second.novelTransversions + acsIter->second.knownTransversions;
-
-    dbsnp = ( (known + novel) == 0 ) ? 0. : 100. * (double(known) / ( double(novel) + double(known)) );
-    tstv = (transversions == 0) ? 0 : double(transitions) / double(transversions);
-    novelTstv = (acsIter->second.novelTransversions == 0) ? 0 : double(acsIter->second.novelTransitions) / double(acsIter->second.novelTransversions);
-    knownTstv = (acsIter->second.knownTransversions == 0) ? 0 : double(acsIter->second.knownTransitions) / double(acsIter->second.knownTransversions);
-    *ofile.outputStream << setw(12) << acsIter->first;
-    *ofile.outputStream << setw(12) << novel + known;
-    *ofile.outputStream << setw(12) << acsIter->second.novelTransitions;
-    *ofile.outputStream << setw(12) << acsIter->second.novelTransversions;
-    *ofile.outputStream << setw(12) << acsIter->second.knownTransitions;
-    *ofile.outputStream << setw(12) << acsIter->second.knownTransversions;
-    *ofile.outputStream << setw(12) << setprecision(3) << dbsnp;
-    *ofile.outputStream << setw(8) << setprecision(3) << tstv;
-    *ofile.outputStream << setw(8) << setprecision(3) << novelTstv;
-    *ofile.outputStream << setw(8) << setprecision(3) << knownTstv;
-    *ofile.outputStream << endl;
-  }
-  *ofile.outputStream << endl;
+//  map<unsigned int, snpTypes>::iterator acsIter;
+//  unsigned int transitions, transversions, novel, known;
+//  double dbsnp, tstv, novelTstv, knownTstv;
+//
+//  *ofile.outputStream << "Statistics_by_allele_count:";
+//  *ofile.outputStream << endl;
+//  *ofile.outputStream << endl;
+//  *ofile.outputStream << setw(18) << "";
+//  *ofile.outputStream << setw(60) << "--------------------------#SNPs---------------------------";
+//  *ofile.outputStream << setw(10) << "";
+//  *ofile.outputStream << setw(24) << "-----ts/tv_ratio-----";
+//  *ofile.outputStream << endl;
+//  *ofile.outputStream << setw(16) << "allele_count";
+//  *ofile.outputStream << setw(12) << "total";
+//  *ofile.outputStream << setw(12) << "novel_ts";
+//  *ofile.outputStream << setw(12) << "novel_tv";
+//  *ofile.outputStream << setw(12) << "known_ts";
+//  *ofile.outputStream << setw(12) << "known_tv";
+//  *ofile.outputStream << setw(12) << "%dbsnp";
+//  *ofile.outputStream << setw(8) << "total";
+//  *ofile.outputStream << setw(8) << "novel";
+//  *ofile.outputStream << setw(8) << "known";
+//  *ofile.outputStream << endl;
+//  for (acsIter = totalVariants["total"]["PASS"].acs.begin(); acsIter != totalVariants["total"]["PASS"].acs.end(); acsIter++) {
+//    novel = acsIter->second.novelTransitions + acsIter->second.novelTransversions;
+//    known = acsIter->second.knownTransitions + acsIter->second.knownTransversions;
+//    transitions = acsIter->second.novelTransitions + acsIter->second.knownTransitions;
+//    transversions = acsIter->second.novelTransversions + acsIter->second.knownTransversions;
+//
+//    dbsnp = ( (known + novel) == 0 ) ? 0. : 100. * (double(known) / ( double(novel) + double(known)) );
+//    tstv = (transversions == 0) ? 0 : double(transitions) / double(transversions);
+//    novelTstv = (acsIter->second.novelTransversions == 0) ? 0 : double(acsIter->second.novelTransitions) / double(acsIter->second.novelTransversions);
+//    knownTstv = (acsIter->second.knownTransversions == 0) ? 0 : double(acsIter->second.knownTransitions) / double(acsIter->second.knownTransversions);
+//    *ofile.outputStream << setw(12) << acsIter->first;
+//    *ofile.outputStream << setw(12) << novel + known;
+//    *ofile.outputStream << setw(12) << acsIter->second.novelTransitions;
+//    *ofile.outputStream << setw(12) << acsIter->second.novelTransversions;
+//    *ofile.outputStream << setw(12) << acsIter->second.knownTransitions;
+//    *ofile.outputStream << setw(12) << acsIter->second.knownTransversions;
+//    *ofile.outputStream << setw(12) << setprecision(3) << dbsnp;
+//    *ofile.outputStream << setw(8) << setprecision(3) << tstv;
+//    *ofile.outputStream << setw(8) << setprecision(3) << novelTstv;
+//    *ofile.outputStream << setw(8) << setprecision(3) << knownTstv;
+//    *ofile.outputStream << endl;
+//  }
+//  *ofile.outputStream << endl;
 }
 
 // Print out allele frequency information.
 void statistics::printAfs(output& ofile) {
-  map<double, snpTypes>::iterator afsIter;
-  unsigned int transitions, transversions, novel, known;
-  double dbsnp, tstv, novelTstv, knownTstv;
-
-  *ofile.outputStream << "Statistics by allele frequency:";
-  *ofile.outputStream << endl;
-  *ofile.outputStream << endl;
-  *ofile.outputStream << setw(18) << "";
-  *ofile.outputStream << setw(60) << "--------------------------#SNPs---------------------------";
-  *ofile.outputStream << setw(10) << "";
-  *ofile.outputStream << setw(24) << "-----ts/tv_ratio-----";
-  *ofile.outputStream << endl;
-  *ofile.outputStream << setw(16) << "allele_frequency";
-  *ofile.outputStream << setw(12) << "total";
-  *ofile.outputStream << setw(12) << "novel_ts";
-  *ofile.outputStream << setw(12) << "novel_tv";
-  *ofile.outputStream << setw(12) << "known_ts";
-  *ofile.outputStream << setw(12) << "known_tv";
-  *ofile.outputStream << setw(12) << "%dbsnp";
-  *ofile.outputStream << setw(8) << "total";
-  *ofile.outputStream << setw(8) << "novel";
-  *ofile.outputStream << setw(8) << "known";
-  *ofile.outputStream << endl;
-  for (afsIter = totalVariants["total"]["PASS"].afs.begin(); afsIter != totalVariants["total"]["PASS"].afs.end(); afsIter++) {
-    novel = afsIter->second.novelTransitions + afsIter->second.novelTransversions;
-    known = afsIter->second.knownTransitions + afsIter->second.knownTransversions;
-    transitions = afsIter->second.novelTransitions + afsIter->second.knownTransitions;
-    transversions = afsIter->second.novelTransversions + afsIter->second.knownTransversions;
-
-    dbsnp = ( (known + novel) == 0 ) ? 0. : 100. * (double(known) / ( double(novel) + double(known)) );
-    tstv = (transversions == 0) ? 0 : double(transitions) / double(transversions);
-    novelTstv = (afsIter->second.novelTransversions == 0) ? 0 : double(afsIter->second.novelTransitions) / double(afsIter->second.novelTransversions);
-    knownTstv = (afsIter->second.knownTransversions == 0) ? 0 : double(afsIter->second.knownTransitions) / double(afsIter->second.knownTransversions);
-    *ofile.outputStream << setw(12) << afsIter->first;
-    *ofile.outputStream << setw(12) << novel + known;
-    *ofile.outputStream << setw(12) << afsIter->second.novelTransitions;
-    *ofile.outputStream << setw(12) << afsIter->second.novelTransversions;
-    *ofile.outputStream << setw(12) << afsIter->second.knownTransitions;
-    *ofile.outputStream << setw(12) << afsIter->second.knownTransversions;
-    *ofile.outputStream << setw(12) << setprecision(3) << dbsnp;
-    *ofile.outputStream << setw(8) << setprecision(3) << tstv;
-    *ofile.outputStream << setw(8) << setprecision(3) << novelTstv;
-    *ofile.outputStream << setw(8) << setprecision(3) << knownTstv;
-    *ofile.outputStream << endl;
-  }
-  *ofile.outputStream << endl;
+//  map<double, snpTypes>::iterator afsIter;
+//  unsigned int transitions, transversions, novel, known;
+//  double dbsnp, tstv, novelTstv, knownTstv;
+//
+//  *ofile.outputStream << "Statistics by allele frequency:";
+//  *ofile.outputStream << endl;
+//  *ofile.outputStream << endl;
+//  *ofile.outputStream << setw(18) << "";
+//  *ofile.outputStream << setw(60) << "--------------------------#SNPs---------------------------";
+//  *ofile.outputStream << setw(10) << "";
+//  *ofile.outputStream << setw(24) << "-----ts/tv_ratio-----";
+//  *ofile.outputStream << endl;
+//  *ofile.outputStream << setw(16) << "allele_frequency";
+//  *ofile.outputStream << setw(12) << "total";
+//  *ofile.outputStream << setw(12) << "novel_ts";
+//  *ofile.outputStream << setw(12) << "novel_tv";
+//  *ofile.outputStream << setw(12) << "known_ts";
+//  *ofile.outputStream << setw(12) << "known_tv";
+//  *ofile.outputStream << setw(12) << "%dbsnp";
+//  *ofile.outputStream << setw(8) << "total";
+//  *ofile.outputStream << setw(8) << "novel";
+//  *ofile.outputStream << setw(8) << "known";
+//  *ofile.outputStream << endl;
+//  for (afsIter = totalVariants["total"]["PASS"].afs.begin(); afsIter != totalVariants["total"]["PASS"].afs.end(); afsIter++) {
+//    novel = afsIter->second.novelTransitions + afsIter->second.novelTransversions;
+//    known = afsIter->second.knownTransitions + afsIter->second.knownTransversions;
+//    transitions = afsIter->second.novelTransitions + afsIter->second.knownTransitions;
+//    transversions = afsIter->second.novelTransversions + afsIter->second.knownTransversions;
+//
+//    dbsnp = ( (known + novel) == 0 ) ? 0. : 100. * (double(known) / ( double(novel) + double(known)) );
+//    tstv = (transversions == 0) ? 0 : double(transitions) / double(transversions);
+//    novelTstv = (afsIter->second.novelTransversions == 0) ? 0 : double(afsIter->second.novelTransitions) / double(afsIter->second.novelTransversions);
+//    knownTstv = (afsIter->second.knownTransversions == 0) ? 0 : double(afsIter->second.knownTransitions) / double(afsIter->second.knownTransversions);
+//    *ofile.outputStream << setw(12) << afsIter->first;
+//    *ofile.outputStream << setw(12) << novel + known;
+//    *ofile.outputStream << setw(12) << afsIter->second.novelTransitions;
+//    *ofile.outputStream << setw(12) << afsIter->second.novelTransversions;
+//    *ofile.outputStream << setw(12) << afsIter->second.knownTransitions;
+//    *ofile.outputStream << setw(12) << afsIter->second.knownTransversions;
+//    *ofile.outputStream << setw(12) << setprecision(3) << dbsnp;
+//    *ofile.outputStream << setw(8) << setprecision(3) << tstv;
+//    *ofile.outputStream << setw(8) << setprecision(3) << novelTstv;
+//    *ofile.outputStream << setw(8) << setprecision(3) << knownTstv;
+//    *ofile.outputStream << endl;
+//  }
+//  *ofile.outputStream << endl;
 }
 
 // Print out statistics on MNPs.
@@ -922,51 +948,121 @@ void statistics::printIndelStatistics(output& ofile) {
 }
 
 // Print out the sample level SNP statistics.
-void statistics::printSampleSnps(vcf& v, output& ofile) {
+void statistics::printSampleSnps(vcfHeader& header, vcf& v, output& ofile) {
   unsigned int totalTransitions = totalVariants["total"]["all"].novelTransitions + totalVariants["total"]["all"].knownTransitions;
   unsigned int totalTransversions = totalVariants["total"]["all"].novelTransversions + totalVariants["total"]["all"].knownTransversions;
   unsigned int totalSnps = totalTransitions + totalTransversions;
 
-  *ofile.outputStream << "SNP_statistics_by_sample:" << endl;
+  *ofile.outputStream << endl << "variant_statistics_by_sample:" << endl;
   *ofile.outputStream << endl;
-  printHeader(ofile, string("sample"), false, false);
-  *ofile.outputStream << setw(12) << "Hom_ref";
-  *ofile.outputStream << setw(12) << "Hets";
-  *ofile.outputStream << setw(12) << "Hom_Alt";
+  printHeader(ofile, string("sample"), false, false, true);
+
+  // SNPs
+  *ofile.outputStream << setw(12) << "hom_ref";
+  *ofile.outputStream << setw(12) << "het_ts";
+  *ofile.outputStream << setw(12) << "het_tv";
+  *ofile.outputStream << setw(12) << "hom_alt_ts";
+  *ofile.outputStream << setw(12) << "hom_alt_tv";
+
+  // MNPs.
+  *ofile.outputStream << setw(12) << "het";
+  *ofile.outputStream << setw(12) << "hom_alt";
+
+  // Insertions.
+  *ofile.outputStream << setw(12) << "het";
+  *ofile.outputStream << setw(12) << "hom_alt";
+
+  // Deletions.
+  *ofile.outputStream << setw(12) << "het";
+  *ofile.outputStream << setw(12) << "hom_alt";
+
+  // Complex variants.
+  *ofile.outputStream << setw(12) << "het";
+  *ofile.outputStream << setw(12) << "hom_alt";
+
+  // Unknown genotypes.
   *ofile.outputStream << setw(12) << "Unknown";
-  *ofile.outputStream << setw(12) << "Singletons";
-  *ofile.outputStream << setw(12) << "Depth";
-  *ofile.outputStream << setw(12) << "Alt_depth";
+  //*ofile.outputStream << setw(12) << "Singletons";
+  //*ofile.outputStream << setw(12) << "Depth";
+  //*ofile.outputStream << setw(12) << "Alt_depth";
   *ofile.outputStream << endl;
-  for (vector<string>::iterator sample = v.samples.begin(); sample != v.samples.end(); sample++) {
-    int novel         = sampleSnps[*sample].novelTransitions + sampleSnps[*sample].novelTransversions;
-    int known         = sampleSnps[*sample].knownTransitions + sampleSnps[*sample].knownTransversions;
-    int transitions   = sampleSnps[*sample].novelTransitions + sampleSnps[*sample].knownTransitions;
-    int transversions = sampleSnps[*sample].novelTransversions + sampleSnps[*sample].knownTransversions;
-    int totalSnp      = novel + known;
-    double depth      = (totalSnp == 0) ? 0. : double(sampleSnps[*sample].totalDepth) / double(totalSnps);
-    double altDepth   = (totalSnp == 0) ? 0. : double(sampleSnps[*sample].totalAltDepth) / double(totalSnp);
+  for (vector<string>::iterator sample = header.samples.begin(); sample != header.samples.end(); sample++) {
+
+    // Calculate transition/transversion ratios etc for each sample.
+    unsigned int aminations    = sampleLevelStats[*sample].novelAminations + sampleLevelStats[*sample].knownAminations;
+    unsigned int deaminations  = sampleLevelStats[*sample].novelDeaminations + sampleLevelStats[*sample].knownDeaminations;
+    unsigned int novelAm       = sampleLevelStats[*sample].novelAminations;
+    unsigned int novelDe       = sampleLevelStats[*sample].novelDeaminations;
+    unsigned int novelTs       = sampleLevelStats[*sample].novelHomTransitions + sampleLevelStats[*sample].novelHetTransitions;
+    unsigned int novelTv       = sampleLevelStats[*sample].novelHomTransversions + sampleLevelStats[*sample].novelHetTransversions;
+    unsigned int knownAm       = sampleLevelStats[*sample].knownAminations;
+    unsigned int knownDe       = sampleLevelStats[*sample].knownDeaminations;
+    unsigned int knownTs       = sampleLevelStats[*sample].knownHomTransitions + sampleLevelStats[*sample].knownHetTransitions;
+    unsigned int knownTv       = sampleLevelStats[*sample].knownHomTransversions + sampleLevelStats[*sample].knownHetTransversions;
+    unsigned int known         = knownTs + knownTv;
+    unsigned int novel         = novelTs + novelTv;
+    unsigned int transitions   = novelTs + knownTs;
+    unsigned int transversions = novelTv + knownTv;
+    unsigned int totalSnp      = transitions + transversions;
+    //double depth      = (totalSnp == 0) ? 0. : double(sampleLevelStats[*sample].totalDepth) / double(totalSnps);
+    //double altDepth   = (totalSnp == 0) ? 0. : double(sampleLevelStats[*sample].totalAltDepth) / double(totalSnp);
+    double deam       = (aminations == 0) ? 0. : (double(aminations) / double(deaminations));
     double dbsnp      = (totalSnp == 0) ? 0. : (100. * double(known) / double(totalSnp));
     double tstv       = (transversions == 0) ? 0. : (double(transitions) / double(transversions));
-    double noveltstv  = (sampleSnps[*sample].novelTransversions == 0) ? 0. : (double(sampleSnps[*sample].novelTransitions) / double(sampleSnps[*sample].novelTransversions));
-    double knowntstv  = (sampleSnps[*sample].knownTransversions == 0) ? 0. : (double(sampleSnps[*sample].knownTransitions) / double(sampleSnps[*sample].knownTransversions));    
+    double noveldeam  = (novelAm == 0) ? 0. : (double(novelAm) / double(novelDe));
+    double noveltstv  = (novelTv == 0) ? 0. : (double(novelTs) / double(novelTv));
+    double knowndeam  = (knownAm == 0) ? 0. : (double(knownAm) / double(knownDe));
+    double knowntstv  = (knownTv == 0) ? 0. : (double(knownTs) / double(knownTv));
+
+    // Write out to the output stream.
+    // Sample name.
     *ofile.outputStream << setw(22) << *sample;
+
+    // Overall SNP statistics.
     *ofile.outputStream << setw(12) << setprecision(10) << totalSnp;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].novelTransitions,
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].novelTransversions;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].knownTransitions;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].knownTransversions;
+    *ofile.outputStream << setw(12) << novelTs;
+    *ofile.outputStream << setw(12) << novelTv;
+    *ofile.outputStream << setw(12) << knownTs;
+    *ofile.outputStream << setw(12) << knownTv;
+    *ofile.outputStream << setw(12) << aminations;
+    *ofile.outputStream << setw(12) << deaminations;
     *ofile.outputStream << setw(12) << setprecision(3) << dbsnp;
     *ofile.outputStream << setw(8) << setprecision(3) << tstv;
     *ofile.outputStream << setw(8) << setprecision(3) << noveltstv;
     *ofile.outputStream << setw(8) << setprecision(3) << knowntstv;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].homRef;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].het;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].homAlt;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].unknown;
-    *ofile.outputStream << setw(12) << sampleSnps[*sample].singletons;
-    *ofile.outputStream << setw(12) << setprecision(3) << depth;
-    *ofile.outputStream << setw(12) << setprecision(3) << altDepth;
+    *ofile.outputStream << setw(8) << setprecision(3) << deam;
+    *ofile.outputStream << setw(8) << setprecision(3) << noveldeam;
+    *ofile.outputStream << setw(8) << setprecision(3) << knowndeam;
+
+    // SNP genotype information.
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].homRef;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].knownHetTransitions + sampleLevelStats[*sample].novelHetTransitions;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].knownHetTransversions + sampleLevelStats[*sample].novelHetTransversions;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].knownHomTransitions + sampleLevelStats[*sample].novelHomTransitions;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].knownHomTransversions + sampleLevelStats[*sample].novelHomTransversions;
+
+    // MNPs.
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].hetMnps;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].homMnps;
+
+    // Insertions.
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].hetInsertions;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].homInsertions;
+
+    // Deletions.
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].hetDeletions;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].homDeletions;
+
+    // Complex variants.
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].hetComplex;
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].homComplex;
+
+    // Unknown genotypes (these contain at least one '.').
+    *ofile.outputStream << setw(12) << sampleLevelStats[*sample].unknown;
+//    *ofile.outputStream << setw(12) << sampleSnps[*sample].unknown;
+//    *ofile.outputStream << setw(12) << sampleSnps[*sample].singletons;
+//    *ofile.outputStream << setw(12) << setprecision(3) << depth;
+//    *ofile.outputStream << setw(12) << setprecision(3) << altDepth;
     *ofile.outputStream << endl;
   }
   *ofile.outputStream << endl;

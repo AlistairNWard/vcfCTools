@@ -270,27 +270,31 @@ int intersectTool::Run(int argc, char* argv[]) {
   // If intersection is between a vcf file and a bed file, create a vcf and a bed object
   // and intersect.
   if (bedFile != "") {
-    vcf v; // Create a vcf object.
-    variant var; // Create a variant object.
+
+    // Create a vcf object.
+    vcf v;
+    v.openVcf(vcfFiles[0]);
+
+    // Create a variant object.
+    variant var;
     var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
 
     bed b; // Create a bed object.
     bedStructure bs; // Create a bed structure.
-
-    v.openVcf(vcfFiles[0]);
     b.openBed(bedFile);
 
-    // Parse the headers.
-    v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
+    // Define the header object and parse the headers.
+    vcfHeader header;
+    header.parseHeader(v.input);
 
     b.parseHeader();
 
     // Write the header to the output file.
     string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
-    writeHeader(ofile.outputStream, v, false, taskDescription);
+    header.writeHeader(ofile.outputStream, false, taskDescription);
 
     // Intersect the files.
-    ints.intersectVcfBed(v, var, b, bs, ofile);
+    ints.intersectVcfBed(header, v, var, b, bs, ofile);
 
     // Check that the input files had the same list of reference sequences.
     // If not, it is possible that there were some problems.
@@ -323,34 +327,43 @@ int intersectTool::Run(int argc, char* argv[]) {
 
   // Intersection of two vcf files.
   } else {
-    vcf v1; // Create a vcf object.
-    variant var1; // Create a variant object.
+
+    // Create a vcf object.
+    vcf v1;
+    v1.openVcf(vcfFiles[0]);
+    
+    // Create a variant object.
+    variant var1;
     var1.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
 
-    vcf v2; // Create a vcf object.
-    variant var2;
-    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
-    
-    // Open the vcf files.
-    v1.openVcf(vcfFiles[0]);
+
+    // Create a second vcf object.
+    vcf v2;
     v2.openVcf(vcfFiles[1]);
 
-    // Read in the header information.
-    v1.parseHeader(var1.headerInfoFields, var1.headerFormatFields, var1.samples);
-    v2.parseHeader(var2.headerInfoFields, var2.headerFormatFields, var2.samples);
+    // Create a second variant object.
+    variant var2;
+    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
+
+    // Define the header objects and parse the header information.
+    vcfHeader header1;
+    header1.parseHeader(v1.input);
+
+    vcfHeader header2;
+    header2.parseHeader(v2.input);
 
     // Check that the header for the two files contain the same samples.
-    if (v1.samples != v2.samples) {
-      cerr << "vcf files contain different samples (or sample order)." << endl;
-      exit(1);
-    } else {
+    //if (v1.samples != v2.samples) {
+    //  cerr << "vcf files contain different samples (or sample order)." << endl;
+    //  exit(1);
+    //} else {
       string taskDescription = "##vcfCTools=intersect " + vcfFiles[0] + ", " + vcfFiles[1];
-      if (ints.flags.writeFromFirst) {writeHeader(ofile.outputStream, v1, false, taskDescription);} // tools.cpp
-      else {writeHeader(ofile.outputStream, v2, false, taskDescription);} // tools.cpp
-    }
+      if (ints.flags.writeFromFirst) {header1.writeHeader(ofile.outputStream, false, taskDescription);}
+      else {header2.writeHeader(ofile.outputStream, false, taskDescription);}
+    //}
 
     // Intersect the two vcf files.
-    ints.intersectVcf(v1, var1, v2, var2, ofile);
+    ints.intersectVcf(header1, header2, v1, var1, v2, var2, ofile);
 
     // Check that the input files had the same list of reference sequences.
     // If not, it is possible that there were some problems.

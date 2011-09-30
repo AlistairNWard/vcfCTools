@@ -31,7 +31,5 @@ using namespace std;
 using namespace vcfCTools;
 
 unsigned int fact(unsigned int&);
-unsigned int setVcfPriority(string&, vector<string>&);
-void writeHeader(ostream*, vcf&, bool, string&);
 
 #endif

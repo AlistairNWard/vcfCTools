@@ -271,6 +271,7 @@ void variant::clearType(variantType& type) {
   type.isMnp            = false;    
   type.isInsertion      = false;    
   type.isDeletion       = false;    
+  type.isComplex        = false;
 }
 
 // Determine the variant class from the ref and alt alleles.
@@ -381,6 +382,9 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
     // Remaining variants are in the complex class.
     } else {
       type.isComplex = true;
+      mod.type = type;
+      //mod.extendAlleles();
+      //mod.alignAlleles();
       updateVariantMaps(alt, type, mod.modifiedRef, mod.modifiedAlt, mod.modifiedPosition, refSeq, ov);
       if (storeReducedAlts) {variantMap[mod.modifiedPosition].complexVariants.push_back(rVar);}
     }
@@ -403,12 +407,12 @@ void variant::updateVariantMaps(string alt, variantType type, string alRef, stri
 
 // Loop over all variants contained in the originalVariantsMap and send them to
 // the output.
-void variant::clearOriginalVariants(intFlags& flags, output& ofile, bool write) {
+void variant::clearOriginalVariants(vcfHeader& header, intFlags& flags, output& ofile, bool write) {
   while (originalVariantsMap.size() != 0)  {
 
     // If this is the second vcf file and an annotation task is being performed,
     // do not send these records to the output.
-    if (write || flags.findUnion) {buildOutputRecord(ofile);}
+    if (write || flags.findUnion) {buildOutputRecord(ofile, header);}
     originalVariantsMap.erase(ovmIter);
     if (originalVariantsMap.size() != 0) {ovmIter = originalVariantsMap.begin();}
   }
@@ -421,7 +425,7 @@ void variant::clearOriginalVariants(intFlags& flags, output& ofile, bool write) 
 //
 // Only the originalVariantsMap is used for building output records,
 // so the variantMap can be kept clear at all times.
-void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output& ofile, bool write) {
+void variant::clearReferenceSequence(vcfHeader& header, vcf& v, intFlags flags, string cRef, output& ofile, bool write) {
   while (originalVariantsMap.size() != 0) {
 
     // Since the vcf file to compare with has been exhausted, all of
@@ -437,7 +441,7 @@ void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output
 
     // Build the output record, removing unwanted alleles and modifying the
     // genotypes if necessary and send to the output buffer.
-    if (write || flags.findUnion) {buildOutputRecord(ofile);}
+    if (write || flags.findUnion) {buildOutputRecord(ofile, header);}
 
     // Erase the entries from the maps.
     originalVariantsMap.erase(ovmIter);
@@ -455,7 +459,7 @@ void variant::clearReferenceSequence(vcf& v, intFlags flags, string cRef, output
 // If a vcf file is being intersected with a bed file and all of the
 // bed intervals have been processed, flush out the remaining variants
 // in the data structure for this reference sequence.
-void variant::clearReferenceSequenceBed(vcf& v, intFlags flags, string cRef, output& ofile) {
+void variant::clearReferenceSequenceBed(vcfHeader& header, vcf& v, intFlags flags, string cRef, output& ofile) {
   while (originalVariantsMap.size() != 0) {
     if (flags.annotate) {}
 
@@ -470,7 +474,7 @@ void variant::clearReferenceSequenceBed(vcf& v, intFlags flags, string cRef, out
 
     // Build the output record, removing unwanted alleles and modifying the
     // genotypes if necessary and send to the output buffer.
-    buildOutputRecord(ofile);
+    buildOutputRecord(ofile, header);
 
     // Erase the entries from the maps.
     originalVariantsMap.erase(ovmIter);
@@ -551,35 +555,49 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
   vector<reducedVariants>::iterator iter;
   vector<reducedVariants>::iterator compIter;
 
-  if (alleles1.size() != 0) {
-    iter  = alleles1.begin();
-    aIter = commonA.begin();
-    for (; iter != alleles1.end(); iter++) {
-      if (alleles2.size() != 0) {
-        compIter = alleles2.begin();
-        bIter    = commonB.begin();
-        for (; compIter != alleles2.end(); compIter++) {
-
-          // If the two files share the alleles, keep them only if the common
-          // alleles (or union) is required.
-          if (iter->alt == compIter->alt && iter->ref == compIter->ref || flags.sitesOnly) {
-            if (flags.annotate) {
-              if (var.isDbsnp) {
-                rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;
-                infoAdd = "dbSNP";
+  // If it is only necessary for the alleles to share the same starting location,
+  // there is no need to loop over the alleles.  All alleles at this location
+  // are for the same variant class and so shouldn't be filtered out.  If only
+  // one of the files has variants of this type at this location, filter out
+  // all the alleles.
+  if (flags.sitesOnly) {
+    if (alleles1.size() != 0 && alleles2.size() != 0) {
+      aIter = commonA.begin();
+      bIter = commonB.begin();
+      for (; aIter != commonA.end(); aIter++) {*aIter = true;}
+      for (; bIter != commonB.end(); bIter++) {*bIter = true;}
+    }
+  } else {
+    if (alleles1.size() != 0) {
+      iter  = alleles1.begin();
+      aIter = commonA.begin();
+      for (; iter != alleles1.end(); iter++) {
+        if (alleles2.size() != 0) {
+          compIter = alleles2.begin();
+          bIter    = commonB.begin();
+          for (; compIter != alleles2.end(); compIter++) {
+  
+            // If the two files share the alleles, keep them only if the common
+            // alleles (or union) is required.
+            if (iter->alt == compIter->alt && iter->ref == compIter->ref) {
+              if (flags.annotate) {
+                if (var.isDbsnp) {
+                  rsid = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].rsid;
+                  infoAdd = "dbSNP";
+                }
+                else {
+                  infoAdd = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].filters;
+                }
               }
-              else {
-                infoAdd = var.originalVariantsMap[compIter->originalPosition][compIter->recordNumber - 1].filters;
-              }
+              *aIter = true;
+              *bIter = true;
+              break;
             }
-            *aIter = true;
-            *bIter = true;
-            break;
+            bIter++;
           }
-          bIter++;
         }
+        aIter++;
       }
-      aIter++;
     }
   }
 
@@ -693,7 +711,7 @@ void variant::filterUnique() {
 // Build up the output record.  Depending on preceding actions this may require
 // breaking up the genotypes and info string.  Also, if the locus had multiple
 // records in the input vcf, output the same multiple records.
-void variant::buildOutputRecord(output& ofile) {
+void variant::buildOutputRecord(output& ofile, vcfHeader& header) {
   bool hasAltAlleles;
   bool removedAllele;
   int alleleID;
@@ -793,8 +811,8 @@ void variant::buildOutputRecord(output& ofile) {
       // If alt alleles have been removed, the info field needs to be modified
       // so that the fields with a value per alternate have the correct number
       // of entries.
-      variantInfo info(ovIter->info, headerInfoFields);
-      if (removedAllele) {info.modifyInfo(modifiedAlleles);}
+      variantInfo info(ovIter->info);
+      if (removedAllele) {info.modifyInfo(modifiedAlleles, header);}
 
       // In constructing the alt allele string, a comma is added after every
       // alt, so the last character (the trailing comma) needs to be removed.
@@ -813,13 +831,13 @@ void variant::buildOutputRecord(output& ofile) {
       // Now, if genotypes exist, modify them if necessary and then add
       // to the record.
       if (ovIter->hasGenotypes && !removeGenotypes) {
-        genotypeInfo gen(ovIter->genotypeFormat, ovIter->genotypes, headerFormatFields);
+        genotypeInfo gen(ovIter->genotypeFormat, ovIter->genotypes);
 
         // If there are multiple alleles at this locus and some of them
         // are being removed/filtered out, the sample genotypes need to be
         // modified to be consistent with the number of alternate alleles
         // being output.
-        if (removedAllele) {gen.modifyGenotypes(modifiedAlleles);}
+        if (removedAllele) {gen.modifyGenotypes(header, modifiedAlleles);}
         ofile.outputRecord += "	" + gen.genotypeFormat + "	" + gen.genotypeString;
       }
 

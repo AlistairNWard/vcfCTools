@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 
+#include "header.h"
 #include "info.h"
 #include "tools.h"
 #include "variant.h"

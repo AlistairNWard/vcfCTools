@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 
+#include "header.h"
 #include "output.h"
 #include "stats.h"
 #include "tools.h"
@@ -54,7 +55,7 @@ class statsTool : public AbstractTool {
     bool processIndels;
     bool processMnps;
     bool processSnps;
-    bool sampleSnps;
+    bool generateSampleStats;
     bool splitMnps;
     bool useAnnotations;
 };

@@ -210,17 +210,21 @@ int annotateTool::Run(int argc, char* argv[]) {
   output ofile;
   ofile.outputStream = ofile.openOutputFile(outputFile);
 
-  vcf v; // Define vcf object.
-  variant var; // Define variant object.
+  // Define the vcf object.
+  vcf v;
+  v.openVcf(vcfFile);
+
+  // Define the variant object.
+  variant var;
   var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
 
   intersect ints; // Define an intersection object.
   ints.setBooleanFlags(true, false, false, sitesOnly, true, whollyWithin);  // Set the flags required for performing intersections.
   ints.flags.writeFromFirst = true;
 
-  // Open the vcf file and parse the header.
-  v.openVcf(vcfFile);
-  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
+  // Define the header object and read in the header information.
+  vcfHeader header;
+  header.parseHeader(v.input);
 
   // Add an extra line to the vcf header to indicate the file used for
   // performing dbsnp annotation.
@@ -228,8 +232,8 @@ int annotateTool::Run(int argc, char* argv[]) {
 
   if (annotateDbsnp || annotateVcf) {
     if (annotateDbsnp) {
-      v.headerInfoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
-      v.headerInfoLine["dbSNP"] += " with common alleles.\">";
+      header.infoLine["dbSNP"] = "##INFO=<ID=dbSNP,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
+      header.infoLine["dbSNP"] += " with common alleles.\">";
       //v.headerInfoLine["dbSNPX"] = "##INFO=<ID=dbSNPX,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
       //v.headerInfoLine["dbSNPX"] += " with different alleles.\">";
       //v.headerInfoLine["dbSNPM"] = "##INFO=<ID=dbSNPM,Number=0,Type=Flag,Description=\"Membership in dbSNP file " + annVcfFile;
@@ -237,21 +241,24 @@ int annotateTool::Run(int argc, char* argv[]) {
       taskDescription += "vcf file " + annVcfFile;
     }
     taskDescription += "vcf file " + annVcfFile;
-    writeHeader(ofile.outputStream, v, false, taskDescription); // tools.cpp
+    header.writeHeader(ofile.outputStream, false, taskDescription);
 
     // Either a vcf file, a dbsnp vcf file or a bed file can be provided for
     // annotation.  To annotate from multiple files, piping should be used.
     vcf annVcf; // Define a vcf object.
+    annVcf.openVcf(annVcfFile);
+
+    // Define a variant object
     variant annVar; // Define a variant object
     annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
 
-    // Open the vcf file and parse the header.
-    annVcf.openVcf(annVcfFile);
-    annVcf.parseHeader(annVar.headerInfoFields, annVar.headerFormatFields, annVar.samples);
+    // Define a header object and parse the header of the annotation vcf file.
+    vcfHeader annHeader;
+    annHeader.parseHeader(annVcf.input);
     if (annotateDbsnp) {annVar.isDbsnp = true;}
 
     // Perform the annotation by intersecting the two vcf files.
-    ints.intersectVcf(v, var, annVcf, annVar, ofile);
+    ints.intersectVcf(header, annHeader, v, var, annVcf, annVar, ofile);
 
     // Check that the input files had the same list of reference sequences.
     // If not, it is possible that there were some problems.
@@ -264,7 +271,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
   if (annotateBed) {
     taskDescription += "bed file " + bedFile;
-    writeHeader(ofile.outputStream, v, false, taskDescription); // tools.cpp
+    header.writeHeader(ofile.outputStream, false, taskDescription);
 
     bed b; // Define a bed object.
     bedStructure bs; // Define a bed structure object.
@@ -274,7 +281,7 @@ int annotateTool::Run(int argc, char* argv[]) {
     b.parseHeader();
 
     // Perform the annotation by intersecting the vcf file with the bed file.
-    ints.intersectVcfBed(v, var, b, bs, ofile);
+    ints.intersectVcfBed(header, v, var, b, bs, ofile);
 
     //checkReferenceSequences(v.referenceSequenceVector, b.referenceSequenceVector);} // tools.cpp
     // Close the vcf and bed files.

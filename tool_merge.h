@@ -11,6 +11,7 @@
 #ifndef TOOL_MERGE_H
 #define TOOL_MERGE_H
 
+#include "header.h"
 #include "output.h"
 #include "tools.h"
 #include "variant.h"

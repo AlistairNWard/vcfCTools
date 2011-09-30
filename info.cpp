@@ -14,9 +14,8 @@ using namespace std;
 using namespace vcfCTools;
 
 // Constructor
-variantInfo::variantInfo(string& info, map<string, headerInfoStruct>& header) {
+variantInfo::variantInfo(string& info) {
   infoString = info;
-  headerInfo = header;
 };
 
 // Destructor.
@@ -24,10 +23,10 @@ variantInfo::~variantInfo(void) {};
 
 // If alleles have been removed, modify the info field so that all
 // fields have the correct number of entries.
-void variantInfo::modifyInfo(vector<int>& alleleIDs) {
+void variantInfo::modifyInfo(vector<int>& alleleIDs, vcfHeader& header) {
   string modifiedInfo = "";
 
-  retrieveFields();
+  retrieveFields(header);
 
   // Loop through each of the info fields and check for any fields that should
   // contain values corresponding to the different alternate alleles.
@@ -64,7 +63,7 @@ void variantInfo::modifyInfo(vector<int>& alleleIDs) {
 
 // Split the info string into its components and populate the arrays
 // to store the information.
-void variantInfo::retrieveFields() {
+void variantInfo::retrieveFields(vcfHeader& header) {
   string tag;
   vector<string> infoArray = split(infoString, ";");
   vector<string>::iterator infoIter = infoArray.begin();
@@ -77,13 +76,13 @@ void variantInfo::retrieveFields() {
 
     // In order to process the info field, the header information is
     // required.  If this does not exist, terminate the program.
-    if (headerInfo.count(tag) == 0) {
+    if (header.infoFields.count(tag) == 0) {
       cerr << "ERROR: No header description for info tag: " << tag << endl;
       exit(1);
     }
 
-    info.number = headerInfo[tag].number;
-    info.type   = headerInfo[tag].type;
+    info.number = header.infoFields[tag].number;
+    info.type   = header.infoFields[tag].type;
     if (fields.size() > 1) {
       info.values        = split(fields[1], ",");
       info.numberValues  = info.values.size();
@@ -98,11 +97,11 @@ void variantInfo::retrieveFields() {
 // Parse through the entire info string and ensure that all entries have an
 // explanation in the header and that the number and entry types are
 // consistent with this header information.
-void variantInfo::validateInfo(string& referenceSequence, int& position, unsigned int& noAlts, bool& error) {
+void variantInfo::validateInfo(vcfHeader& header, string& referenceSequence, int& position, unsigned int& noAlts, bool& error) {
   int integerValue;
 
   // Split the info field into its constituent parts.
-  retrieveFields();
+  retrieveFields(header);
   for (infoIter = infoFields.begin(); infoIter != infoFields.end(); infoIter++) {
 
     // If the info number = A, there should be as many values as there are

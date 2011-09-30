@@ -23,9 +23,6 @@ using namespace vcfCTools;
 
 // Constructor
 modifyAlleles::modifyAlleles(string& refSeq, int pos, string ref, string alt) {
-  aligned              = false;
-  leftAligned          = false;
-  maxAllowedAlignments = 5;
   originalPosition     = pos;
   originalRef          = ref;
   originalAlt          = alt;
@@ -72,67 +69,38 @@ void modifyAlleles::trim() {
 // Extend the reference and alternate alleles using both the reference sequence
 // and a string of Z's.
 void modifyAlleles::extendAlleles() {
+  string anchor;
 
-  // Set the boolean flag aligned to false.  Only after the alignment process
-  // has finished and a left aligned variant has been found is this set to 
-  // true.  It is possible that multiple Smith-Waterman calls will be made as
-  // it may be necessary to extend the flanking sequences to fully left-align
-  // an indel.
-  aligned          = false;
-  numberAlignments = 0;
-
-  // Set the variant type variable equal to that carried to the
-  // routine from the variant class.
-  unsigned int variantLength;
-
-  // Determine the length of the flanks to add to the alleles.
-  //
-  // SNPs.
-  if (type.isBiallelicSnp || type.isTriallelicSnp || type.isQuadallelicSnp) {
-
-  // MNPs.
-  } else if (type.isMnp) {
-
-  // Insertions/Deletions.
-  } else if (type.isInsertion) {
-     variantLength = workingAlt.size() - 1;
-     flankLength = (variantLength < 5) ? variantLength * 5 : variantLength * 2;
-
-  // Deletions.
-  } else if (type.isDeletion) {
-     variantLength = workingRef.size() - 1;
-     flankLength = (variantLength < 5) ? variantLength * 5 : variantLength * 2;
-
-  // Complex variants.
-  } else if (type.isComplex) {
-  }
+  anchor.assign(50, 'Z');
+  flankLength   = 50;
   getFlankingReference();
 
   // Build the alleles to align.
-  workingRef = "ZZZZZZZZZZZZZZZ" + flankFront + modifiedRef + flankEnd + "ZZZZZZZZZZZZZZZ";
-  workingAlt = "ZZZZZZZZZZZZZZZ" + flankFront + modifiedAlt + flankEnd + "ZZZZZZZZZZZZZZZ";
+  workingRef = anchor + flankFront + modifiedRef + flankEnd + anchor;
+  workingAlt = anchor + flankFront + modifiedAlt + flankEnd + anchor;
 }
 
 // Align the alleles to each other.
 void modifyAlleles::alignAlleles() {
 
-  while (!aligned) {
+  // Align the alleles to each other.
+  smithWaterman();
 
-    // Align the alleles to each other.
-    smithWaterman();
+  // Generate the CIGAR string separating matches and mismatches.
+  generateCigar();
+  cerr << modifiedRef << endl << modifiedAlt << endl << endl;
+  cerr << workingRef << endl << workingAlt << endl << endl;
+  cerr << cigar << endl;
+  exit(0);
 
-    // Generate the CIGAR string separating matches and mismatches.
-    generateCigar();
+  // The variant type is known, so check that the CIGAR contains the expected
+  // values.
+  //checkAlignment();
 
-    // The variant type is known, so check that the CIGAR contains the expected
-    // values.
-    checkAlignment();
-
-    // Determine if the allele is fully left aligned and realign if not.  Find
-    // the genomic coordinate of the new alleles.
-    //processAlignment();
-    leftAlign();
-  }
+  // Determine if the allele is fully left aligned and realign if not.  Find
+  // the genomic coordinate of the new alleles.
+  //processAlignment();
+  //leftAlign();
 }
 
 // Use fastahack to find the reference flanking the ref allele.
@@ -421,81 +389,6 @@ void modifyAlleles::leftAlign() {
       len = 0;
       slen += *c;
       break;
-    }
-  }
-}
-
-// After aligning the alleles to each other remove the flanks and
-// interrogate the resulting alignment.
-void modifyAlleles::processAlignment() {
-  unsigned int start;
-  string startingNumber = "";
-
-  // Find the first entry in the CIGAR string.
-  string::iterator cigarIter = cigar.begin();
-  for (; cigarIter != cigar.end(); cigarIter++) {
-
-    // If the CIGAR string begins with matches, determine the left aligned
-    // ref and alt alleles and the starting position.
-    if (*cigarIter == MATCH) {
-      start = atoi(startingNumber.c_str());
-
-      // If start equals 1, then this means that the CIGAR string is of the
-      // form 1=9D, for a deletion example.  Since there was flanking
-      // sequence added to the alleles, this means that the alleles have
-      // been left aligned all the way to the beginning of the new alleles.
-      // It is thus possible that if the flanking sequence was longer, the
-      // alleles could be further left aligned.  Thus do not mark the
-      // alignment as complete and increase the size of the flanks.
-      if (start == 1) {
-        updateWorkingAlleles();
-      } else {
-        aligned = true;
-
-        // Determine the starting coordinate of the modified alleles.
-        workingPosition = modifiedPosition - flankLength + start - 1;
-        if (workingPosition != modifiedPosition) {
-          leftAligned = true;
-          modifiedPosition = workingPosition;
-        }
-  
-        // Trim off all but one of the matching bases at the start of the
-        // alleles.
-        workingRef = workingRef.substr(start - 1, workingRef.length() - start + 1);
-        workingAlt = workingAlt.substr(start - 1, workingAlt.length() - start + 1);
-  
-        // Now trim of all the bases after the end of the alleles.  This
-        // depends on the type of variant observed.  This marks the end
-        // of the alignment and so put the results into the modifiedRef
-        // and modifiedAlt alleles.
-        if (type.isBiallelicSnp || type.isTriallelicSnp || type.isQuadallelicSnp) {
-        } else if (type.isMnp) {
-        } else if (type.isInsertion) {
-          modifiedRef = workingRef.substr(0, 1);
-          modifiedAlt = workingAlt.substr(0, numberInsertion + 1);
-        } else if (type.isDeletion) {
-          modifiedRef = workingRef.substr(0, numberDeletion + 1);
-          modifiedAlt = workingAlt.substr(0, 1);
-        } else if (type.isComplex) {
-        }
-      }
-
-      break;
-    } else if (*cigarIter == MISMATCH) {
-      break;
-    } else if (*cigarIter == INSERTION) {
-      break;
-
-    // If the variant is a deletion (any other class of variant would have failed
-    // the checkAlignment if it contained a deletion) and the first entry in the
-    // CIGAR is a deletion, then the alleles can be further left aligned.  Update
-    // the working alleles and continue the alignment.
-    } else if (*cigarIter == DELETION) {
-      updateWorkingAlleles();
-      break;
-
-    } else {
-      startingNumber += *cigarIter;
     }
   }
 }

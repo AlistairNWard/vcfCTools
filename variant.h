@@ -24,6 +24,7 @@
 #include "bedStructure.h"
 #include "Fasta.h"
 #include "genotype_info.h"
+#include "header.h"
 #include "info.h"
 #include "modify_alleles.h"
 #include "output.h"
@@ -131,11 +132,11 @@ class variant {
     void addVariantToStructure(int, variantDescription&);
     void annotateRecordBed(bedRecord&);
     void annotateRecordVcf(int, unsigned int, bool, string&, string&);
-    void buildOutputRecord(output&);
+    void buildOutputRecord(output&, vcfHeader&);
     bool buildVariantStructure(vcf&);
-    void clearOriginalVariants(intFlags&, output&, bool);
-    void clearReferenceSequence(vcf&, intFlags, string, output&, bool);
-    void clearReferenceSequenceBed(vcf&, intFlags, string, output&);
+    void clearOriginalVariants(vcfHeader&, intFlags&, output&, bool);
+    void clearReferenceSequence(vcfHeader&, vcf&, intFlags, string, output&, bool);
+    void clearReferenceSequenceBed(vcfHeader&, vcf&, intFlags, string, output&);
     void clearType(variantType&);
     void compareVariantsSameLocus(variant&, intFlags);
     void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags, variant&);
@@ -162,10 +163,6 @@ class variant {
     map<int, vector<originalVariants> > originalVariantsMap;
     map<int, vector<originalVariants> >::iterator ovmIter;
     vector<originalVariants>::iterator ovIter;
-
-    // Header information.
-    map<string, headerInfoStruct> headerInfoFields;
-    map<string, headerInfoStruct> headerFormatFields;
 
     // Samples information.
     vector<string> samples;

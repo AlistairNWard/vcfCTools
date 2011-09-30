@@ -14,6 +14,7 @@
 #ifndef TOOL_FILTER_H
 #define TOOL_FILTER_H
 
+#include "header.h"
 #include "info.h"
 #include "output.h"
 #include "samples.h"
@@ -38,7 +39,7 @@ class filterTool : public AbstractTool {
     int Help(void);
     int Run(int argc, char* argv[]);
     int parseCommandLine(int argc, char* argv[]);
-    vector<string> checkInfoFields(vcf&, string&);
+    vector<string> checkInfoFields(vcfHeader&, vcf&, string&);
     void filter(variant&);
     void performFilter(vcf&, int, variantDescription&);
 

@@ -15,6 +15,7 @@
 
 #include "bed.h"
 #include "bedStructure.h"
+#include "header.h"
 #include "intersect.h"
 #include "tools.h"
 #include "variant.h"

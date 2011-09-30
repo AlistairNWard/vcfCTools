@@ -268,7 +268,7 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
 
 // Check if info tags appear in the header and build a list
 // of info flags.
-vector<string> filterTool::checkInfoFields(vcf& v, string& infoString) {
+vector<string> filterTool::checkInfoFields(vcfHeader& header, vcf& v, string& infoString) {
   vector<string> infoList;
 
   size_t found = infoString.find(",");
@@ -276,7 +276,7 @@ vector<string> filterTool::checkInfoFields(vcf& v, string& infoString) {
   if (found == string::npos) {infoList.push_back(infoString);}
   else {infoList = split(infoString, ",");}
   for (vector<string>::iterator iter = infoList.begin(); iter != infoList.end(); iter++) {
-    if (v.headerInfoFields.count(*iter) == 0) {
+    if (header.infoFields.count(*iter) == 0) {
       cerr << "WARNING: Info ID " << *iter << " is to be stripped, but does not appear in the header." << endl;
     }
   }
@@ -558,20 +558,25 @@ int filterTool::Run(int argc, char* argv[]) {
   output ofile;
   ofile.outputStream = ofile.openOutputFile(outputFile);
 
-  vcf v; // Define vcf object.
-  variant var; // Define variant object.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, splitMnps, processAlleles, false);
-  v.openVcf(vcfFile); // Open the vcf file.
+  // Define the vcf object.
+  vcf v;
+  v.openVcf(vcfFile);
 
-  // Read in the header information.
-  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
+  // Define the header object and read in the header information.
+  vcfHeader header;
+  header.parseHeader(v.input);
+
+  // Define the variant object.
+  variant var;
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, splitMnps, processAlleles, false);
+
   string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}
 
   // If MNPs are to be broken up, add a line to the header explaining this.
   if (splitMnps) {
     string text = "Indicates that this SNP was generated from the decomposition of an MNP.\">";
-    v.headerInfoLine["FROM_MNP"] = "##INFO=<ID=FROM_MNP,Number=0,Type=Flag,Description=" + text;
+    header.infoLine["FROM_MNP"] = "##INFO=<ID=FROM_MNP,Number=0,Type=Flag,Description=" + text;
   }
 
   // If find hets is specified, check that genotypes exist.
@@ -619,7 +624,7 @@ int filterTool::Run(int argc, char* argv[]) {
   //}
 
   // Write out the header.
-  writeHeader(ofile.outputStream, v, removeGenotypes, taskDescription);
+  header.writeHeader(ofile.outputStream, removeGenotypes, taskDescription);
 
 // Read through all the entries in the file.  First construct the
 // structure to contain the variants in memory and populate.
@@ -640,12 +645,14 @@ int filterTool::Run(int argc, char* argv[]) {
 //    genotypePosition = count;
 //  }
 
+  // Get the first record from the vcf file.
+  v.success = v.getRecord();
   while (v.success) {
 
     // Build the variant structure for this reference sequence.
     if (var.originalVariantsMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;
-      v.success = var.buildVariantStructure(v);
+      v.success                = var.buildVariantStructure(v);
     }
 
     // Loop over the variant structure until it is empty.  While v.update is true,
@@ -660,7 +667,7 @@ int filterTool::Run(int argc, char* argv[]) {
 
       // Perform all filtering tasks on this variant.
       filter(var);
-      var.buildOutputRecord(ofile);
+      var.buildOutputRecord(ofile, header);
       var.originalVariantsMap.erase(var.ovmIter);
     }
   }

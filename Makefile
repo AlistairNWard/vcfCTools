@@ -3,6 +3,7 @@ HEADERS = bed.h \
           bedStructure.h \
           Fasta.h \
           genotype_info.h \
+          header.h \
           info.h \
           intersect.h \
           modify_alleles.h \
@@ -28,6 +29,7 @@ SOURCES = bed.cpp \
           bedStructure.cpp \
           Fasta.cpp \
           genotype_info.cpp \
+          header.cpp \
           info.cpp \
           intersect.cpp \
           modify_alleles.cpp \

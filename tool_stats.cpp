@@ -21,11 +21,11 @@ statsTool::statsTool(void)
   currentReferenceSequence = "";
   generateAfs              = false;
   generateDetailed         = false;
+  generateSampleStats      = false;
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
   processSnps              = false;
-  sampleSnps               = false;
   splitMnps                = false;
   useAnnotations           = false;
 }
@@ -140,7 +140,7 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
 
       // Generate SNP statistics for all samples.
       case 's':
-        sampleSnps = true;
+        generateSampleStats   = true;
         genotypeQualityString = optarg;
         break;
 
@@ -199,32 +199,41 @@ int statsTool::Run(int argc, char* argv[]) {
   output ofile;
   ofile.outputStream = ofile.openOutputFile(outputFile);
 
+  // Create a vcf object.
   vcf v; // Create a vcf object.
+  v.openVcf(vcfFile);
+
+  // Create a variant structure to hold the variants.
   variant var; // Create a variant structure to hold the variants.
   var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
   statistics stats; // Create a statistics object.
 
-  v.openVcf(vcfFile);
-  v.parseHeader(var.headerInfoFields, var.headerFormatFields, var.samples);
+  // Define a header object and parse the header information.
+  vcfHeader header;
+  header.parseHeader(v.input);
 
   // If MNPs should be broken up into SNPs, ensure that the boolean flag is set.
   if (splitMnps) {stats.splitMnps = true;}
 
- //If statistics are being generated on a per-sample basis (or detailed
- //statistics are being generate, check that genotypes exist.
- if (sampleSnps || generateDetailed) {
+ // If statistics are being generated on a per-sample basis (or detailed
+ // statistics are being generated, check that genotypes exist.
+ if (generateSampleStats || generateDetailed || generateAfs) {
 
     // Check that a genotype quality cut-off was supplied as a double.
-    if (sampleSnps) {stats.minGenotypeQuality = atof(genotypeQualityString.c_str());}
-    if (generateDetailed) {stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());}
-    if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
-      cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double (e.g. 0.)." << endl;
-      exit(1);
+    if (generateSampleStats) {
+      stats.minGenotypeQuality = atof(genotypeQualityString.c_str());
+      if (stats.minGenotypeQuality == 0 && ( genotypeQualityString != "0" && genotypeQualityString != "0." && genotypeQualityString != "0.0") ) {
+        cerr << "ERROR: genotype quality for --sample-snps (-s) must be a double (e.g. 0.)." << endl;
+        exit(1);
+      }
     }
-    if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
+    if (generateDetailed) {
+      stats.minDetailedGenotypeQuality = atof(detailedGenotypeQualityString.c_str());
+      if (stats.minDetailedGenotypeQuality == 0 && ( detailedGenotypeQualityString != "0" && detailedGenotypeQualityString != "0." && 
         detailedGenotypeQualityString != "0.0") ) {
-      cerr << "ERROR: genotype quality for --detailed (-d) must be a double (e.g. 0.)." << endl;
-      exit(1);
+        cerr << "ERROR: genotype quality for --detailed (-d) must be a double (e.g. 0.)." << endl;
+        exit(1);
+      }
     }
 
     // Check that the file contains genotypes.  Without this, there can be no sample level
@@ -233,14 +242,14 @@ int statsTool::Run(int argc, char* argv[]) {
       cerr << "ERROR: Genotype information must be present to perform sample level statistics." << endl;
       exit(1);
     } else {
-      if (sampleSnps) {stats.processSampleSnps = true;}
+      if (generateSampleStats) {stats.generateSampleStats = true;}
       if (generateDetailed) {stats.generateDetailed  = true;}
     }
 
     // Check that the AC and DP fields are defined in the header.  These values are required
     // for performing sample level or detailed statistics.
-    if (var.headerInfoFields.count("AC") == 0) {
-      cerr << "ERROR: No information for the AC field appear in the header." << endl;
+    if (header.infoFields.count("AC") == 0) {
+      cerr << "ERROR: No information for the AC field appears in the header." << endl;
       cerr << "This information needs to be present for detailed statistics." << endl;
       exit(1);
     }
@@ -260,17 +269,18 @@ int statsTool::Run(int argc, char* argv[]) {
 //    }
 //  }
 
-// Print the header for detailed statistics if necessary.
-//  if (generateDetailed) {stats.printDetailedHeader(output);}
+  // Print the header for detailed statistics if necessary.
+  //if (generateDetailed) {stats.printDetailedHeader(output);}
 
-// Read through all the entries in the file.  First construct the
-// structure to contain the variants in memory and populate.
+  // Read through all the entries in the file.  First construct the
+  // structure to contain the variants in memory and populate.
+  v.success = v.getRecord();
   while (v.success) {
 
     // Build the variant structure for this reference sequence.
     if (var.originalVariantsMap.size() == 0) {
       currentReferenceSequence = v.variantRecord.referenceSequence;
-      v.success = var.buildVariantStructure(v);
+      v.success                = var.buildVariantStructure(v);
     }
 
     // Loop over the variant structure until it is empty.  While v.update is true,
@@ -282,7 +292,7 @@ int statsTool::Run(int argc, char* argv[]) {
         v.success = v.getRecord();
       }
       var.ovmIter = var.originalVariantsMap.begin();
-      stats.generateStatistics(var, useAnnotations, annotationFlags, generateAfs, ofile);
+      stats.generateStatistics(header, var, useAnnotations, annotationFlags, generateAfs, ofile);
       var.originalVariantsMap.erase(var.ovmIter);
     } 
   }
@@ -293,14 +303,14 @@ int statsTool::Run(int argc, char* argv[]) {
   if (stats.hasSnp) {
     stats.printSnpStatistics(ofile);
     if (stats.hasAnnotations) {stats.printSnpAnnotations(ofile);}
-    if (generateAfs) {
-      stats.printAcs(ofile);
-      stats.printAfs(ofile);
-    }
+//    if (generateAfs) {
+//      stats.printAcs(ofile);
+//      stats.printAfs(ofile);
+//    }
   }
   if (stats.hasMnp) {stats.printMnpStatistics(ofile);}
   if (stats.hasInsertion || stats.hasDeletion) {stats.printIndelStatistics(ofile);}
-  if (sampleSnps) {stats.printSampleSnps(v, ofile);}
+  if (generateSampleStats) {stats.printSampleSnps(header, v, ofile);}
 
 // Close the vcf file and return.
   v.closeVcf();
