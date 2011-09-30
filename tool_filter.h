@@ -62,21 +62,23 @@ class filterTool : public AbstractTool {
     string samplesListFile;
 
     // Boolean flags.
-    bool splitMnps;
     bool appliedFilters;
-    bool processComplex;
-    bool processSnps;
-    bool processMnps;
-    bool processIndels;
     bool cleardbSnp;
-    bool filterQuality;
-    bool markPass;
     bool filterFail;
+    bool filterQuality;
+    bool findHets;
     bool keepRecords;
+    bool markPass;
+    bool processComplex;
+    bool processIndels;
+    bool processMnps;
+    bool processRearrangements;
+    bool processSnps;
+    bool processSvs;
     bool removeInfo;
     bool removeGenotypes;
     bool stripRecords;
-    bool findHets;
+    bool splitMnps;
     bool useSampleList;
 };
 

@@ -15,18 +15,6 @@ using namespace std;
 
 namespace vcfCTools {
 
-// Create astructure to hold all of the flags required to determine the intersection
-// operations to be performed.
-//struct intFlags {
-//  bool annotate;
-//  bool findCommon;
-//  bool findUnion;
-//  bool findUnique;
-//  bool writeFromFirst;
-//  bool sitesOnly;
-//  bool whollyWithin;
-//};
-
 // Define a structure containing the different variant
 // types.
 struct variantType {
@@ -37,6 +25,8 @@ struct variantType {
   bool isInsertion;
   bool isDeletion;
   bool isComplex;
+  bool isSv;
+  bool isRearrangement;
 };
 
 // Define a structure that contains information about a

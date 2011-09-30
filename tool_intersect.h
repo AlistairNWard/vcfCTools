@@ -49,16 +49,18 @@ class intersectTool : public AbstractTool {
     string writeFrom;
 
     // Boolean flags.
-    bool distanceDistribution;
     bool allowMismatch;
-    bool passFilters;
+    bool distanceDistribution;
     bool findCommon;
     bool findUnion;
     bool findUnique;
+    bool passFilters;
     bool processComplex;
-    bool processSnps;
-    bool processMnps;
     bool processIndels;
+    bool processMnps;
+    bool processRearrangements;
+    bool processSnps;
+    bool processSvs;
     bool sitesOnly;
     bool whollyWithin;
 };

@@ -19,7 +19,15 @@ using namespace std;
 using namespace vcfCTools;
 
 // Constructor
-vcfHeader::vcfHeader(void) {};
+vcfHeader::vcfHeader(void) {
+  hasAssemblyInfo   = false;
+  hasContigInfo     = false;
+  hasPedigreeInfo   = false;
+  hasPedigreeDbInfo = false;
+  hasSampleInfo     = false;
+  assembly          = "";
+  fileFormat        = "";
+};
 
 // Destructor.
 vcfHeader::~vcfHeader(void) {};
@@ -27,12 +35,18 @@ vcfHeader::~vcfHeader(void) {};
 // Parse the vcf header.
 void vcfHeader::parseHeader(istream* input) {
   while(getline(*input, line)) {
-    if (line.substr(0, 5) == "##ALT")         {parseInfo(ALT);}
-    else if (line.substr(0, 8) == "##FILTER") {parseInfo(FILTER);}
-    else if (line.substr(0, 8) == "##FORMAT") {parseInfo(FORMAT);}
-    else if (line.substr(0, 6) == "##INFO")   {parseInfo(INFO);}
-    else if (line.substr(0, 2) == "##")       {parseAdditionalInfo();}
-    else if (line.substr(0, 1) == "#") {
+    if (line.substr(0, 5) == "##ALT")              {parseInfo(ALT);}
+    else if (line.substr(0, 10) == "##assembly")   {parseAssembly();}
+    else if (line.substr(0, 8)  == "##contig")     {parseContig();}
+    else if (line.substr(0, 12) == "##fileformat") {parseFileFormat();}
+    else if (line.substr(0, 8)  == "##FILTER")     {parseInfo(FILTER);}
+    else if (line.substr(0, 8)  == "##FORMAT")     {parseInfo(FORMAT);}
+    else if (line.substr(0, 6)  == "##INFO")       {parseInfo(INFO);}
+    else if (line.substr(0, 10) == "##PEDIGREE")   {parsePedigree();}
+    else if (line.substr(0, 12) == "##pedigreeDB") {parsePedigreeDb();}
+    else if (line.substr(0, 8)  == "##SAMPLE")     {parseSample();}
+    else if (line.substr(0, 2)  == "##")           {parseAdditionalInfo();}
+    else if (line.substr(0, 1)  == "#") {
       parseTitles();
       break;
     }
@@ -46,8 +60,26 @@ void vcfHeader::parseHeader(istream* input) {
   }
 }
 
+// Parse assembly information if present.
+void vcfHeader::parseAssembly() {
+  hasAssemblyInfo = true;
+}
+
+// Parse file format information.
+void vcfHeader::parseFileFormat() {
+}
+
+// Parse contig information.
+void vcfHeader::parseContig() {
+  hasContigInfo = true;
+}
+
 // Parse information from the info and format descriptors.
 void vcfHeader::parseInfo(unsigned int lineType) {
+  string description;
+  string number;
+  string tag;
+  string type;
 
 // Break up the string and find the info or format tag.
   size_t start = line.find_first_of("<");
@@ -61,22 +93,25 @@ void vcfHeader::parseInfo(unsigned int lineType) {
   size_t descPosition     = sLine.find("Description=");
 
   headerInfo infoTag;
-  string tag = sLine.substr(idPosition + 3, numberPosition - idPosition - 4);
-  if (idPosition == string::npos || numberPosition == string::npos ||
-    typePosition == string::npos || descPosition == string::npos) {
-    infoTag.number  = ".";
-    infoTag.type    = "unknown";
-    infoTag.success = false;
-  } else {
-    string number      = sLine.substr(numberPosition + 7, typePosition - numberPosition - 8);
-    string type        = sLine.substr(typePosition + 5, descPosition - typePosition - 6);
-    string description = sLine.substr(descPosition + 12, sLine.size() - descPosition - 13);
-    infoTag.success = true;
+  infoTag.success = true;
 
-// The number field can take an integer value if the number of values for this is
-// fixed.  If there is an entry per alternate, this should take the value 'A', one
-// entry per genotype takes the value 'G' and if the number is unknown or variable
-// then this should be '.'.
+  // The info and format fields include the type and number, while the
+  // alt an filter fields do not.  Treat the two types separately.
+  if (lineType == ALT || lineType == FILTER) {
+    tag                = sLine.substr(idPosition + 3, descPosition - idPosition - 4);
+    description        = sLine.substr(descPosition + 12, sLine.size() - descPosition - 13);
+    infoTag.type       = ".";
+    infoTag.number     = ".";
+  } else if (lineType == INFO || lineType == FORMAT) {
+    tag         = sLine.substr(idPosition + 3, numberPosition - idPosition - 4);
+    number      = sLine.substr(numberPosition + 7, typePosition - numberPosition - 8);
+    type        = sLine.substr(typePosition + 5, descPosition - typePosition - 6);
+    description = sLine.substr(descPosition + 12, sLine.size() - descPosition - 13);
+
+    // The number field can take an integer value if the number of values for this is
+    // fixed.  If there is an entry per alternate, this should take the value 'A', one
+    // entry per genotype takes the value 'G' and if the number is unknown or variable
+    // then this should be '.'.
     if (number == "A") {
       infoTag.number = "A";
     } else if (number == "G") {
@@ -91,9 +126,9 @@ void vcfHeader::parseInfo(unsigned int lineType) {
       cerr << "WARNING: Malformed info/format in header for tag: ";
       cerr << tag << ".  Unknown value in Number field." << endl;
     }
-    infoTag.type        = type;
-    infoTag.description = description;
+    infoTag.type = type;
   }
+  infoTag.description = description;
 
   // Depending on the header line type (for example, an info or format decriptor),
   // populate the correct header structure.
@@ -119,6 +154,21 @@ void vcfHeader::parseInfo(unsigned int lineType) {
 void vcfHeader::parseAdditionalInfo() {
   if (text == "") {text = line;}
   else {text += "\n" + line;}
+}
+
+// Parse pedigree information.
+void vcfHeader::parsePedigree() {
+  hasPedigreeInfo = true;
+}
+
+// Parse pedigree database information.
+void vcfHeader::parsePedigreeDb() {
+  hasPedigreeDbInfo = true;
+}
+
+// Parse sample information.
+void vcfHeader::parseSample() {
+  hasSampleInfo = true;
 }
 
 // Parse the header titles containing sample names if genotypes are present.

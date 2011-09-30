@@ -53,9 +53,11 @@ class annotateTool : public AbstractTool {
     bool annotateVcf;
     bool annotateBed;
     bool processComplex;
-    bool processSnps;
-    bool processMnps;
     bool processIndels;
+    bool processMnps;
+    bool processRearrangements;
+    bool processSnps;
+    bool processSvs;
     bool sitesOnly;
     bool whollyWithin;
 };

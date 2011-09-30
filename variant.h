@@ -36,7 +36,7 @@ using namespace std;
 
 namespace vcfCTools {
 
-// Create astructure to hold all of the flags required to determine the intersection
+// Create a structure to hold all of the flags required to determine the intersection
 // operations to be performed.
 struct intFlags {
   bool annotate;
@@ -107,11 +107,13 @@ struct reducedVariants {
 // present at this locus.
 struct variantsAtLocus {
   string referenceSequence;
-  vector<reducedVariants> snps;
-  vector<reducedVariants> mnps;
-  vector<reducedVariants> insertions;
-  vector<reducedVariants> deletions;
   vector<reducedVariants> complexVariants;
+  vector<reducedVariants> deletions;
+  vector<reducedVariants> insertions;
+  vector<reducedVariants> mnps;
+  vector<reducedVariants> snps;
+  vector<reducedVariants> svs;
+  vector<reducedVariants> rearrangements;
 };
 
 // Define a structure that contains information about the different reference
@@ -140,7 +142,7 @@ class variant {
     void clearType(variantType&);
     void compareVariantsSameLocus(variant&, intFlags);
     void compareAlleles(vector<reducedVariants>&, vector<reducedVariants>&, intFlags, variant&);
-    void determineVariantsToProcess(bool, bool, bool, bool, bool, bool, bool);
+    void determineVariantsToProcess(bool, bool, bool, bool, bool, bool, bool, bool, bool);
     void determineVariantType(string, int, string, string, variantType&, int, originalVariants&);
     void filterUnique();
     void updateVariantMaps(string, variantType, string, string, int, string, originalVariants&);
@@ -181,11 +183,13 @@ class variant {
     bool locusHasQuadSnp;
     bool locusHasSnp;
     bool locusHasTriSnp;
-    bool processSnps;
+    bool processAll;
+    bool processComplex;
     bool processMnps;
     bool processIndels;
-    bool processComplex;
-    bool processAll;
+    bool processRearrangements;
+    bool processSnps;
+    bool processSvs;
     bool splitMnps;
     bool removeGenotypes;
     bool storeReducedAlts;

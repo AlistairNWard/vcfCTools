@@ -28,7 +28,9 @@ intersectTool::intersectTool(void)
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
+  processRearrangements    = false;
   processSnps              = false;
+  processSvs               = false;
   whollyWithin             = false;
   currentReferenceSequence = "";
 }
@@ -74,6 +76,10 @@ int intersectTool::Help(void) {
   cout << "	analyse indels." << endl;
   cout << "  -4, --complex" << endl;
   cout << "	analyse complex events." << endl;
+  cout << "  -5, --structural-variants" << endl;
+  cout << "     analyse structural variantion events." << endl;
+  cout << "  -6, --rearrangements" << endl;
+  cout << "     analyse complex rearrangement events." << endl;
   cout << endl;
   cout << "Additional information:" << endl;
   cout << "  The -c, -u and -q options require either 'a', 'b' or 'q' (not valid for -q) as an argument." << endl;
@@ -115,13 +121,15 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
     {"complex", no_argument, 0, '4'},
+    {"structural-variants", no_argument, 0, '5'},
+    {"rearrangements", no_argument, 0, '6'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hb:i:o:dmpc:u:q:sw1234", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hb:i:o:dmpc:u:q:sw123456", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -208,7 +216,17 @@ int intersectTool::parseCommandLine(int argc, char* argv[]) {
       case '4':
         processComplex = true;
         break;
-      
+
+      // Analyse structural variants.
+      case '5':
+        processSvs = true;
+        break;
+
+      // Analyse complex rearrangements.
+      case '6':
+        processRearrangements = true;
+        break;
+ 
       //
       case '?':
         cerr << "Unknown option: " << argv[optind - 1] << endl;
@@ -277,7 +295,7 @@ int intersectTool::Run(int argc, char* argv[]) {
 
     // Create a variant object.
     variant var;
-    var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
+    var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, false);
 
     bed b; // Create a bed object.
     bedStructure bs; // Create a bed structure.
@@ -334,7 +352,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     
     // Create a variant object.
     variant var1;
-    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
+    var1.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, true);
 
 
     // Create a second vcf object.
@@ -343,7 +361,7 @@ int intersectTool::Run(int argc, char* argv[]) {
 
     // Create a second variant object.
     variant var2;
-    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
+    var2.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, true);
 
     // Define the header objects and parse the header information.
     vcfHeader header1;

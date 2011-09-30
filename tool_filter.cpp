@@ -34,7 +34,9 @@ filterTool::filterTool(void)
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
+  processRearrangements    = false;
   processSnps              = false;
+  processSvs               = false;
   conditionalFilter        = false;
   filterString             = "";
   currentReferenceSequence = "";
@@ -86,6 +88,10 @@ int filterTool::Help(void) {
   cout << "	analyse indels." << endl;
   cout << "  -4, --complex" << endl;
   cout << "	analyse complex events." << endl;
+  cout << "  -5, --structural-variants" << endl;
+  cout << "     analyse structural variantion events." << endl;
+  cout << "  -6, --rearrangements" << endl;
+  cout << "     analyse complex rearrangement events." << endl;
   cout << endl;
   exit(0);
 
@@ -123,12 +129,14 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       {"mnps", no_argument, 0, '2'},
       {"indels", no_argument, 0, '3'},
       {"complex", no_argument, 0, '4'},
+      {"structural-variants", no_argument, 0, '5'},
+      {"rearrangements", no_argument, 0, '6'},
 
       {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:cd:k:elpq:mrs:t:1234", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:cd:k:elpq:mrs:t:123456", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -226,6 +234,16 @@ int filterTool::parseCommandLine(int argc, char* argv[]) {
       // Analyse complex.
       case '4':
         processComplex = true;
+        break;
+
+      // Analyse structural variants.
+      case '5':
+        processSvs = true;
+        break;
+
+      // Analyse complex rearrangements.
+      case '6':
+        processRearrangements = true;
         break;
 
       // Help.
@@ -568,7 +586,7 @@ int filterTool::Run(int argc, char* argv[]) {
 
   // Define the variant object.
   variant var;
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, splitMnps, processAlleles, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, splitMnps, processAlleles, false);
 
   string taskDescription = "##vcfCTools=filter";
   if (markPass) {taskDescription += "marked all records as PASS";}

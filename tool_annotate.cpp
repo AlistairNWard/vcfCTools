@@ -26,7 +26,9 @@ annotateTool::annotateTool(void)
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
+  processRearrangements    = false;
   processSnps              = false;
+  processSvs               = false;
   sitesOnly                = false;
   whollyWithin             = false;
 }
@@ -64,6 +66,10 @@ int annotateTool::Help(void) {
   cout << "	analyse indels." << endl;
   cout << "  -4, --complex" << endl;
   cout << "	analyse complex events." << endl;
+  cout << "  -5, --structural-variants" << endl;
+  cout << "	analyse structural variantion events." << endl;
+  cout << "  -6, --rearrangements" << endl;
+  cout << "	analyse complex rearrangement events." << endl;
   cout << endl;
 
   return 0;
@@ -94,12 +100,14 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
     {"complex", no_argument, 0, '4'},
+    {"structural-variants", no_argument, 0, '5'},
+    {"rearrangements", no_argument, 0, '6'},
 
     {0, 0, 0, 0}
   };
 
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:a:b:d:w:s1234", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:a:b:d:w:s123456", long_options, &option_index);
 
     if (argument == -1) {break;}
     switch (argument) {
@@ -162,6 +170,16 @@ int annotateTool::parseCommandLine(int argc, char* argv[]) {
       case '4':
         processComplex = true;
         break;
+
+      // Analyse structural variants.
+      case '5':
+        processSvs = true;
+        break;
+
+      // Analyse complex rearrangements.
+      case '6':
+        processRearrangements = true;
+        break;
       
       // Help.
       case 'h':
@@ -216,7 +234,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
   // Define the variant object.
   variant var;
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, true);
 
   intersect ints; // Define an intersection object.
   ints.setBooleanFlags(true, false, false, sitesOnly, true, whollyWithin);  // Set the flags required for performing intersections.
@@ -250,7 +268,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
     // Define a variant object
     variant annVar; // Define a variant object
-    annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, true);
+    annVar.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, true);
 
     // Define a header object and parse the header of the annotation vcf file.
     vcfHeader annHeader;

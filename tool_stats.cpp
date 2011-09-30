@@ -25,7 +25,9 @@ statsTool::statsTool(void)
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
+  processRearrangements    = false;
   processSnps              = false;
+  processSvs               = false;
   splitMnps                = false;
   useAnnotations           = false;
 }
@@ -63,6 +65,10 @@ int statsTool::Help(void) {
   cout << "	analyse indels." << endl;
   cout << "  -4, --complex" << endl;
   cout << "	analyse complex events." << endl;
+  cout << "  -5, --structural-variants" << endl;
+  cout << "     analyse structural variantion events." << endl;
+  cout << "  -6, --rearrangements" << endl;
+  cout << "     analyse complex rearrangement events." << endl;
   return 0;
 }
 
@@ -89,13 +95,15 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
     {"complex", no_argument, 0, '4'},
+    {"structural-variants", no_argument, 0, '5'},
+    {"rearrangements", no_argument, 0, '6'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:ad:n:ps:1234", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:ad:n:ps:123456", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -164,6 +172,16 @@ int statsTool::parseCommandLine(int argc, char* argv[]) {
         processComplex = true;
         break;
 
+      // Analyse structural variants.
+      case '5':
+        processSvs = true;
+        break;
+
+      // Analyse complex rearrangements.
+      case '6':
+        processRearrangements = true;
+        break;
+
       //
       case '?':
         cerr << "Unknown option: " << argv[optind - 2] << endl;
@@ -205,7 +223,7 @@ int statsTool::Run(int argc, char* argv[]) {
 
   // Create a variant structure to hold the variants.
   variant var; // Create a variant structure to hold the variants.
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, false);
   statistics stats; // Create a statistics object.
 
   // Define a header object and parse the header information.

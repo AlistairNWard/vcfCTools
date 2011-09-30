@@ -40,13 +40,26 @@ class vcfHeader {
     vcfHeader(void);
     ~vcfHeader(void);
     void parseAdditionalInfo();
+    void parseAssembly();
+    void parseContig();
+    void parseFileFormat();
     void parseHeader(istream*);
     void parseInfo(unsigned int);
+    void parsePedigree();
+    void parsePedigreeDb();
+    void parseSample();
     void parseTitles();
     void writeHeader(ostream*, bool, string&);
 
   public:
+    bool hasAssemblyInfo;
+    bool hasContigInfo;
+    bool hasPedigreeInfo;
+    bool hasPedigreeDbInfo;
+    bool hasSampleInfo;
     unsigned int numberSamples;
+    string assembly;
+    string fileFormat;
     string line;
     string text;
     map<string, string> altLine;

@@ -15,15 +15,17 @@ using namespace vcfCTools;
 
 //Constructor.
 variant::variant(void) {
-  isDbsnp         = false;
-  processAll      = false;
-  processComplex  = false;
-  processIndels   = false;
-  processMnps     = false;
-  processSnps     = false;
-  recordsInMemory = 1000;
-  removeGenotypes = false;
-  splitMnps       = false;
+  isDbsnp               = false;
+  processAll            = false;
+  processComplex        = false;
+  processIndels         = false;
+  processMnps           = false;
+  processRearrangements = false;
+  processSvs            = false;
+  processSnps           = false;
+  recordsInMemory       = 1000;
+  removeGenotypes       = false;
+  splitMnps             = false;
 };
 
 // Destructor.
@@ -36,17 +38,21 @@ variant::~variant(void) {};
 // will be written to the output.  For example, if a SNP and MNP are present
 // at the same locus, AG -> TG,TC, choosing SNPs only will cause the SNP to
 // be written as A -> T.  This could also cause the coordinate to change.
-void variant::determineVariantsToProcess(bool snps, bool mnps, bool indels, bool complexV, bool isSplitMnps, bool alleles, bool store) {
+void variant::determineVariantsToProcess(bool snps, bool mnps, bool indels, bool complexV, bool svs, bool rearrangements, bool isSplitMnps, bool alleles, bool store) {
   if (snps) {processSnps = true;}
   if (mnps) {processMnps = true;}
   if (indels) {processIndels = true;}
   if (complexV) {processComplex = true;}
-  if (!snps && !mnps && !indels && !complexV) {
-    processSnps    = true;
-    processMnps    = true;
-    processIndels  = true;
-    processComplex = true;
-    processAll     = true;
+  if (svs) {processSvs = true;}
+  if (rearrangements) {processRearrangements = true;}
+  if (!snps && !mnps && !indels && !complexV && !svs && !rearrangements) {
+    processAll            = true;
+    processComplex        = true;
+    processMnps           = true;
+    processIndels         = true;
+    processRearrangements = true;
+    processSvs            = true;
+    processSnps           = true;
   }
 
   // If the MNPs are to be broken into SNPs, set the flag
@@ -202,7 +208,7 @@ void variant::addVariantToStructure(int position, variantDescription& variant) {
         }
       }
 
-    // MNPs, insertions and deletions.
+    // MNPs, insertions, deletions and structural variants.
     } else {
       // Keep track of the number of SNPs.  If the locus contains a multiallelic
       // SNP as well as a different variant type, the following loop will identify
@@ -272,12 +278,17 @@ void variant::clearType(variantType& type) {
   type.isInsertion      = false;    
   type.isDeletion       = false;    
   type.isComplex        = false;
+  type.isSv             = false;
+  type.isRearrangement  = false;
 }
 
 // Determine the variant class from the ref and alt alleles.
 //void variant::determineVariantType(int position, string ref, string alt, variantDescription& variant, bool isDbsnp) {
 void variant::determineVariantType(string refSeq, int position, string ref, string alt, variantType& type, int ID, originalVariants& ov) {
   reducedVariants rVar;
+  size_t containsAngleBracket   = alt.find('<');
+  size_t containsSquareBracketL = alt.find('[');
+  size_t containsSquareBracketR = alt.find(']');
 
   // SNP.
   if (ref.size() == 1 && (ref.size() - alt.size()) == 0) {
@@ -292,6 +303,36 @@ void variant::determineVariantType(string refSeq, int position, string ref, stri
       rVar.altID = ID;
       variantMap[position].snps.push_back(rVar);
     }
+
+  // Structural variants.
+  } else if (containsAngleBracket != string::npos) {
+    type.isSv = true;
+    updateVariantMaps(alt, type, ref, alt, position, refSeq, ov);
+
+    if (storeReducedAlts) {
+      rVar.recordNumber     = ov.numberOfRecordsAtLocus;
+      rVar.originalPosition = position;
+      rVar.ref   = ref;
+      rVar.alt   = alt;
+      rVar.altID = ID;
+      variantMap[position].svs.push_back(rVar);
+    }
+
+  // Complex rearrangments.
+  } else if (containsSquareBracketL != string::npos || containsSquareBracketR != string::npos) {
+    type.isRearrangement = true;
+    updateVariantMaps(alt, type, ref, alt, position, refSeq, ov);
+
+    if (storeReducedAlts) {
+      rVar.recordNumber     = ov.numberOfRecordsAtLocus;
+      rVar.originalPosition = position;
+      rVar.ref   = ref;
+      rVar.alt   = alt;
+      rVar.altID = ID;
+      variantMap[position].rearrangements.push_back(rVar);
+    }
+
+  // MNPs and indels.
   } else {
 
     // Multi-base variants have the alt allele aligned to the ref allele
@@ -771,13 +812,15 @@ void variant::buildOutputRecord(output& ofile, vcfHeader& header) {
         else if (typeIter->isMnp) {if (!processMnps) {*fIter = true;}}
         else if (typeIter->isInsertion || typeIter->isDeletion) {if (!processIndels) {*fIter = true;}}
         else if (typeIter->isComplex) {if (!processComplex) {*fIter = true;}}
+        else if (typeIter->isSv) {if (!processSvs) {*fIter = true;}}
+        else if (typeIter->isRearrangement) {if (!processRearrangements) {*fIter = true;}}
 
         if (!*fIter) {
           hasAltAlleles = true;
   
           // If only SNPs are being output, the alleles in the output record
           // should be the reduced alleles.
-          if (processSnps && !processMnps && !processIndels) {
+          if (processSnps && !processMnps && !processIndels && !processSvs && !processRearrangements) {
             altAlleles += *modifiedIter + ",";
             position    = *posIter;
             refAllele   = *refIter;

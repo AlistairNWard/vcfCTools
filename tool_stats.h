@@ -51,11 +51,13 @@ class statsTool : public AbstractTool {
     // Boolean flags.
     bool generateAfs;
     bool generateDetailed;
+    bool generateSampleStats;
     bool processComplex;
     bool processIndels;
     bool processMnps;
+    bool processRearrangements;
     bool processSnps;
-    bool generateSampleStats;
+    bool processSvs;
     bool splitMnps;
     bool useAnnotations;
 };

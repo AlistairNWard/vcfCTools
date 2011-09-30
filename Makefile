@@ -13,6 +13,7 @@ HEADERS = bed.h \
           split.h \
           stats.h \
           structures.h \
+          symbolic_alternates.h \
           tool_annotate.h \
           tool_filter.h \
           tool_intersect.h \
@@ -38,6 +39,7 @@ SOURCES = bed.cpp \
           SmithWatermanGotoh.cpp \
           split.cpp \
           stats.cpp \
+          symbolic_alternates.cpp \
           tool_annotate.cpp \
           tool_filter.cpp \
           tool_intersect.cpp \

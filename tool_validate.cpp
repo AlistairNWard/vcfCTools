@@ -113,7 +113,7 @@ int validateTool::Run(int argc, char* argv[]) {
 
   // Define a variant object.
   variant var; // Define variant object.
-  var.determineVariantsToProcess(true, true, true, true, false, true, false);
+  var.determineVariantsToProcess(true, true, true, true, true, true, false, true, false);
 
   // Define a header object and parse the header information.
   vcfHeader header;

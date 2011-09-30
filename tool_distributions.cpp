@@ -25,7 +25,9 @@ distributionsTool::distributionsTool(void)
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
+  processRearrangements    = false;
   processSnps              = false;
+  processSvs               = false;
 }
 
 // Destructor.
@@ -57,6 +59,10 @@ int distributionsTool::Help(void) {
   cout << "     analyse indels." << endl;
   cout << "  -4, --complex" << endl;
   cout << "     analyse complex events." << endl;
+  cout << "  -5, --structural-variants" << endl;
+  cout << "     analyse structural variantion events." << endl;
+  cout << "  -6, --rearrangements" << endl;
+  cout << "     analyse complex rearrangement events." << endl;
   return 0;
 }
 
@@ -81,13 +87,15 @@ int distributionsTool::parseCommandLine(int argc, char* argv[]) {
     {"mnps", no_argument, 0, '2'},
     {"indels", no_argument, 0, '3'},
     {"complex", no_argument, 0, '4'},
+    {"structural-variants", no_argument, 0, '5'},
+    {"rearrangements", no_argument, 0, '6'},
 
     {0, 0, 0, 0}
   };
 
   while (true) {
     int option_index = 0;
-    argument = getopt_long(argc, argv, "hi:o:d:p:s:1234", long_options, &option_index);
+    argument = getopt_long(argc, argv, "hi:o:d:p:s:123456", long_options, &option_index);
 
     if (argument == -1)
       break;
@@ -143,7 +151,17 @@ int distributionsTool::parseCommandLine(int argc, char* argv[]) {
       case '4':
         processComplex = true;
         break;
-      
+
+      // Analyse structural variants.
+      case '5':
+        processSvs = true;
+        break;
+
+      // Analyse complex rearrangements.
+      case '6':
+        processRearrangements = true;
+        break;
+
       //
       case '?':
         cerr << "Unknown option: " << argv[optind - 2] << endl;
@@ -324,7 +342,7 @@ int distributionsTool::Run(int argc, char* argv[]) {
 
    // Create a variant object.
   variant var;
-  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, false, true, false);
+  var.determineVariantsToProcess(processSnps, processMnps, processIndels, processComplex, processSvs, processRearrangements, false, true, false);
 
   // Define the header object and read in the header information.
   vcfHeader header;

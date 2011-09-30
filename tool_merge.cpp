@@ -134,7 +134,7 @@ int mergeTool::Run(int argc, char* argv[]) {
 
     // Create variant object.
     variant var;
-    var.determineVariantsToProcess(true, true, true, true, false, false, false);
+    var.determineVariantsToProcess(true, true, true, true, true, true, false, false, false);
 
     // Define a header object and parse the header information.
     vcfHeader header;

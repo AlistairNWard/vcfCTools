@@ -43,9 +43,12 @@ class mergeTool : public AbstractTool {
     string currentReferenceSequence;
 
     // Boolean flags.
-    bool processSnps;
-    bool processMnps;
+    bool processComplex;
     bool processIndels;
+    bool processMnps;
+    bool processRearrangements;
+    bool processSnps;
+    bool processSvs;
 };
 
 } // namespace vcfCTools
