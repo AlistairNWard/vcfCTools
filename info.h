@@ -41,7 +41,7 @@ class variantInfo {
     ~variantInfo(void);
     void checkTypes(string&, int&, bool&);
     void modifyInfo(vector<int>&, vcfHeader&);
-    void retrieveFields(vcfHeader&);
+    void retrieveFields(vcfHeader&, bool);
     void validateInfo(vcfHeader&, string&, int&, unsigned int&, bool&);
 
   public:

@@ -488,6 +488,7 @@ void variant::clearReferenceSequence(vcfHeader& header, vcf& v, intFlags flags, 
     originalVariantsMap.erase(ovmIter);
     if (variantMap.size() != 0) {variantMap.erase(vmIter);}
 
+    // Update the originalVariants structure.
     if (v.variantRecord.referenceSequence == cRef && v.success) {
       addVariantToStructure(v.position, v.variantRecord);
       v.success = v.getRecord();
@@ -575,6 +576,7 @@ void variant::annotateRecordBed(bedRecord& b) {
 //
 // If the variants compared are at the same position.
 void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
+  vector<reducedVariants>::iterator iter;
   
   // Compare variant types individually.
   compareAlleles(vmIter->second.snps, var.vmIter->second.snps, flags, var);
@@ -582,6 +584,17 @@ void variant::compareVariantsSameLocus(variant& var, intFlags flags) {
   compareAlleles(vmIter->second.insertions, var.vmIter->second.insertions, flags, var);
   compareAlleles(vmIter->second.deletions, var.vmIter->second.deletions, flags, var);
   compareAlleles(vmIter->second.complexVariants, var.vmIter->second.complexVariants, flags, var);
+
+  // Structural variation and rearrangement events are currently removed from the
+  // output file when performing intersections (regardless of the actual operation).
+  iter = vmIter->second.svs.begin();
+  for (; iter != vmIter->second.svs.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
+  }
+  iter = vmIter->second.rearrangements.begin();
+  for (; iter != vmIter->second.rearrangements.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
+  }
 }
 
 // Compare two arrays of variant alleles of the same type (e.g. all SNPs).
@@ -652,7 +665,7 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
   for (; iter != alleles1.end(); iter++) {
     if (*aIter && *bIter) {
       if (flags.annotate) {
-        annotateRecordVcf(iter->originalPosition, iter->recordNumber - 1, var.isDbsnp, rsid, infoAdd);
+        annotateRecordVcf(var, iter->originalPosition, iter->recordNumber - 1, rsid, infoAdd);
       } else {
         write = (flags.findUnique) ? true : !flags.writeFromFirst;
         originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = write;
@@ -701,13 +714,19 @@ void variant::compareAlleles(vector<reducedVariants>& alleles1, vector<reducedVa
 }
 
 // Annotate the variants at this locus with the contents of the vcf file.
-void variant::annotateRecordVcf(int position, unsigned int record, bool isDbsnp, string& rsid, string& infoAdd) {
+void variant::annotateRecordVcf(variant& var, int position, unsigned int record, string& rsid, string& infoAdd) {
   string oString;
 
   // If the vcf file used for annotation is a dbSNP vcf file, update the rsid field.
-  if (isDbsnp) {originalVariantsMap[position][record].rsid = rsid;}
+  if (var.isDbsnp) {originalVariantsMap[position][record].rsid = rsid;}
 
-  // Add the term infoAdd to the info string.
+  // If the annotation file is not a dbSNP file, add the contents of the filter field
+  // from the annotation vcf to the info string of the first vcf file.
+  else {
+    //cerr << var.originalVariantsMap[position][record].filters << endl;
+  }
+
+  // Add the contents of the variable infoAdd to the info string.
   oString = originalVariantsMap[position][record].info;
   originalVariantsMap[position][record].info = (oString == ".") ? infoAdd : oString + ";" + infoAdd;
 }
@@ -745,6 +764,18 @@ void variant::filterUnique() {
   // Complex events.
   iter = vmIter->second.complexVariants.begin();
   for (; iter != vmIter->second.complexVariants.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
+  }
+
+  // Structural variation events.
+  iter = vmIter->second.svs.begin();
+  for (; iter != vmIter->second.svs.end(); iter++) {
+    originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
+  }
+
+  // Complex rearrangement events.
+  iter = vmIter->second.rearrangements.begin();
+  for (; iter != vmIter->second.rearrangements.end(); iter++) {
     originalVariantsMap[iter->originalPosition][iter->recordNumber - 1].filtered[iter->altID] = true;
   }
 }

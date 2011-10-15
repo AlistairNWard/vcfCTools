@@ -44,7 +44,7 @@ class genotypeInfo {
     bool getAlleles();
     void modifyGenotypes(vcfHeader&, vector<int>&);
     void processFormats(vcfHeader&);
-    void validateGenotypes(vcfHeader&, string&, int&, unsigned int&, vector<string>&, bool&);
+    void validateGenotypes(vcfHeader&, string&, int&, unsigned int&, bool&);
 
   public:
     bool phased;

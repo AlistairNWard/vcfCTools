@@ -159,6 +159,9 @@ int validateTool::Run(int argc, char* argv[]) {
       var.ovIter = var.ovmIter->second.begin();
       for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
 
+        // Check that alternate alleles are well formed.
+        validateAlternateAlleles(header, var); // symbolic_alternates.cpp
+
         // Check the info string for inconsistencies.
         variantInfo info(var.ovIter->info);
         info.validateInfo(header, var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, error);
@@ -166,7 +169,7 @@ int validateTool::Run(int argc, char* argv[]) {
         // Check the genotypes for inconsistencies.
         if (var.ovIter->hasGenotypes) {
           genotypeInfo gen(var.ovIter->genotypeFormat, var.ovIter->genotypes);
-          gen.validateGenotypes(header, var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, var.samples, error);
+          gen.validateGenotypes(header, var.ovIter->referenceSequence, var.ovIter->position, var.ovIter->numberAlts, error);
         }
       }
       var.originalVariantsMap.erase(var.ovmIter);

@@ -305,7 +305,7 @@ int intersectTool::Run(int argc, char* argv[]) {
     vcfHeader header;
     header.parseHeader(v.input);
 
-    b.parseHeader();
+    b.parseHeader(bedFile);
 
     // Write the header to the output file.
     string taskDescription = "##vcfCtools=intersect " + vcfFiles[0] + ", " + bedFile;
@@ -328,17 +328,17 @@ int intersectTool::Run(int argc, char* argv[]) {
     cerr << endl;
 
     // Print out the distribution of distances to targets.
-    cerr << "Histogram describing the distribution of variant distances from targets:" << endl;
-    cerr << endl;
-
-    map<string, map<int, unsigned int> >::iterator rIter = ints.distanceDist.begin();
-    map<int, unsigned int>::iterator dIter;
-    for (; rIter != ints.distanceDist.end(); rIter++) {
-      cerr << "Reference sequence: " << rIter->first << endl;
-      for (dIter = rIter->second.begin(); dIter != rIter->second.end(); dIter++) {
-        cerr << dIter->first << "	" << dIter->second << endl;
-      }
-    }
+//    cerr << "Histogram describing the distribution of variant distances from targets:" << endl;
+//    cerr << endl;
+//
+//    map<string, map<int, unsigned int> >::iterator rIter = ints.distanceDist.begin();
+//    map<int, unsigned int>::iterator dIter;
+//    for (; rIter != ints.distanceDist.end(); rIter++) {
+//      cerr << "Reference sequence: " << rIter->first << endl;
+//      for (dIter = rIter->second.begin(); dIter != rIter->second.end(); dIter++) {
+//        cerr << dIter->first << "	" << dIter->second << endl;
+//      }
+//    }
 
     // Close the bed object.
     b.closeBed();

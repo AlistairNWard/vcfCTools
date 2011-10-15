@@ -266,11 +266,11 @@ int statsTool::Run(int argc, char* argv[]) {
 
     // Check that the AC and DP fields are defined in the header.  These values are required
     // for performing sample level or detailed statistics.
-    if (header.infoFields.count("AC") == 0) {
-      cerr << "ERROR: No information for the AC field appears in the header." << endl;
-      cerr << "This information needs to be present for detailed statistics." << endl;
-      exit(1);
-    }
+//    if (header.infoFields.count("AC") == 0) {
+//      cerr << "ERROR: No information for the AC field appears in the header." << endl;
+//      cerr << "This information needs to be present for detailed statistics." << endl;
+//      exit(1);
+//    }
   }
 
 // If statistics on annotations are required, generate a list of flags to get

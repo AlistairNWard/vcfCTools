@@ -168,7 +168,7 @@ void genotypeInfo::processFormats(vcfHeader& header) {
 }
 
 // Extract information about a specified tag.
-void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequence, int& position, unsigned int& noAlts, vector<string>& samples, bool& error) {
+void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequence, int& position, unsigned int& noAlts, bool& error) {
   bool success;
   int integerValue;
   unsigned int sampleID = 0;
@@ -191,7 +191,7 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
       // First check if there are the correct number of entries. There should be as
       // many fields (seperated by a ":") as there are formats.
       if (genotypeFields.size() != genotypes.size()) {
-        cerr << "ERROR: Inconsistent number of fields in the genotype string for sample: " << samples[sampleID];
+        cerr << "ERROR: Inconsistent number of fields in the genotype string for sample: " << header.samples[sampleID];
         cerr << " at " << referenceSequence << ":" << position << "." << endl;
         error = true;
       }
@@ -202,7 +202,7 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
       // present and not both.
       success = getAlleles();
       if (!success) {
-        cerr << "ERROR: Genotype includes both phased and unphased alleles for sample: " << samples[sampleID];
+        cerr << "ERROR: Genotype includes both phased and unphased alleles for sample: " << header.samples[sampleID];
         cerr << " at " << referenceSequence << ":" << position << "." << endl;
         error = true;
       }
@@ -221,10 +221,10 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
           vector<string>::iterator aIter = originalAlleles.begin();
           for (; aIter != originalAlleles.end(); aIter++) {
 
-            // First check that all the entries in the genotypes are integers.
+            // First check that all the entries in the genotypes are integers or '.'.
             integerValue = atoi( (*aIter).c_str() );
-            if (integerValue == 0 && *aIter != "0") {
-              cerr << "ERROR: Invalid entry in genotype for sample: " << samples[sampleID] << " at ";
+            if (integerValue == 0 && *aIter != "0" && *aIter != ".") {
+              cerr << "ERROR: Invalid entry in genotype for sample: " << header.samples[sampleID] << " at ";
               cerr << referenceSequence << ":" << position << "." << endl;
               error = true;
 
@@ -235,7 +235,7 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
             // range [0-3].
             } else {
               if (integerValue > noAlts) {
-                cerr << "ERROR: Genotype entry for sample: " << samples[sampleID] << " at ";
+                cerr << "ERROR: Genotype entry for sample: " << header.samples[sampleID] << " at ";
                 cerr << referenceSequence << ":" << position << " represents a non-existent allele (max value: ";
                 cerr << noAlts << ")." << endl;
                 error = true;
@@ -250,7 +250,7 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
           // with the expected number.
           if (genoIter->second.number == "A") {
             if (values.size() != noAlts) {
-              cerr << "ERROR: Incorrect number of entries for sample " << samples[sampleID];
+              cerr << "ERROR: Incorrect number of entries for sample " << header.samples[sampleID];
               cerr << " at " << referenceSequence << ":" << position << " in " << genoIter->first << " field" << endl;
               error = true;
             }
@@ -272,7 +272,7 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
             unsigned int denB      = fact(noAlts);
             unsigned int numberInG = num / (denA * denB);
             if (values.size() != numberInG) {
-              cerr << "ERROR: Incorrect number of entries for sample: " << samples[sampleID];
+              cerr << "ERROR: Incorrect number of entries for sample: " << header.samples[sampleID];
               cerr << " at " << referenceSequence << ":" << position << " in " << genoIter->first << " field" << endl;
               error = true;
             }
@@ -302,7 +302,7 @@ void genotypeInfo::validateGenotypes(vcfHeader& header, string& referenceSequenc
       
             // Now check that the correct number is observed.
             if (values.size() != integerValue) {
-              cerr << "ERROR: Incorrect number of entries for sample " << samples[sampleID];
+              cerr << "ERROR: Incorrect number of entries for sample " << header.samples[sampleID];
               cerr << " at " << referenceSequence << ":" << position << " in " << genoIter->first << " field" << endl;
               error = true;
             }

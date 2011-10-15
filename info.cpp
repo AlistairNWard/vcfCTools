@@ -26,7 +26,7 @@ variantInfo::~variantInfo(void) {};
 void variantInfo::modifyInfo(vector<int>& alleleIDs, vcfHeader& header) {
   string modifiedInfo = "";
 
-  retrieveFields(header);
+  retrieveFields(header, true);
 
   // Loop through each of the info fields and check for any fields that should
   // contain values corresponding to the different alternate alleles.
@@ -63,7 +63,7 @@ void variantInfo::modifyInfo(vector<int>& alleleIDs, vcfHeader& header) {
 
 // Split the info string into its components and populate the arrays
 // to store the information.
-void variantInfo::retrieveFields(vcfHeader& header) {
+void variantInfo::retrieveFields(vcfHeader& header, bool terminate) {
   string tag;
   vector<string> infoArray = split(infoString, ";");
   vector<string>::iterator infoIter = infoArray.begin();
@@ -77,8 +77,8 @@ void variantInfo::retrieveFields(vcfHeader& header) {
     // In order to process the info field, the header information is
     // required.  If this does not exist, terminate the program.
     if (header.infoFields.count(tag) == 0) {
-      cerr << "ERROR: No header description for info tag: " << tag << endl;
-      exit(1);
+      cerr << "WARNING: No header description for info tag: " << tag << endl;
+      if (terminate) {exit(1);}
     }
 
     info.number = header.infoFields[tag].number;
@@ -101,7 +101,7 @@ void variantInfo::validateInfo(vcfHeader& header, string& referenceSequence, int
   int integerValue;
 
   // Split the info field into its constituent parts.
-  retrieveFields(header);
+  retrieveFields(header, false);
   for (infoIter = infoFields.begin(); infoIter != infoFields.end(); infoIter++) {
 
     // If the info number = A, there should be as many values as there are

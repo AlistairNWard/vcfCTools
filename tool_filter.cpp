@@ -20,26 +20,26 @@ using namespace vcfCTools;
 filterTool::filterTool(void)
   : AbstractTool()
 {
-  splitMnps                = false;
-  markPass                 = false;
-  cleardbSnp               = false;
   appliedFilters           = false;
+  cleardbSnp               = false;
+  conditionalFilter        = false;
+  currentReferenceSequence = "";
   filterFail               = false;
   filterQuality            = false;
+  filterString             = "";
   findHets                 = false;
   keepRecords              = false;
-  removeGenotypes          = false;
-  removeInfo               = false;
-  stripRecords             = false;
+  markPass                 = false;
   processComplex           = false;
   processIndels            = false;
   processMnps              = false;
   processRearrangements    = false;
   processSnps              = false;
   processSvs               = false;
-  conditionalFilter        = false;
-  filterString             = "";
-  currentReferenceSequence = "";
+  removeGenotypes          = false;
+  removeInfo               = false;
+  splitMnps                = false;
+  stripRecords             = false;
   useSampleList            = false;
 }
 
@@ -66,8 +66,8 @@ int filterTool::Help(void) {
   //cout << "	output the samples that are hets to the info string." << endl;
   //cout << "  -k, --keep-records" << endl;
   //cout << "	only keep records containing the specified info field (comma separated list)." << endl;
-  //cout << "  -l, --fail-filter" << endl;
-  //cout << "	filter out all variants that are not marked as 'PASS'." << endl;
+  cout << "  -l, --fail-filter" << endl;
+  cout << "	filter out all variants that are not marked as 'PASS'." << endl;
   cout << "  -m, --mark-as-pass" << endl;
   cout << "	mark all records as 'PASS'." << endl;
   cout << "  -p, --split-mnps" << endl;
@@ -333,8 +333,14 @@ void filterTool::filter(variant& var) {
     // so set the filter field to PASS, otherwise set it to the filter string.
     filterString = (filterString == "") ? "." : filterString;
     var.ovIter->filters = (filterString == "." && appliedFilters) ? "PASS" : filterString;
-  }
 
+    // If only records marked as PASS as to be kept, check the value and update the
+    // filtered vector as necessary.
+    if (filterFail && var.ovIter->filters != "PASS") {
+      vector<bool>::iterator fIter = var.ovIter->filtered.begin();
+      for (; fIter != var.ovIter->filtered.end(); fIter++) {*fIter = true;}
+    }
+  }
 
 
 //  // SNPs.

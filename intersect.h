@@ -21,6 +21,7 @@
 #include "bedStructure.h"
 #include "header.h"
 #include "output.h"
+#include "structures.h"
 #include "tools.h"
 #include "variant.h"
 #include "vcf.h"
@@ -35,12 +36,21 @@ class intersect {
   public:
     intersect(void);
     ~intersect(void);
+    void beyondInterval();
     void checkReferenceSequences(variant&, variant&);
     void intersectVcf(vcfHeader&, vcfHeader&, vcf&, variant&, vcf&, variant&, output&);
-    void intersectVcfBed(vcfHeader& header, vcf&, variant&, bed&, bedStructure&, output&);
+    void intersectVcfBed(vcfHeader&, vcf&, variant&, bed&, bedStructure&, output&);
+    void iterateBedFile(bed&, bedStructure&);
+    void iterateVcfFile(vcfHeader&, vcf&, variant&, output&);
+    void nextReferenceSequence(vcf&, variant&, bed&, bedStructure&);
+    bool priorToInterval(intFlags&);
     void setBooleanFlags(bool, bool, bool, bool, bool, bool);
+    bool withinInterval(intFlags&);
 
   public:
+    bool iterateBed;
+    bool iterateVcf;
+    string currentReferenceSequence;
     intFlags flags;
     map<string, map<int, unsigned int> > distanceDist;
 };

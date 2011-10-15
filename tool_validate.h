@@ -23,6 +23,7 @@
 #include "genotype_info.h"
 #include "header.h"
 #include "info.h"
+#include "symbolic_alternates.h"
 #include "variant.h"
 #include "vcf.h"
 #include "vcfCTools_tool.h"
@@ -33,12 +34,12 @@ namespace vcfCTools {
 
 class validateTool : public AbstractTool {
   public:
-    validateTool( void );
-    ~validateTool( void );
-  public:
-    int Help( void );
-    int Run( int argc, char* argv[] );
-    int parseCommandLine( int argc, char* argv[] );
+    validateTool(void);
+    ~validateTool(void);
+    int Help(void);
+    int Run(int argc, char* argv[]);
+    int parseCommandLine(int argc, char* argv[]);
+    //void validateAlternateAlleles(vcfHeader&, variant&);
 
   private:
     bool error;

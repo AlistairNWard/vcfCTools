@@ -98,13 +98,13 @@ void statistics::generateStatistics(vcfHeader& header, variant& var, bool useAnn
   
         // Retrieve information from the info fields if necessary.
         ac = 0;
-        if (generateAfs || generateSampleStats) {
-          variantInfo info(var.ovIter->info);
-          info.retrieveFields(header);
-          ac = atoi(info.infoFields["AC"].values[variantID].c_str());
+        //if (generateAfs || generateSampleStats) {
+          //variantInfo info(var.ovIter->info);
+          //info.retrieveFields(header, true);
+          //ac = atoi(info.infoFields["AC"].values[variantID].c_str());
           //info.getInfo(string("AF"), var.variantIter->referenceSequence, var.vmIter->first);
           //af = atof(info.values[0].c_str());
-        }
+        //}
 
         // Determine if the SNP is a transition or a transversion and update the relevant
         // statistics.

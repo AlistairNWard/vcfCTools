@@ -37,10 +37,10 @@ class bed {
     bed(void);
     ~bed(void);
   public:
-    bool openBed(string& filename);
     void closeBed();
-    void parseHeader();
     bool getRecord();
+    bool openBed(string&);
+    void parseHeader(string&);
 
   public:
     istream* input;

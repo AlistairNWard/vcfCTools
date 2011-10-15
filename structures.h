@@ -29,6 +29,18 @@ struct variantType {
   bool isRearrangement;
 };
 
+// Create a structure to hold all of the flags required to determine the intersection
+// operations to be performed.
+struct intFlags {
+  bool annotate;
+  bool findCommon;
+  bool findUnion;
+  bool findUnique;
+  bool writeFromFirst;
+  bool sitesOnly;
+  bool whollyWithin;
+};
+
 // Define a structure that contains information about a
 // particular locus.  This structure is used for variants
 // still in their original form and at the position they

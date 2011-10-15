@@ -22,19 +22,11 @@
 #include <vector>
 
 #include "header.h"
+#include "variant.h"
 
 using namespace std;
+using namespace vcfCTools;
 
-namespace vcfCTools {
-
-class symbolicAlternates {
-  public:
-    symbolicAlternates(void);
-    ~symbolicAlternates(void);
-
-  public:
-};
-
-} // namespace vcfCTools
+void validateAlternateAlleles(vcfHeader&, variant&);
 
 #endif // SYMBOLIC_ALTERNATES_H

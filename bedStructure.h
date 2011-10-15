@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "bed.h"
+#include "structures.h"
 
 using namespace std;
 
@@ -32,16 +33,20 @@ class bedStructure {
   public:
     bedStructure(void);
     ~bedStructure(void);
-    bool buildBedStructure(bed&);
     void addIntervalToStructure(bedRecord&);
+    bool buildBedStructure(bed&);
+    void generateCommonInterval(bedRecord&, bedRecord&, int, int);
+    void initialiseBedMap(bed&, intFlags&);
     void resolveOverlaps(bedRecord&);
     void resolveOverlaps(bool);
-    void generateCommonInterval(bedRecord&, bedRecord&, int, int);
 
   public:
+    bool lastBedInterval;
+    unsigned int lastBedIntervalEnd;
     unsigned int recordsInMemory;
     map<int, bedRecord> bedMap;
     map<int, bedRecord>::iterator bmIter;
+    map<int, bedRecord>::iterator bmNext;
 };
 
 } // namespace vcfCTools

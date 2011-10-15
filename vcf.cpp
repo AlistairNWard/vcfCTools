@@ -99,7 +99,9 @@ bool vcf::getRecord() {
   // failed and position = 0.  In this case, terminate with an error.
   if (position == 0 || variantRecord.quality == 0) {
     if (position == 0) {cerr << "ERROR: Unable to process variant position (not an integer)." << endl;}
-    if (variantRecord.quality == 0 && recordFields[5] != "0") {cerr << "ERROR: Variant quality is not an integer or a floating point number." << endl;}
+    if (variantRecord.quality == 0 && recordFields[5] != "0" && recordFields[5] != ".") {
+      cerr << "ERROR: Variant quality is not an integer or a floating point number." << endl;
+    }
   }
 
 // Add the reference sequence to the map.  If it didn't previously

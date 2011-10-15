@@ -23,6 +23,32 @@ bedStructure::bedStructure(void) {
 // Destructor.
 bedStructure::~bedStructure(void) {};
 
+// Build up a new map containing the bed intervals.  Set the iterator to
+// the first interval and check if it overlaps with the following interval.
+void bedStructure::initialiseBedMap(bed& b, intFlags& flags) {
+  buildBedStructure(b);
+
+  // Set the pointers to the start of each variant map.  For intersection with
+  // a bed file, there is no need to work with the reduced allele structures,
+  // so the original variants structure is used.
+  bmIter = bedMap.begin();
+  bmNext = bedMap.begin();
+  if (bedMap.size() == 1) {lastBedInterval = true;}
+  else {bmNext++;}
+
+  // Check if the end position of the current interval is larger than the start
+  // position of the next interval in the structure.  If so, the intervals
+  // overlap and need to be split up.
+  if (!lastBedInterval) {
+    if (bmIter->second.end >= bmNext->first) {
+      resolveOverlaps(flags.annotate);
+      bmIter = bedMap.begin();
+      bmNext = bedMap.begin();
+      bmNext++;
+    }
+  }
+}
+
 // Build up a structure containing bed intervals and annotations.
 bool bedStructure::buildBedStructure(bed& b) {
   unsigned int count = 0;

@@ -296,7 +296,7 @@ int annotateTool::Run(int argc, char* argv[]) {
 
     // Open the bed file and parse the header.
     b.openBed(bedFile);
-    b.parseHeader();
+    b.parseHeader(bedFile);
 
     // Perform the annotation by intersecting the vcf file with the bed file.
     ints.intersectVcfBed(header, v, var, b, bs, ofile);

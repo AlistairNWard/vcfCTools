@@ -48,29 +48,25 @@ void bed::closeBed() {
 }
 
 // Parse the bed header.
-void bed::parseHeader() {
+void bed::parseHeader(string& bedFile) {
+  unsigned int numberHeaderLines = 0;
   string headerLine;
 
   success = getline(*input, headerLine);
   while (success && headerLine.substr(0, 1) == "#") {
     success = getline(*input, headerLine);
+    numberHeaderLines++;
   }
 
-// headerLine contains the first vcf record.  Process this record
-// in preparation for the tools.  Check that this line contains
-// data.  Empty files will have a blank line here.
-  if (headerLine != "") {
-    fromHeader = true;
-    record = headerLine;
-    success = getRecord();
-  }
+  // Close the bed file, reopen and parse through the header lines.
+  closeBed();
+  openBed(bedFile);
+  for (unsigned int i = 0; i < numberHeaderLines; i++) {success = getline(*input, headerLine);}
 }
 
 // Get the next record from the vcf file.
 bool bed::getRecord() {
-
-  if (fromHeader) {fromHeader = false;}
-  else {success = getline(*input, record);}
+  success = getline(*input, record);
 
 // Return false if no more records remain.
   if (!success) {return false;}

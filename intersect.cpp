@@ -183,7 +183,6 @@ void intersect::intersectVcf(vcfHeader& header1, vcfHeader& header2, vcf& v1, va
             if (var2.originalVariantsMap.size() != 0) {var2.ovmIter = var2.originalVariantsMap.begin();}
           }
         }
-
         // If all of the records in the variantMap are exhausted there is nothing else to
         // compare.  If there are still records that haven't been sent to the output, these
         // should be sent now.
@@ -239,57 +238,43 @@ void intersect::intersectVcf(vcfHeader& header1, vcfHeader& header2, vcf& v1, va
 // sequences are in the same order.  Do not group together variants
 // in common reference sequence.
 void intersect::intersectVcfBed(vcfHeader& header, vcf& v, variant& var, bed& b, bedStructure& bs, output& ofile) {
-  map<int, bedRecord>::iterator bmNext;
-  unsigned int lastBedIntervalEnd = 0;
-  unsigned int distanceToBed      = 0;
-  unsigned int leftDistance       = 0;
-  unsigned int rightDistance      = 0;
-  bool lastBedInterval            = false;
+  bs.lastBedIntervalEnd      = 0;
+  unsigned int distanceToBed = 0;
+  unsigned int leftDistance  = 0;
+  unsigned int rightDistance = 0;
 
-  // Build the variant structures for the vcf and bed files.
-  v.success = var.buildVariantStructure(v);
-  b.success = bs.buildBedStructure(b);
-
-  // Set the pointers to the start of each variant map.  For intersection with
-  // a bed file, there is no need to work with the reduced allele structures,
-  // so the original variants structure is used.
+  // Build the variant structure for the vcf file.
+  v.success   = v.getRecord();
+  v.success   = var.buildVariantStructure(v);
   var.ovmIter = var.originalVariantsMap.begin();
-  bs.bmIter   = bs.bedMap.begin();
-  bmNext      = bs.bedMap.begin();
-  if (bs.bedMap.size() == 1) {
-    lastBedInterval = true;
-  } else {
-    bmNext++;
-  }
 
-  // Check if the end position of the current interval is larger than the start
-  // position of the next interval in the structure.  If so, the intervals
-  // overlap and need to be split up.
-  if (!lastBedInterval) {
-    if (bs.bmIter->second.end >= bmNext->first) {
-      bs.resolveOverlaps(flags.annotate);
-      bs.bmIter  = bs.bedMap.begin();
-      bmNext     = bs.bedMap.begin();
-      bmNext++;
-    }
-  }
+  // Build the bed file structure and check if the first interval overlaps the
+  // next.  If so, the bed intervals need to be broken up into unique
+  // intervals.
+  bs.lastBedInterval = false;
+  b.success          = b.getRecord();
+  bs.initialiseBedMap(b, flags);
 
-  // Define the current reference sequence as that from the first entry in the
-  // variant map.
-  string currentReferenceSequence = var.ovmIter->second.begin()->referenceSequence;
+  // Perform the intersection by looping over all records in the vcf file.  Keep
+  // looping until this file is exhausted.  Within this loop, loop over each
+  // reference sequence individually.
+  while (v.success) {
 
-// Parse through the vcf file until it is finished and the variant structure is empty.
-  while (var.originalVariantsMap.size() != 0 || v.success) {
+    // Define the current reference sequence as that from the first entry in the
+    // variant map.
+    currentReferenceSequence = var.ovmIter->second.begin()->referenceSequence;
 
-    // Loop over all records at this locus.
-    var.ovIter = var.ovmIter->second.begin();
-    if (var.ovIter->referenceSequence == bs.bmIter->second.referenceSequence) {
+    // Loop over all records for this reference sequence.
+    while (var.ovmIter->second.begin()->referenceSequence == currentReferenceSequence) {
 
-      // Initialise flags that indicate whether to iterate the bed file
-      // or the vcf file.
-      bool iterateBed = false;
-      bool iterateVcf = false;
+      // Reset the iterateVcf and iterateBed flags.  Having compared all of the
+      // variants appearing at this position, this will determine whether the
+      // vcf file or the bed file should be iterated.
+      iterateBed = false;
+      iterateVcf = false;
 
+      // Loop over all variants at this locus.
+      var.ovIter = var.ovmIter->second.begin();
       for (; var.ovIter != var.ovmIter->second.end(); var.ovIter++) {
 
         // Consider each variant allele in turn and use the filtered vector to
@@ -327,34 +312,15 @@ void intersect::intersectVcfBed(vcfHeader& header, vcf& v, variant& var, bed& b,
           // ref and alt alleles are required to fall wholly within the bed
           // interval.
           if (beforeStart || (overlapStart && flags.whollyWithin)) {
-            leftDistance  = *posIter - lastBedIntervalEnd;
-            rightDistance = bedStart - *posIter;
-            if (lastBedIntervalEnd == 0) {
-              distanceToBed = rightDistance;
-            } else {
-              distanceToBed = (rightDistance > leftDistance) ? -1 * leftDistance : rightDistance;
-            }
-            distanceDist[currentReferenceSequence][distanceToBed]++;
-
-            // Mark this as a variant to be written out if variants unique to the
-            // vcf file (i.e. outside of the bed intervals) were requested.
-            *filtIter  = flags.findUnique ? false : true;
-            iterateVcf = true;
+            *filtIter = priorToInterval(flags);
 
           // Variant is beyond the bed interval.
           } else if (afterEnd || (overlapEnd && flags.whollyWithin)) {
-            if (lastBedInterval) {
-              distanceToBed = *posIter - bedEnd;
-              distanceDist[currentReferenceSequence][distanceToBed]++;
-            }
-            iterateBed = true;
+            beyondInterval();
 
           // Variant is within the bed interval
           } else if (within || ( (overlapStart || overlapEnd) && !flags.whollyWithin)) {
-            distanceToBed = 0;
-            distanceDist[currentReferenceSequence][distanceToBed]++;
-            *filtIter  = flags.findUnique ? true : false;
-            iterateVcf = true;
+            *filtIter = withinInterval(flags);
 
           // If the else statement is reached there is an error in the code.
           } else {
@@ -366,9 +332,6 @@ void intersect::intersectVcfBed(vcfHeader& header, vcf& v, variant& var, bed& b,
             exit(1);
           }
 
-          // If annotations are required, perform them here.
-          if (flags.annotate) {}
-
           // Iterate the remaining iterators.
           refIter++;
           altIter++;
@@ -377,77 +340,19 @@ void intersect::intersectVcfBed(vcfHeader& header, vcf& v, variant& var, bed& b,
         }
       }
 
-      // Iterate whichever file is necessary.  For example, if all variants were
-      // prior to the bed interval, the vcf file will be interated until an
-      // overlap with the bed file is found.
+      // Iterate the either the vcf or the bed file.
       if (iterateVcf) {
+        iterateVcfFile(header, v, var, ofile);
 
-        // Build the output record, removing unwanted alleles and modifying the
-        // genotypes if necessary and send to the output buffer.
-        var.buildOutputRecord(ofile, header);
-
-        // Update the originalVariants structure.
-        var.originalVariantsMap.erase(var.ovmIter);
-        if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
-          var.addVariantToStructure(v.position, v.variantRecord);
-          v.success = v.getRecord();
-        }
-        if (var.originalVariantsMap.size() != 0) {var.ovmIter = var.originalVariantsMap.begin();}
+        // If the variant structure is empty, either the vcf file has been completely
+        // parsed or all records for the particular reference sequence have been
+        // exhausted.  If this is the case, build the new variant structure for the
+        // new reference sequence and parse the bed file until this sequence is found.
+        if (var.originalVariantsMap.size() == 0 && v.success) {nextReferenceSequence(v, var, b, bs);}
 
       // Iterate the bed file.
       } else if (iterateBed) {
-        lastBedIntervalEnd = bs.bmIter->second.end;
-        bs.bedMap.erase(bs.bmIter);
-        if (b.bRecord.referenceSequence == currentReferenceSequence && b.success) {
-          bs.addIntervalToStructure(b.bRecord);
-          b.success = b.getRecord();
-        }
-        if (bs.bedMap.size() != 0) {
-          bs.bmIter = bs.bedMap.begin();
-
-          // This is the last bed interval if the size of the bed map is 1.
-          bmNext = bs.bedMap.begin();
-          if (bs.bedMap.size() == 1) {
-            lastBedInterval = true;
-          } else {
-            bmNext++;
-          }
-
-          // Check if the end position of the current interval is larger than the start
-          // position of the next interval in the structure.  If so, the intervals
-          // overlap and need to be split up.
-          if (!lastBedInterval) {
-            if (bs.bmIter->second.end >= bmNext->first) {
-              bs.resolveOverlaps(flags.annotate);
-              bs.bmIter = bs.bedMap.begin();
-              bmNext    = bs.bedMap.begin();
-              bmNext++;
-            }
-          }
-
-        // If the bed map is exhausted, clear out the variant map and move to the next
-        // reference sequence.
-        } else {
-
-          // If there are variants in the variant map, clear them out and set the current
-          // reference sequence to the next reference sequence in the vcf file.
-          if (var.originalVariantsMap.size() != 0) {
-            var.clearReferenceSequenceBed(header, v, flags, var.ovIter->referenceSequence, ofile);
-          }
-          v.success = var.buildVariantStructure(v);
-          if (var.originalVariantsMap.size() != 0) {var.ovmIter = var.originalVariantsMap.begin();}
-
-          lastBedInterval = false;
-
-          // Build the new bed structure.
-          if (b.success) {
-            b.success = bs.buildBedStructure(b);
-            if (bs.bedMap.size() != 0) {bs.bmIter = bs.bedMap.begin();}
-          }
-        }
-
-      // If neither requires iterating then something strange has happened and the
-      // code is not behaving as expected.
+        iterateBedFile(b, bs);
       } else {
         cerr << "ERROR: Neither the vcf or bed file are to be iterated." << endl;
         cerr << "This should not occur and indicates that an error exists" << endl;
@@ -455,14 +360,174 @@ void intersect::intersectVcfBed(vcfHeader& header, vcf& v, variant& var, bed& b,
         cerr << "Program terminated." << endl;
         exit(1);
       }
+
+      // Check if the bed file is exhausted.  If the vcf file is completely parsed, the
+      // program will naturally terminate, however, if the bed file has been exhausted,
+      // the loops will continue.  Thus, if the bed map is empty and there are no more
+      // intervals to be read in, finish parsing the vcf file without checking for
+      // intersection with bed intervals.  If only records falling within bed intervals
+      // are required, the program can terminate.
+      if (bs.bedMap.size() == 0) {
+
+        // The bed map is empty, but the bed file is not.  This means that all of the
+        // intervals for the current reference sequence have been parsed.  The
+        // remaining variants for this reference sequence can be processed since they
+        // cannot overlap an interval and the next reference sequence can be started.
+        if (b.success) {
+          var.clearReferenceSequenceBed(header, v, flags, currentReferenceSequence, ofile);
+          v.success   = var.buildVariantStructure(v);
+          var.ovmIter = var.originalVariantsMap.begin();
+          currentReferenceSequence = var.ovmIter->second.begin()->referenceSequence;
+          bs.lastBedInterval = false;
+          bs.initialiseBedMap(b, flags);
+
+        // The bed file is completely parsed, so clear out the remaining variants in the
+        // vcf file and terminate.
+        } else {
+          if (flags.findUnique || flags.annotate) {
+            var.clearOriginalVariants(header, flags, ofile, true);
+  
+          // No more intersections will be founda and annotations aren't being performed, 
+          // so no more records in the vcf file will be sent to the output so the loops 
+          // can terminate.
+          } else {
+            v.success = false;
+          }
+        }
+      }
     }
   }
 
-// If the variant structure is not empty, not all of the records were parsed.
+  // If the variant structure is not empty, not all of the records were parsed.
   if (var.variantMap.size() != 0) {cerr << "WARNING: Not all records were flushed out of the variant structure." << endl;}
 
   // Flush the output buffer.
   ofile.flushOutputBuffer();
+}
+
+// When comparing a vcf with a bed, deal with the variants that fall before a bed
+// interval.
+bool intersect::priorToInterval(intFlags& flags) {
+  // Update statistics on distance to the nearest bed interval.
+  //unsigned int leftDistance  = *posIter - lastBedIntervalEnd;
+  //unsigned int rightDistance = bedStart - *posIter;
+  //if (lastBedIntervalEnd == 0) {distanceToBed = rightDistance;}
+  //else {distanceToBed = (rightDistance > leftDistance) ? -1 * leftDistance : rightDistance;}
+  //distanceDist[currentReferenceSequence][distanceToBed]++;
+
+  // Mark this as a variant to be written out if variants unique to the
+  // vcf file (i.e. outside of the bed intervals) were requested.
+  bool filter  = flags.findUnique ? false : true;
+  iterateVcf = true;
+
+  return filter;
+}
+
+// When comparing a vcf with a bed, deal with the variants that fall after a bed
+// interval.
+void intersect::beyondInterval() {
+
+  // Update statistics on distance to the nearest bed interval.
+  //if (lastBedInterval) {
+  //  distanceToBed = *posIter - bedEnd;
+  //  distanceDist[currentReferenceSequence][distanceToBed]++;
+  //}
+  iterateBed = true;
+}
+
+// When comparing a vcf with a bed, deal with the variants that fall within a bed
+// interval.
+bool intersect::withinInterval(intFlags& flags) {
+
+  // Update statistics on distance to the nearest bed interval.
+  //distanceToBed = 0;
+  //distanceDist[currentReferenceSequence][distanceToBed]++;
+
+  // Mark this as a variant to be written out if variants intersectiong the
+  // vcf file (i.e. within the bed intervals) were requested.
+  bool filter  = flags.findUnique ? true : false;
+  iterateVcf = true;
+
+  return filter;
+}
+
+// After comparing all of the variants at a particular position, either
+// the vcf or the bed file needs to be moved on one more record and
+// relevant map entries can be erased.  Perform these tasks here.
+//
+// Begin with iterating the vcf file.
+void intersect::iterateVcfFile(vcfHeader& header, vcf& v, variant& var, output& ofile) {
+
+  // Build the output record, removing unwanted alleles and modifying the
+  // genotypes if necessary and send to the output buffer.
+  var.buildOutputRecord(ofile, header);
+
+  // Erase the parsed and compared variant.
+  var.originalVariantsMap.erase(var.ovmIter);
+
+  // Add the next variant record from the current reference sequence into the structure.
+  if (v.variantRecord.referenceSequence == currentReferenceSequence && v.success) {
+    var.addVariantToStructure(v.position, v.variantRecord);
+    v.success = v.getRecord();
+  }
+
+  // Set the iterator to the first element in the map.
+  var.ovmIter = var.originalVariantsMap.begin();
+}
+
+// Or iterate the bed file.
+void intersect::iterateBedFile(bed& b, bedStructure& bs) {
+  bs.lastBedIntervalEnd = bs.bmIter->second.end;
+
+  // Erase the last bed interval from the structure.
+  bs.bedMap.erase(bs.bmIter);
+
+  // Add the next bed interval from the current reference sequence into the structure.
+  if (b.bRecord.referenceSequence == currentReferenceSequence && b.success) {
+    bs.addIntervalToStructure(b.bRecord);
+    b.success = b.getRecord();
+  }
+
+  // Set the iterator to the first element in the map.
+  bs.bmIter = bs.bedMap.begin();
+
+  // Set the bsNext iterator to the next element in the map and determine if this is
+  // the last interval in the bed file for this reference sequence.
+  bs.bmNext = bs.bedMap.begin();
+  if (bs.bedMap.size() == 1) {bs.lastBedInterval = true;}
+  else if (bs.bedMap.size() != 0) {bs.bmNext++;}
+
+  // Check if the end position of the current interval is larger than the start
+  // position of the next interval in the structure.  If so, the intervals
+  // overlap and need to be split up.
+  if (!bs.lastBedInterval) {
+    if (bs.bmIter->second.end >= bs.bmNext->first) {
+      bs.resolveOverlaps(flags.annotate);
+      bs.bmIter = bs.bedMap.begin();
+      bs.bmNext = bs.bedMap.begin();
+      bs.bmNext++;
+    }
+  }
+}
+
+// Build the variant structure for the new reference sequence and move the bed
+// file on until it reaches this reference sequence.
+void intersect::nextReferenceSequence(vcf& v, variant& var, bed& b, bedStructure& bs) {
+  v.success                = var.buildVariantStructure(v);
+  var.ovmIter              = var.originalVariantsMap.begin();
+  currentReferenceSequence = var.ovmIter->second.begin()->referenceSequence;
+
+  // Clear the current bed map.
+  bs.bmIter  = bs.bedMap.begin();
+  for (; bs.bmIter != bs.bedMap.end(); bs.bmIter++) {bs.bedMap.erase(bs.bmIter);}
+
+  // Parse through the bed file until the current reference sequence is found (or
+  // the end of the bed file is reached).
+  while (b.bRecord.referenceSequence != currentReferenceSequence) {b.success = b.getRecord();}
+  if (b.success) {
+    bs.lastBedInterval = false;
+    bs.initialiseBedMap(b, flags);
+  }
 }
 
 // Check to see that records for all reference sequences were compared
