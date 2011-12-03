@@ -42,8 +42,8 @@ void output::flushToBuffer(int position, string& referenceSequence) {
       for (recordIter = obIter->second.begin(); recordIter != obIter->second.end(); recordIter++) {
         *outputStream << *recordIter << endl;
       }
-      outputBuffer.erase(obIter);
     }
+    outputBuffer.erase(outputBuffer.begin(), outputBuffer.end());
   }
 
   // If the output buffer contains more than 1000 entries, flush the
@@ -66,6 +66,6 @@ void output::flushOutputBuffer() {
     for (recordIter = obIter->second.begin(); recordIter != obIter->second.end(); recordIter++) {
       *outputStream << *recordIter << endl;
     }
-    outputBuffer.erase(obIter);
   }
+  outputBuffer.erase(outputBuffer.begin(), outputBuffer.end());
 }
